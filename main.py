@@ -7,7 +7,7 @@ def root():
     return {
         "service": "Uganda National Grid API",
         "status": "online",
-        "phase": 1
+        "phase": 2
     }
 
 @app.get("/health")
