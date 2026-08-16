@@ -69,3 +69,34 @@ TEST_RECORDS = [
 @app.get("/records")
 def records():
     return TEST_RECORDS
+import os
+import psycopg
+
+@app.get("/db-health")
+def db_health():
+    try:
+        database_url = os.environ.get("DATABASE_URL")
+
+        if not database_url:
+            return {
+                "status": "error",
+                "database": "not connected",
+                "message": "DATABASE_URL is missing"
+            }
+
+        with psycopg.connect(database_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1;")
+                result = cur.fetchone()
+
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "test": result[0]
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
