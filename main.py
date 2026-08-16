@@ -42,3 +42,30 @@ def address(grid_id: str):
             "longitude": 32.0
         }
     }
+TEST_RECORDS = [
+    {
+        "grid_id": "UG-101-045-018-000245",
+        "country": "UG",
+        "district": "Test District",
+        "subcounty": "Test Subcounty",
+        "parish": "Test Parish",
+        "building_id": "000245",
+        "latitude": 0.0,
+        "longitude": 32.0
+    },
+    {
+        "grid_id": "UG-101-045-018-000246",
+        "country": "UG",
+        "district": "Test District",
+        "subcounty": "Test Subcounty",
+        "parish": "Test Parish",
+        "building_id": "000246",
+        "latitude": 0.001,
+        "longitude": 32.001
+    }
+]
+
+
+@app.get("/records")
+def records():
+    return TEST_RECORDS
