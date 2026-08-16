@@ -13,3 +13,10 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+@app.get("/grid")
+def grid():
+    return {
+        "country": "UG",
+        "system": "Uganda National Grid",
+        "status": "ready"
+    }
