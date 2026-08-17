@@ -1,22 +1,12 @@
 from fastapi import FastAPI, UploadFile, File, Query
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-import json
 import os
+import json
 import psycopg2
-
 
 app = FastAPI(
     title="Uganda National Grid API",
     version="2.0"
-)
-
-
-# Serve frontend files
-app.mount(
-    "/static",
-    StaticFiles(directory="frontend"),
-    name="static"
 )
 
 
@@ -28,7 +18,9 @@ def get_connection():
 
 @app.get("/")
 def home():
-    return FileResponse("frontend/index.html")
+    return {
+        "message": "Uganda National Grid API is running"
+    }
 
 
 @app.get("/health")
@@ -48,13 +40,9 @@ def api_info():
 
 
 @app.post("/import")
-async def import_records(
-    file: UploadFile = File(...)
-):
+async def import_records(file: UploadFile = File(...)):
 
-    data = json.loads(
-        await file.read()
-    )
+    data = json.loads(await file.read())
 
     conn = get_connection()
     cur = conn.cursor()
@@ -62,7 +50,6 @@ async def import_records(
     count = 0
 
     for r in data:
-
         cur.execute(
             """
             INSERT INTO uganda_grid_records
@@ -80,9 +67,7 @@ async def import_records(
                 region
             )
             VALUES
-            (
-                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s
-            )
+            (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
             """,
             (
                 r.get("grid_id"),
@@ -101,11 +86,9 @@ async def import_records(
 
         count += 1
 
-
     conn.commit()
     cur.close()
     conn.close()
-
 
     return {
         "message": "Import complete",
@@ -113,11 +96,8 @@ async def import_records(
     }
 
 
-
 @app.get("/search")
-def search(
-    q: str = Query(...)
-):
+def search(q: str = Query(...)):
 
     conn = get_connection()
     cur = conn.cursor()
@@ -126,8 +106,7 @@ def search(
         """
         SELECT *
         FROM uganda_grid_records
-        WHERE
-        address ILIKE %s
+        WHERE address ILIKE %s
         OR street ILIKE %s
         OR city ILIKE %s
         LIMIT 100
