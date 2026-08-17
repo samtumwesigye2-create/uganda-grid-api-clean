@@ -1,11 +1,7 @@
 let map;
 let addresses = [];
-let marker;
-let userMarker;
-
-// -------------------------
-// CREATE MAP
-// -------------------------
+let marker = null;
+let userMarker = null;
 
 map = new maplibregl.Map({
     container: "map",
@@ -17,25 +13,21 @@ map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl());
 
 
-// -------------------------
-// LOAD DATABASE
-// -------------------------
+// Load Entebbe address database
 
 fetch("entebbe_database_import.csv")
 .then(response => response.text())
 .then(csv => {
 
-    let lines = csv.split(/\r?\n/);
+    const rows = csv.trim().split("\n");
 
-    let headers = lines[0]
+    const headers = rows[0]
         .split(",")
-        .map(x => x.trim());
+        .map(h => h.trim());
 
-    addresses = lines.slice(1)
-    .filter(x => x.trim() !== "")
-    .map(line => {
+    addresses = rows.slice(1).map(row => {
 
-        let values = line.split(",");
+        const values = row.split(",");
 
         let obj = {};
 
@@ -44,72 +36,85 @@ fetch("entebbe_database_import.csv")
         });
 
         return obj;
+
     });
 
 
-    let message = document.getElementById("message");
+    const message = document.getElementById("message");
 
     if(message){
         message.innerHTML =
         "Database loaded: " + addresses.length + " addresses";
     }
 
+
 })
 .catch(error=>{
-    console.log(error);
+
+    console.error(error);
+
 });
 
 
-// -------------------------
-// SEARCH ADDRESS
-// -------------------------
+// Search addresses
 
 function searchAddress(){
 
-    let input = document.getElementById("searchInput");
-
-    if(!input) return;
-
-
-    let query = input.value
-    .toLowerCase()
-    .trim();
+    const input =
+    document.getElementById("searchInput");
 
 
-    let result = addresses.find(item=>{
+    if(!input){
+        return;
+    }
 
-        return JSON.stringify(item)
+
+    const query =
+    input.value.toLowerCase().trim();
+
+
+    const result =
+    addresses.find(address=>{
+
+        return JSON.stringify(address)
         .toLowerCase()
         .includes(query);
 
     });
 
 
-    let resultsBox =
+    const results =
     document.getElementById("results");
 
 
     if(!result){
 
-        if(resultsBox)
-        resultsBox.innerHTML =
-        "Address not found";
+        if(results){
+            results.innerHTML =
+            "Address not found";
+        }
 
         return;
     }
 
 
-    let lat = Number(result.latitude);
-    let lng = Number(result.longitude);
+    const lat =
+    Number(result.latitude);
 
+
+    const lng =
+    Number(result.longitude);
 
 
     if(marker){
+
         marker.remove();
+
     }
 
 
-    marker = new maplibregl.Marker()
+    marker =
+    new maplibregl.Marker()
     .setLngLat([lng,lat])
     .addTo(map);
 
@@ -122,21 +127,15 @@ function searchAddress(){
     });
 
 
+    if(results){
 
-    if(resultsBox){
-
-        resultsBox.innerHTML = `
+        results.innerHTML = `
 
         <div class="result-card">
 
-        <h2>
-        ${result.address || "Address found"}
-        </h2>
-
-        <p>
-        Grid ID:
-        ${result.grid_id || ""}
-        </p>
+        <h3>
+        ${result.address}
+        </h3>
 
         <p>
         Building ID:
@@ -144,17 +143,12 @@ function searchAddress(){
         </p>
 
         <p>
-        Coordinates:
-        ${lat}, ${lng}
+        ZIP:
+        ${result.zip_code || ""}
         </p>
 
-
-        <button onclick="
-        startRoute(${lat},${lng})
-        ">
-
+        <button onclick="navigateToAddress(${lat},${lng})">
         🚗 Navigate Here
-
         </button>
 
         </div>
@@ -164,254 +158,3 @@ function searchAddress(){
     }
 
 }
-
-
-// -------------------------
-// START ROUTE
-// -------------------------
-
-function startRoute(destinationLat,destinationLng){
-
-
-navigator.geolocation.getCurrentPosition(
-
-(position)=>{
-
-
-let startLat =
-position.coords.latitude;
-
-
-let startLng =
-position.coords.longitude;
-
-
-
-let url =
-
-"https://router.project-osrm.org/route/v1/driving/" +
-
-startLng + "," +
-startLat +
-
-";" +
-
-destinationLng + "," +
-destinationLat +
-
-"?overview=full&geometries=geojson";
-
-
-
-fetch(url)
-
-.then(response=>response.json())
-
-.then(data=>{
-
-
-let route =
-data.routes[0].geometry;
-
-
-
-if(map.getSource("route")){
-
-map.removeLayer("route");
-
-map.removeSource("route");
-
-}
-
-
-
-map.addSource("route",{
-
-type:"geojson",
-
-data:{
-
-type:"Feature",
-
-geometry:route
-
-}
-
-});
-
-
-
-map.addLayer({
-
-id:"route",
-
-type:"line",
-
-source:"route",
-
-paint:{
-
-"line-width":5
-
-}
-
-});
-
-
-
-let distance =
-(data.routes[0].distance/1000)
-.toFixed(1);
-
-
-
-let routeMessage =
-document.getElementById("routeMessage");
-
-
-if(routeMessage){
-
-routeMessage.innerHTML =
-"Distance: "
-+ distance
-+ " km";
-
-}
-
-
-});
-
-
-},
-
-(error)=>{
-
-alert(
-"Please allow GPS location"
-);
-
-}
-
-);
-
-
-}
-
-
-// -------------------------
-// LIVE GPS
-// -------------------------
-
-function startNavigation(){
-
-
-navigator.geolocation.watchPosition(
-
-(position)=>{
-
-
-let lat =
-position.coords.latitude;
-
-
-let lng =
-position.coords.longitude;
-
-
-
-if(!userMarker){
-
-
-userMarker =
-new maplibregl.Marker({
-
-color:"#007AFF"
-
-})
-
-.setLngLat([lng,lat])
-
-.addTo(map);
-
-
-}
-
-else{
-
-
-userMarker.setLngLat(
-[lng,lat]
-);
-
-
-}
-
-
-
-},
-
-(error)=>{
-
-console.log(error);
-
-}
-
-);
-
-
-}
-
-
-
-// -------------------------
-// BUTTON CONNECTIONS
-// -------------------------
-
-window.searchAddress =
-searchAddress;
-
-
-window.startNavigation =
-startNavigation;
-
-
-window.startRoute =
-startRoute;
-
-
-
-document.addEventListener(
-"DOMContentLoaded",
-
-()=>{
-
-
-let button =
-document.getElementById("searchButton");
-
-
-if(button){
-
-button.onclick =
-searchAddress;
-
-}
-
-
-
-let nav =
-document.getElementById("navigationButton");
-
-
-if(nav){
-
-nav.onclick =
-startNavigation;
-
-}
-
-
-
-}
-
-);
