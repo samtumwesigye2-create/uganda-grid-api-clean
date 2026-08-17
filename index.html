@@ -77,21 +77,26 @@
       font-size: 14px;
     }
 
-    #result {
-      display: none;
+    #results {
       max-width: 700px;
       margin: 12px auto;
-      padding: 16px;
+    }
+
+    .result-card {
       background: white;
+      padding: 16px;
+      margin-bottom: 12px;
       border-radius: 10px;
       box-shadow: 0 2px 8px #0002;
+      cursor: pointer;
     }
 
-    #result h2 {
+    .result-card h2 {
       margin-top: 0;
+      font-size: 22px;
     }
 
-    #result p {
+    .result-card p {
       margin: 7px 0;
     }
 
@@ -128,16 +133,16 @@
 
 <header>
   <h1>Uganda National Address Finder</h1>
-  <p>Search Uganda by National Grid ID</p>
+  <p>Search by address, Grid ID, or Building ID</p>
 </header>
 
 <section class="search">
 
   <div class="search-box">
     <input
-      id="gridId"
+      id="searchInput"
       type="text"
-      placeholder="Example: UG-101-045-018-000245"
+      placeholder="Example: 245 Victoria Road or UG-101-045-018-000245"
       autocomplete="off"
     >
 
@@ -150,23 +155,7 @@
 
 </section>
 
-<section id="result">
-
-  <h2 id="address"></h2>
-
-  <p><strong>Grid ID:</strong> <span id="resultGrid"></span></p>
-
-  <p><strong>District:</strong> <span id="district"></span></p>
-
-  <p><strong>Subcounty:</strong> <span id="subcounty"></span></p>
-
-  <p><strong>Parish:</strong> <span id="parish"></span></p>
-
-  <p><strong>Building ID:</strong> <span id="building"></span></p>
-
-  <p><strong>Coordinates:</strong> <span id="coordinates"></span></p>
-
-</section>
+<div id="results"></div>
 
 <div id="map"></div>
 
@@ -183,12 +172,8 @@ const API =
 
 const map = new maplibregl.Map({
   container: "map",
-
-  style:
-    "https://tiles.openfreemap.org/styles/liberty",
-
+  style: "https://tiles.openfreemap.org/styles/liberty",
   center: [32.5825, 0.3476],
-
   zoom: 6
 });
 
@@ -198,122 +183,161 @@ map.addControl(
 
 let marker = null;
 
-async function findAddress() {
+function showLocation(data) {
+
+  const longitude = Number(data.longitude);
+  const latitude = Number(data.latitude);
+
+  if (
+    Number.isFinite(longitude) &&
+    Number.isFinite(latitude)
+  ) {
+
+    if (marker) {
+      marker.remove();
+    }
+
+    marker =
+      new maplibregl.Marker()
+        .setLngLat([
+          longitude,
+          latitude
+        ])
+        .addTo(map);
+
+    map.flyTo({
+      center: [
+        longitude,
+        latitude
+      ],
+      zoom: 16
+    });
+  }
+}
+
+function createResultCard(data) {
+
+  const card = document.createElement("div");
+  card.className = "result-card";
+
+  card.innerHTML = `
+    <h2>${data.address || "Address"}</h2>
+
+    <p>
+      <strong>Grid ID:</strong>
+      ${data.grid_id || ""}
+    </p>
+
+    <p>
+      <strong>District:</strong>
+      ${data.district_code || ""}
+    </p>
+
+    <p>
+      <strong>Subcounty:</strong>
+      ${data.subcounty_code || ""}
+    </p>
+
+    <p>
+      <strong>Parish:</strong>
+      ${data.parish_code || ""}
+    </p>
+
+    <p>
+      <strong>Building ID:</strong>
+      ${data.building_id || ""}
+    </p>
+
+    <p>
+      <strong>Coordinates:</strong>
+      ${data.latitude}, ${data.longitude}
+    </p>
+  `;
+
+  card.addEventListener(
+    "click",
+    function() {
+      showLocation(data);
+    }
+  );
+
+  return card;
+}
+
+async function searchAddress() {
 
   const input =
-    document.getElementById("gridId");
+    document.getElementById("searchInput");
 
   const message =
     document.getElementById("message");
 
-  const result =
-    document.getElementById("result");
+  const results =
+    document.getElementById("results");
 
-  const gridId =
+  const query =
     input.value.trim();
 
-  if (!gridId) {
+  if (!query) {
     message.textContent =
-      "Enter a National Grid ID.";
+      "Enter an address, Grid ID, or Building ID.";
     return;
   }
 
   message.textContent =
     "Searching...";
 
-  result.style.display =
-    "none";
+  results.innerHTML = "";
 
   try {
 
     const response =
       await fetch(
         API +
-        "/address/" +
-        encodeURIComponent(gridId)
+        "/search?q=" +
+        encodeURIComponent(query)
       );
 
     if (!response.ok) {
       throw new Error(
-        "Address not found"
+        "Search failed"
       );
     }
 
     const data =
       await response.json();
 
-    document.getElementById("address")
-      .textContent =
-      data.address || "Address";
-
-    document.getElementById("resultGrid")
-      .textContent =
-      data.grid_id || "";
-
-    document.getElementById("district")
-      .textContent =
-      data.district_code || "";
-
-    document.getElementById("subcounty")
-      .textContent =
-      data.subcounty_code || "";
-
-    document.getElementById("parish")
-      .textContent =
-      data.parish_code || "";
-
-    document.getElementById("building")
-      .textContent =
-      data.building_id || "";
-
-    document.getElementById("coordinates")
-      .textContent =
-      data.latitude +
-      ", " +
-      data.longitude;
-
-    result.style.display =
-      "block";
-
-    message.textContent =
-      "Address found.";
-
-    const longitude =
-      Number(data.longitude);
-
-    const latitude =
-      Number(data.latitude);
-
     if (
-      Number.isFinite(longitude) &&
-      Number.isFinite(latitude)
+      !Array.isArray(data) ||
+      data.length === 0
     ) {
 
-      if (marker) {
-        marker.remove();
-      }
+      message.textContent =
+        "No matching address found.";
 
-      marker =
-        new maplibregl.Marker()
-          .setLngLat([
-            longitude,
-            latitude
-          ])
-          .addTo(map);
-
-      map.flyTo({
-        center: [
-          longitude,
-          latitude
-        ],
-        zoom: 16
-      });
+      return;
     }
+
+    message.textContent =
+      data.length === 1
+        ? "1 address found."
+        : data.length + " addresses found.";
+
+    data.forEach(function(record) {
+
+      const card =
+        createResultCard(record);
+
+      results.appendChild(card);
+
+    });
+
+    showLocation(data[0]);
 
   } catch (error) {
 
     message.textContent =
-      "Address not found. Check the Grid ID and try again.";
+      "Search failed. Please try again.";
 
   }
 }
@@ -322,17 +346,19 @@ document
   .getElementById("searchButton")
   .addEventListener(
     "click",
-    findAddress
+    searchAddress
   );
 
 document
-  .getElementById("gridId")
+  .getElementById("searchInput")
   .addEventListener(
     "keydown",
     function(event) {
+
       if (event.key === "Enter") {
-        findAddress();
+        searchAddress();
       }
+
     }
   );
 
