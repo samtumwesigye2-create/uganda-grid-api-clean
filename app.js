@@ -3,8 +3,8 @@ const API =
 
 
 const map = L.map("map").setView(
-    [0.05,32.46],
-    13
+    [1.3733, 32.2903],
+    7
 );
 
 
@@ -17,91 +17,66 @@ L.tileLayer(
 
 
 
-let markers=[];
+async function searchAddress(){
+
+    let query =
+    document.getElementById("searchBox").value;
 
 
-
-function addBuilding(record){
-
-    let id = record[1];
-    let address = record[3];
-    let lat = record[10];
-    let lon = record[11];
+    let response =
+    await fetch(
+        `${API}/search?q=${query}`
+    );
 
 
-    if(lat && lon){
-
-        let marker = L.marker(
-            [lat,lon]
-        ).addTo(map);
+    let results =
+    await response.json();
 
 
-        marker.bindPopup(
+    console.log(results);
+
+
+    results.forEach(place=>{
+
+
+        let latitude =
+        place[12];
+
+
+        let longitude =
+        place[13];
+
+
+        L.marker(
+            [
+                latitude,
+                longitude
+            ]
+        )
+        .addTo(map)
+        .bindPopup(
         `
-        <b>${id}</b><br>
-        ${address}
+        <b>${place[1]}</b><br>
+        Address:<br>
+        ${place[3]}<br>
+        ZIP: ${place[8]}
         `
         );
 
 
-        markers.push(marker);
+    });
+
+
+    if(results.length > 0){
+
+        map.setView(
+            [
+                results[0][12],
+                results[0][13]
+            ],
+            16
+        );
+
     }
 
 }
-
-
-
-async function loadBuildings(){
-
-    let response =
-    await fetch(
-    API+"/search?q=Entebbe"
-    );
-
-
-    let data =
-    await response.json();
-
-
-    data.forEach(addBuilding);
-
-
-}
-
-
-
-loadBuildings();
-
-
-
-document
-.getElementById("search")
-.addEventListener(
-"change",
-async function(){
-
-    let q=this.value;
-
-
-    let response =
-    await fetch(
-    API+"/search?q="+q
-    );
-
-
-    let data =
-    await response.json();
-
-
-    markers.forEach(
-        m=>map.removeLayer(m)
-    );
-
-
-    markers=[];
-
-
-    data.forEach(addBuilding);
-
-
-});
