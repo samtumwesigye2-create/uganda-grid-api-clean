@@ -1,1226 +1,192 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Uganda National Address Finder</title>
+<meta charset="UTF-8">
 
-  <link
-    href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
-    rel="stylesheet"
-  >
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <style>
-    * {
-      box-sizing: border-box;
-    }
+<title>
+Uganda National Address Finder
+</title>
 
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f4f6f8;
-      color: #172033;
-    }
 
-    header {
-      background: #111827;
-      color: white;
-      padding: 22px 18px;
-      text-align: center;
-    }
+<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
 
-    header h1 {
-      margin: 0;
-      font-size: 25px;
-    }
 
-    header p {
-      margin: 7px 0 0;
-      opacity: 0.8;
-    }
+<style>
 
-    .panel {
-      background: white;
-      padding: 18px;
-      border-bottom: 1px solid #ddd;
-    }
+body {
 
-    .container {
-      max-width: 760px;
-      margin: auto;
-    }
+    margin:0;
+    font-family:Arial, sans-serif;
+    background:#f4f6f8;
 
-    h2 {
-      margin-top: 0;
-    }
+}
 
-    input {
-      width: 100%;
-      padding: 14px;
-      margin-bottom: 10px;
-      border: 1px solid #bbb;
-      border-radius: 8px;
-      font-size: 16px;
-    }
 
-    button {
-      width: 100%;
-      border: 0;
-      border-radius: 8px;
-      padding: 14px 18px;
-      background: #146c43;
-      color: white;
-      font-size: 16px;
-      font-weight: bold;
-      margin-bottom: 8px;
-    }
+header {
 
-    button.secondary {
-      background: #374151;
-    }
+    background:#101827;
+    color:white;
+    text-align:center;
+    padding:25px;
 
-    .tabs {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
+}
 
-    .tabs button {
-      width: 50%;
-    }
 
-    #searchPanel,
-    #navigationPanel {
-      display: none;
-    }
+h1 {
 
-    #searchPanel.active,
-    #navigationPanel.active {
-      display: block;
-    }
+    margin:0;
+    font-size:32px;
 
-    #message,
-    #routeMessage {
-      margin-top: 8px;
-      font-size: 14px;
-    }
+}
 
-    .result-card,
-    .route-card {
-      background: white;
-      padding: 16px;
-      margin: 12px auto;
-      max-width: 760px;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px #0002;
-    }
 
-    .result-card h2 {
-      margin-top: 0;
-      font-size: 22px;
-    }
+.subtitle {
 
-    .result-card p,
-    .route-card p {
-      margin: 7px 0;
-    }
+    margin-top:10px;
+    font-size:18px;
 
-    #map {
-      width: 100%;
-      height: 55vh;
-      min-height: 430px;
-    }
+}
 
-    #directions {
-      max-width: 760px;
-      margin: 12px auto;
-      padding: 0 12px;
-    }
 
-    .direction-step {
-      background: white;
-      padding: 12px;
-      margin-bottom: 8px;
-      border-radius: 8px;
-      box-shadow: 0 1px 4px #0002;
-    }
+.container {
 
-    .footer {
-      text-align: center;
-      padding: 14px;
-      font-size: 12px;
-      color: #666;
-    }
+    padding:20px;
 
-    @media (max-width: 600px) {
-      #map {
-        height: 50vh;
-      }
-    }
-  </style>
+}
+
+
+button {
+
+    width:100%;
+    padding:18px;
+    margin:8px 0;
+    border:none;
+    border-radius:12px;
+    font-size:20px;
+    font-weight:bold;
+    background:#117a45;
+    color:white;
+
+}
+
+
+input {
+
+    width:100%;
+    box-sizing:border-box;
+    padding:18px;
+    font-size:20px;
+    border-radius:12px;
+    border:2px solid #ccc;
+
+}
+
+
+#status {
+
+    padding:15px;
+    font-size:18px;
+
+}
+
+
+#result {
+
+    background:white;
+    padding:20px;
+    border-radius:15px;
+    margin-top:15px;
+    font-size:18px;
+
+}
+
+
+#map {
+
+    width:100%;
+    height:500px;
+    margin-top:15px;
+
+}
+
+
+</style>
+
+
 </head>
+
+
 
 <body>
 
+
 <header>
-  <h1>Uganda National Address Finder</h1>
-  <p>Search addresses and navigate between buildings</p>
+
+<h1>
+Uganda National Address Finder
+</h1>
+
+<div class="subtitle">
+Search addresses and navigate between buildings
+</div>
+
 </header>
 
-<section class="panel">
-  <div class="container">
 
-    <div class="tabs">
-      <button id="searchTab">
-        Find Address
-      </button>
 
-      <button
-        id="navigationTab"
-        class="secondary"
-      >
-        Navigate
-      </button>
-    </div>
+<div class="container">
 
-    <div id="searchPanel" class="active">
 
-      <input
-        id="searchInput"
-        type="text"
-        placeholder="Address, Grid ID, or Building ID"
-        autocomplete="off"
-      >
+<input 
+id="addressInput"
+placeholder="Enter Building ID or Address"
+/>
 
-      <button id="searchButton">
-        Find Address
-      </button>
 
-      <div id="message"></div>
+<button id="searchButton">
+Find Address
+</button>
 
-    </div>
 
-    <div id="navigationPanel">
+<button id="navigateButton">
+🚗 Navigate Here
+</button>
 
-      <input
-        id="fromInput"
-        type="text"
-        placeholder="From address"
-        autocomplete="off"
-      >
 
-      <button
-        id="myLocationButton"
-        class="secondary"
-      >
-        Use My Location
-      </button>
+<div id="status">
+Loading database...
+</div>
 
-      <input
-        id="toInput"
-        type="text"
-        placeholder="Destination address"
-        autocomplete="off"
-      >
 
-      <button id="routeButton">
-        Find Route
-      </button>
 
-      <div id="routeMessage"></div>
+<div id="result"></div>
 
-    </div>
 
-  </div>
-</section>
-
-<div id="results"></div>
-
-<div id="routeInfo"></div>
 
 <div id="map"></div>
 
-<div id="directions"></div>
 
-<div class="footer">
-  Uganda National Grid — Digital Address & Navigation System
 </div>
 
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 
-<script>
 
-const API =
-  "https://uganda-grid-api-clean-production.up.railway.app";
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
 
-const ROUTER =
-  "https://router.project-osrm.org";
 
-const map = new maplibregl.Map({
-  container: "map",
-  style:
-    "https://tiles.openfreemap.org/styles/liberty",
-  center: [32.5825, 0.3476],
-  zoom: 7
-});
+<script src="app.js"></script>
 
-map.addControl(
-  new maplibregl.NavigationControl()
-);
-
-let searchMarker = null;
-let startMarker = null;
-let endMarker = null;
- let currentLocation = null;
-
-let navigationMode = false;
-let userMarker = null;
-let gpsWatch = null; 
-
-let currentLocation = null;
-
-
-/* -------------------------
-   TAB CONTROLS
-------------------------- */
-
-function showSearchTab() {
-
-  document
-    .getElementById("searchPanel")
-    .classList.add("active");
-
-  document
-    .getElementById("navigationPanel")
-    .classList.remove("active");
-
-}
-
-function showNavigationTab() {
-
-  document
-    .getElementById("navigationPanel")
-    .classList.add("active");
-
-  document
-    .getElementById("searchPanel")
-    .classList.remove("active");
-
-}
-
-document
-  .getElementById("searchTab")
-  .addEventListener(
-    "click",
-    showSearchTab
-  );
-
-document
-  .getElementById("navigationTab")
-  .addEventListener(
-    "click",
-    showNavigationTab
-  );
-
-
-/* -------------------------
-   ADDRESS SEARCH
-------------------------- */
-
-async function searchDatabase(query) {
-
-  const response =
-    await fetch(
-      API +
-      "/search?q=" +
-      encodeURIComponent(query)
-    );
-
-  if (!response.ok) {
-    throw new Error(
-      "Address search failed"
-    );
-  }
-
-  const data =
-    await response.json();
-
-  return data;
-
-}
-
-
-function showSearchLocation(data) {
-
-  const longitude =
-    Number(data.longitude);
-
-  const latitude =
-    Number(data.latitude);
-
-  if (
-    !Number.isFinite(longitude) ||
-    !Number.isFinite(latitude)
-  ) {
-    return;
-  }
-
-  if (searchMarker) {
-    searchMarker.remove();
-  }
-
-  searchMarker =
-    new maplibregl.Marker()
-      .setLngLat([
-        longitude,
-        latitude
-      ])
-      .addTo(map);
-
-  map.flyTo({
-    center: [
-      longitude,
-      latitude
-    ],
-    zoom: 16
-  });
-
-}
-
-
-function createResultCard(data) {
-
-  const card =
-    document.createElement("div");
-
-  card.className =
-    "result-card";
-
-  card.innerHTML = `
-    <h2>
-      ${data.address || "Address"}
-    </h2>
-
-    <p>
-      <strong>Grid ID:</strong>
-      ${data.grid_id || ""}
-    </p>
-
-    <p>
-      <strong>District:</strong>
-      ${data.district_code || ""}
-    </p>
-
-    <p>
-      <strong>Subcounty:</strong>
-      ${data.subcounty_code || ""}
-    </p>
-
-    <p>
-      <strong>Parish:</strong>
-      ${data.parish_code || ""}
-    </p>
-
-    <p>
-      <strong>Building ID:</strong>
-      ${data.building_id || ""}
-    </p>
-
-    <p>
-      <strong>Coordinates:</strong>
-      ${data.latitude},
-      ${data.longitude}
-    </p>
-  `;
-
-  card.addEventListener(
-    "click",
-    function() {
-      showSearchLocation(data);
-    }
-  );
-
-  return card;
-
-}
-
-
-async function searchAddress() {
-
-  const input =
-    document.getElementById(
-      "searchInput"
-    );
-
-  const message =
-    document.getElementById(
-      "message"
-    );
-
-  const results =
-    document.getElementById(
-      "results"
-    );
-
-  const query =
-    input.value.trim();
-
-  if (!query) {
-
-    message.textContent =
-      "Enter an address.";
-
-    return;
-
-  }
-
-  message.textContent =
-    "Searching...";
-
-  results.innerHTML = "";
-
-  try {
-
-    const data =
-      await searchDatabase(query);
-
-    if (
-      !Array.isArray(data) ||
-      data.length === 0
-    ) {
-
-      message.textContent =
-        "No matching address found.";
-
-      return;
-
-    }
-
-    message.textContent =
-      data.length === 1
-        ? "1 address found."
-        : data.length +
-          " addresses found.";
-
-    data.forEach(
-      function(record) {
-
-        results.appendChild(
-          createResultCard(
-            record
-          )
-        );
-
-      }
-    );
-
-    showSearchLocation(
-      data[0]
-    );
-
-  } catch (error) {
-
-    message.textContent =
-      "Search failed. Please try again.";
-
-  }
-
-}
-
-document
-  .getElementById(
-    "searchButton"
-  )
-  .addEventListener(
-    "click",
-    searchAddress
-  );
-
-
-/* -------------------------
-   USE MY LOCATION
-------------------------- */
-
-function useMyLocation() {
-
-  const message =
-    document.getElementById(
-      "routeMessage"
-    );
-
-  if (!navigator.geolocation) {
-
-    message.textContent =
-      "Location is not supported on this device.";
-
-    return;
-
-  }
-
-  message.textContent =
-    "Getting your location...";
-
-  navigator.geolocation
-    .getCurrentPosition(
-
-      function(position) {
-
-        currentLocation = {
-          latitude:
-            position.coords.latitude,
-
-          longitude:
-            position.coords.longitude
-        };
-
-        document
-          .getElementById(
-            "fromInput"
-          )
-          .value =
-          "My Location";
-
-        message.textContent =
-          "Current location ready.";
-
-        if (startMarker) {
-          startMarker.remove();
-        }
-
-        startMarker =
-          new maplibregl.Marker()
-            .setLngLat([
-              currentLocation.longitude,
-              currentLocation.latitude
-            ])
-            .addTo(map);
-
-        map.flyTo({
-          center: [
-            currentLocation.longitude,
-            currentLocation.latitude
-          ],
-          zoom: 15
-        });
-
-      },
-
-      function() {
-
-        message.textContent =
-          "Unable to access your location.";
-
-      },
-
-      {
-        enableHighAccuracy: true,
-        timeout: 10000
-      }
-
-    );
-
-}
-
-document
-  .getElementById(
-    "myLocationButton"
-  )
-  .addEventListener(
-    "click",
-    useMyLocation
-  );
-
-
-/* -------------------------
-   ROUTE HELPERS
-------------------------- */
-
-async function resolveLocation(
-  text,
-  allowMyLocation
-) {
-
-  const query =
-    text.trim();
-
-  if (
-    allowMyLocation &&
-    query === "My Location" &&
-    currentLocation
-  ) {
-
-    return {
-      address:
-        "My Location",
-
-      latitude:
-        currentLocation.latitude,
-
-      longitude:
-        currentLocation.longitude
-    };
-
-  }
-
-  const matches =
-    await searchDatabase(query);
-
-  if (
-    !Array.isArray(matches) ||
-    matches.length === 0
-  ) {
-
-    throw new Error(
-      "Address not found: " +
-      query
-    );
-
-  }
-
-  return matches[0];
-
-}
-
-
-function formatDistance(
-  meters
-) {
-
-  if (meters < 1000) {
-
-    return (
-      Math.round(meters) +
-      " m"
-    );
-
-  }
-
-  return (
-    (meters / 1000)
-      .toFixed(1) +
-    " km"
-  );
-
-}
-
-
-function formatDuration(
-  seconds
-) {
-
-  const minutes =
-    Math.round(
-      seconds / 60
-    );
-
-  if (minutes < 60) {
-
-    return (
-      minutes +
-      " min"
-    );
-
-  }
-
-  const hours =
-    Math.floor(
-      minutes / 60
-    );
-
-  const remaining =
-    minutes % 60;
-
-  return (
-    hours +
-    " hr " +
-    remaining +
-    " min"
-  );
-
-}
-
-
-/* -------------------------
-   DRAW ROUTE
-------------------------- */
-
-function drawRoute(
-  geometry
-) {
-
-  const sourceData = {
-    type:
-      "Feature",
-
-    geometry:
-      geometry
-  };
-
-  if (
-    map.getSource(
-      "route"
-    )
-  ) {
-
-    map
-      .getSource(
-        "route"
-      )
-      .setData(
-        sourceData
-      );
-
-  } else {
-
-    map.addSource(
-      "route",
-      {
-        type:
-          "geojson",
-
-        data:
-          sourceData
-      }
-    );
-
-    map.addLayer({
-      id:
-        "route-line",
-
-      type:
-        "line",
-
-      source:
-        "route",
-
-      layout: {
-        "line-join":
-          "round",
-
-        "line-cap":
-          "round"
-      },
-
-      paint: {
-        "line-width":
-          6
-      }
-    });
-
-  }
-
-}
-
-
-/* -------------------------
-   TURN DIRECTIONS
-------------------------- */
-
-function showDirections(
-  route
-) {
-
-  const directions =
-    document.getElementById(
-      "directions"
-    );
-
-  directions.innerHTML = "";
-
-  if (
-    !route.legs ||
-    !route.legs[0] ||
-    !route.legs[0].steps
-  ) {
-    return;
-  }
-
-  const steps =
-    route.legs[0].steps;
-
-  steps.forEach(
-    function(step, index) {
-
-      const item =
-        document.createElement(
-          "div"
-        );
-
-      item.className =
-        "direction-step";
-
-      const maneuver =
-        step.maneuver || {};
-
-      const road =
-        step.name ||
-        "Unnamed road";
-
-      item.innerHTML = `
-        <strong>
-          ${index + 1}.
-          ${
-            maneuver.instruction ||
-            maneuver.type ||
-            "Continue"
-          }
-        </strong>
-
-        <br>
-
-        ${road}
-
-        <br>
-
-        ${formatDistance(
-          step.distance
-        )}
-      `;
-
-      directions
-        .appendChild(
-          item
-        );
-
-    }
-  );
-
-}
-
-
-/* -------------------------
-   FIND ROUTE
-------------------------- */
-
-async function findRoute() {
-
-  const fromText =
-    document
-      .getElementById(
-        "fromInput"
-      )
-      .value;
-
-  const toText =
-    document
-      .getElementById(
-        "toInput"
-      )
-      .value;
-
-  const message =
-    document.getElementById(
-      "routeMessage"
-    );
-
-  const routeInfo =
-    document.getElementById(
-      "routeInfo"
-    );
-
-  const directions =
-    document.getElementById(
-      "directions"
-    );
-
-  routeInfo.innerHTML = "";
-  directions.innerHTML = "";
-
-  if (
-    !fromText.trim() ||
-    !toText.trim()
-  ) {
-
-    message.textContent =
-      "Enter both starting and destination addresses.";
-
-    return;
-
-  }
-
-  message.textContent =
-    "Finding route...";
-
-  try {
-
-    const start =
-      await resolveLocation(
-        fromText,
-        true
-      );
-
-    const end =
-      await resolveLocation(
-        toText,
-        false
-      );
-
-    const startLng =
-      Number(
-        start.longitude
-      );
-
-    const startLat =
-      Number(
-        start.latitude
-      );
-
-    const endLng =
-      Number(
-        end.longitude
-      );
-
-    const endLat =
-      Number(
-        end.latitude
-      );
-
-    const routeURL =
-      ROUTER +
-      "/route/v1/driving/" +
-      startLng +
-      "," +
-      startLat +
-      ";" +
-      endLng +
-      "," +
-      endLat +
-      "?overview=full" +
-      "&geometries=geojson" +
-      "&steps=true";
-
-    const response =
-      await fetch(
-        routeURL
-      );
-
-    if (!response.ok) {
-
-      throw new Error(
-        "Routing service failed"
-      );
-
-    }
-
-    const data =
-      await response.json();
-
-    if (
-      !data.routes ||
-      data.routes.length === 0
-    ) {
-
-      throw new Error(
-        "No road route found"
-      );
-
-    }
-
-    const route =
-      data.routes[0];
-
-    if (startMarker) {
-      startMarker.remove();
-    }
-
-    if (endMarker) {
-      endMarker.remove();
-    }
-
-    startMarker =
-      new maplibregl.Marker()
-        .setLngLat([
-          startLng,
-          startLat
-        ])
-        .addTo(map);
-
-    endMarker =
-      new maplibregl.Marker()
-        .setLngLat([
-          endLng,
-          endLat
-        ])
-        .addTo(map);
-
-    drawRoute(
-      route.geometry
-    );
-
-    const bounds =
-      new maplibregl
-        .LngLatBounds();
-
-    route.geometry
-      .coordinates
-      .forEach(
-        function(coord) {
-
-          bounds.extend(
-            coord
-          );
-
-        }
-      );
-
-    map.fitBounds(
-      bounds,
-      {
-        padding: 50
-      }
-    );
-
-    routeInfo.innerHTML = `
-      <div class="route-card">
-
-        <h2>
-          Route
-        </h2>
-
-        <p>
-          <strong>From:</strong>
-          ${
-            start.address ||
-            fromText
-          }
-        </p>
-
-        <p>
-          <strong>To:</strong>
-          ${
-            end.address ||
-            toText
-          }
-        </p>
-
-        <p>
-          <strong>Distance:</strong>
-          ${formatDistance(
-            route.distance
-          )}
-        </p>
-
-        <p>
-          <strong>Estimated time:</strong>
-          ${formatDuration(
-            route.duration
-          )}
-        </p>
-
-      </div>
-    `;
-
-    showDirections(
-      route
-    );
-
-    message.textContent =
-      "Route found.";
-
-  } catch (error) {
-
-    console.error(
-      error
-    );
-
-    message.textContent =
-      "Route could not be calculated. Check both addresses and try again.";
-
-  }
-
-}
-
-document
-  .getElementById(
-    "routeButton"
-  )
-  .addEventListener(
-    "click",
-    findRoute
-  );
-
-
-/* -------------------------
-   ENTER KEY SUPPORT
-------------------------- */
-
-document
-  .getElementById(
-    "searchInput"
-  )
-  .addEventListener(
-    "keydown",
-    function(event) {
-
-      if (
-        event.key === "Enter"
-      ) {
-
-        searchAddress();
-
-      }
-
-    }
-  );
-
-document
-  .getElementById(
-    "toInput"
-  )
-  .addEventListener(
-    "keydown",
-    function(event) {
-
-      if (
-        event.key === "Enter"
-      ) {
-
-        findRoute();
-
-      }
-
-    }
-  );
-function startNavigation() {
-
-  if (!navigator.geolocation) {
-    alert("GPS not supported");
-    return;
-  }
-
-  gpsWatch = navigator.geolocation.watchPosition(
-    function(position) {
-
-      const lat = position.coords.latitude;
-      const lng = position.coords.longitude;
-
-      currentLocation = {
-        latitude: lat,
-        longitude: lng
-      };
-
-      if (!userMarker) {
-        userMarker = new maplibregl.Marker({
-          color: "#007AFF"
-        })
-        .setLngLat([lng, lat])
-        .addTo(map);
-
-      } else {
-        userMarker.setLngLat([lng, lat]);
-      }
-
-      map.easeTo({
-        center: [lng, lat],
-        zoom: 16
-      });
-
-    }
-  );
-
-}
-</script><script src="app.js"></script>
 
 </body>
+
+
 </html>
+      data.length === 0
+    ) { === 0
+    ) {
+
+      throw new Error(
+        "No road 
