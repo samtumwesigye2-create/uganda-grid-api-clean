@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Uganda National Address Finder</title>
+
+  <link
+    href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css"
+    rel="stylesheet"
+  >
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      color: #172033;
+    }
+
+    header {
+      background: #111827;
+      color: white;
+      padding: 22px 18px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 25px;
+    }
+
+    header p {
+      margin: 7px 0 0;
+      opacity: 0.8;
+    }
+
+    .search {
+      background: white;
+      padding: 18px;
+    }
+
+    .search-box {
+      display: flex;
+      gap: 8px;
+      max-width: 700px;
+      margin: auto;
+    }
+
+    input {
+      flex: 1;
+      min-width: 0;
+      padding: 14px;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 14px 18px;
+      background: #146c43;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    #message {
+      max-width: 700px;
+      margin: 10px auto 0;
+      font-size: 14px;
+    }
+
+    #result {
+      display: none;
+      max-width: 700px;
+      margin: 12px auto;
+      padding: 16px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px #0002;
+    }
+
+    #result h2 {
+      margin-top: 0;
+    }
+
+    #result p {
+      margin: 7px 0;
+    }
+
+    #map {
+      width: 100%;
+      height: 55vh;
+      min-height: 400px;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 14px;
+      font-size: 12px;
+      color: #666;
+    }
+
+    @media (max-width: 600px) {
+      .search-box {
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      #map {
+        height: 50vh;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>Uganda National Address Finder</h1>
+  <p>Search Uganda by National Grid ID</p>
+</header>
+
+<section class="search">
+
+  <div class="search-box">
+    <input
+      id="gridId"
+      type="text"
+      placeholder="Example: UG-101-045-018-000245"
+      autocomplete="off"
+    >
+
+    <button id="searchButton">
+      Find Address
+    </button>
+  </div>
+
+  <div id="message"></div>
+
+</section>
+
+<section id="result">
+
+  <h2 id="address"></h2>
+
+  <p><strong>Grid ID:</strong> <span id="resultGrid"></span></p>
+
+  <p><strong>District:</strong> <span id="district"></span></p>
+
+  <p><strong>Subcounty:</strong> <span id="subcounty"></span></p>
+
+  <p><strong>Parish:</strong> <span id="parish"></span></p>
+
+  <p><strong>Building ID:</strong> <span id="building"></span></p>
+
+  <p><strong>Coordinates:</strong> <span id="coordinates"></span></p>
+
+</section>
+
+<div id="map"></div>
+
+<div class="footer">
+  Uganda National Grid — Addressing System
+</div>
+
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+<script>
+
+const API =
+  "https://uganda-grid-api-clean-production.up.railway.app";
+
+const map = new maplibregl.Map({
+  container: "map",
+
+  style:
+    "https://tiles.openfreemap.org/styles/liberty",
+
+  center: [32.5825, 0.3476],
+
+  zoom: 6
+});
+
+map.addControl(
+  new maplibregl.NavigationControl()
+);
+
+let marker = null;
+
+async function findAddress() {
+
+  const input =
+    document.getElementById("gridId");
+
+  const message =
+    document.getElementById("message");
+
+  const result =
+    document.getElementById("result");
+
+  const gridId =
+    input.value.trim();
+
+  if (!gridId) {
+    message.textContent =
+      "Enter a National Grid ID.";
+    return;
+  }
+
+  message.textContent =
+    "Searching...";
+
+  result.style.display =
+    "none";
+
+  try {
+
+    const response =
+      await fetch(
+        API +
+        "/address/" +
+        encodeURIComponent(gridId)
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        "Address not found"
+      );
+    }
+
+    const data =
+      await response.json();
+
+    document.getElementById("address")
+      .textContent =
+      data.address || "Address";
+
+    document.getElementById("resultGrid")
+      .textContent =
+      data.grid_id || "";
+
+    document.getElementById("district")
+      .textContent =
+      data.district_code || "";
+
+    document.getElementById("subcounty")
+      .textContent =
+      data.subcounty_code || "";
+
+    document.getElementById("parish")
+      .textContent =
+      data.parish_code || "";
+
+    document.getElementById("building")
+      .textContent =
+      data.building_id || "";
+
+    document.getElementById("coordinates")
+      .textContent =
+      data.latitude +
+      ", " +
+      data.longitude;
+
+    result.style.display =
+      "block";
+
+    message.textContent =
+      "Address found.";
+
+    const longitude =
+      Number(data.longitude);
+
+    const latitude =
+      Number(data.latitude);
+
+    if (
+      Number.isFinite(longitude) &&
+      Number.isFinite(latitude)
+    ) {
+
+      if (marker) {
+        marker.remove();
+      }
+
+      marker =
+        new maplibregl.Marker()
+          .setLngLat([
+            longitude,
+            latitude
+          ])
+          .addTo(map);
+
+      map.flyTo({
+        center: [
+          longitude,
+          latitude
+        ],
+        zoom: 16
+      });
+    }
+
+  } catch (error) {
+
+    message.textContent =
+      "Address not found. Check the Grid ID and try again.";
+
+  }
+}
+
+document
+  .getElementById("searchButton")
+  .addEventListener(
+    "click",
+    findAddress
+  );
+
+document
+  .getElementById("gridId")
+  .addEventListener(
+    "keydown",
+    function(event) {
+      if (event.key === "Enter") {
+        findAddress();
+      }
+    }
+  );
+
+</script>
+
+</body>
+</html>
