@@ -34,7 +34,8 @@ fetch("entebbe_database_import.csv")
 
     });
 
-    console.log("Loaded addresses:", addresses.length);
+console.log("Loaded addresses:", addresses.length);
+console.log(addresses[0]););
 
 })
 .catch(error=>{
