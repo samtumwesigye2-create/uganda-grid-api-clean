@@ -1,7 +1,9 @@
 let map;
 let addresses = [];
-let selectedLocation = null;
+let marker;
 
+
+// MAP
 map = new maplibregl.Map({
     container: "map",
     style: "https://demotiles.maplibre.org/style.json",
@@ -12,103 +14,171 @@ map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl());
 
 
-// Load Uganda address database
+// LOAD DATABASE
 fetch("entebbe_database_import.csv")
 .then(response => response.text())
 .then(csv => {
 
-    const rows = csv.trim().split("\n");
-    const headers = rows[0].split(",");
+    const lines = csv.trim().split("\n");
 
-    addresses = rows.slice(1).map(row => {
+    const headers = lines[0]
+        .split(",")
+        .map(h => h.trim());
 
-        const values = row.split(",");
 
-        let item = {};
+    addresses = lines.slice(1).map(line => {
 
-        headers.forEach((header, index)=>{
-            item[header.trim()] = values[index];
+        const values = line.split(",");
+
+        let obj = {};
+
+        headers.forEach((header,index)=>{
+            obj[header] = values[index];
         });
 
-        return item;
+        return obj;
 
     });
 
-console.log("Loaded addresses:", addresses.length);
-console.log(addresses[0]););
+
+    console.log(
+        "DATABASE LOADED:",
+        addresses.length,
+        "records"
+    );
 
 })
-.catch(error=>{
-    console.error("CSV loading error:", error);
+.catch(error => {
+
+    alert("Database failed to load");
+
+    console.error(error);
+
 });
 
 
-// Search button
-document.querySelector("#findAddress")
-.addEventListener("click", ()=>{
 
-    const input = document.querySelector("#addressInput")
-    .value
-    .toLowerCase()
-    .trim();
+// SEARCH
+function searchAddress(){
 
 
-    const result = addresses.find(item=>{
+    let query = document
+        .getElementById("addressInput")
+        .value
+        .toLowerCase()
+        .trim();
 
-        return Object.values(item)
+
+
+    if(!query){
+
+        alert("Enter an address");
+
+        return;
+    }
+
+
+
+    let result = addresses.find(record=>{
+
+
+        return Object.values(record)
         .join(" ")
         .toLowerCase()
-        .includes(input);
+        .includes(query);
+
 
     });
+
 
 
     if(!result){
 
-        alert("Address not found");
+        alert(
+          "Address not found"
+        );
+
         return;
 
     }
 
 
-    console.log(result);
+
+    let latitude =
+        Number(result.latitude);
 
 
-    let lat =
-    result.lat ||
-    result.latitude ||
-    result.Latitude;
+
+    let longitude =
+        Number(result.longitude);
 
 
-    let lng =
-    result.lng ||
-    result.longitude ||
-    result.Longitude;
 
+    if(
+        isNaN(latitude) ||
+        isNaN(longitude)
+    ){
 
-    if(!lat || !lng){
+        alert(
+        "Address found but coordinates missing"
+        );
 
-        alert("Address found but coordinates missing");
         return;
 
     }
 
 
-    selectedLocation = [
-        Number(lng),
-        Number(lat)
-    ];
+
+    if(marker){
+
+        marker.remove();
+
+    }
 
 
-    map.flyTo({
-        center:selectedLocation,
-        zoom:18
-    });
 
-
-    new maplibregl.Marker()
-    .setLngLat(selectedLocation)
+    marker = new maplibregl.Marker()
+    .setLngLat([
+        longitude,
+        latitude
+    ])
     .addTo(map);
 
 
-});
+
+    map.flyTo({
+
+        center:[
+            longitude,
+            latitude
+        ],
+
+        zoom:18
+
+    });
+
+
+
+    alert(
+
+        "FOUND:\n\n" +
+        (result.address || "") +
+        "\n\nBuilding ID: " +
+        (result.building_id || "") +
+        "\n\nGrid ID: " +
+        (result.grid_id || "")
+
+    );
+
+}
+
+
+
+// BUTTON CONNECTION
+
+document
+.getElementById("findAddress")
+.addEventListener(
+    "click",
+    searchAddress
+);
