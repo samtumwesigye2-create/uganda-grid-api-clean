@@ -1,217 +1,113 @@
-let addresses = [];
-
-fetch("entebbe_database_import.csv")
-  .then(response => response.text())
-  .then(csv => {
-      console.log("Address database loaded");
-      console.log(csv.slice(0,500));
-  })
-  .catch(error => {
-      console.error("Database loading failed:", error);
-  });
-// Uganda National Address Finder
-// Clean frontend version
-
 let map;
-let marker = null;
-let currentLocation = null;
+let addresses = [];
+let selectedLocation = null;
 
-const API =
-  "https://uganda-grid-api-clean-production.up.railway.app";
-
-function initMap() {
-
-  map = new maplibregl.Map({
+map = new maplibregl.Map({
     container: "map",
-    style:
-      "https://demotiles.maplibre.org/style.json",
-    center: [32.4216234, 0.1491144],
-    zoom: 16
-  });
+    style: "https://demotiles.maplibre.org/style.json",
+    center: [32.46, 0.05],
+    zoom: 12
+});
 
-  map.addControl(
-    new maplibregl.NavigationControl()
-  );
-}
+map.addControl(new maplibregl.NavigationControl());
 
 
-async function searchAddress(){
+// Load Uganda address database
+fetch("entebbe_database_import.csv")
+.then(response => response.text())
+.then(csv => {
 
-  const query =
-    document.getElementById("searchInput").value.trim();
+    const rows = csv.trim().split("\n");
+    const headers = rows[0].split(",");
 
-  if(!query){
-    alert("Enter Grid ID or address");
-    return;
-  }
+    addresses = rows.slice(1).map(row => {
+
+        const values = row.split(",");
+
+        let item = {};
+
+        headers.forEach((header, index)=>{
+            item[header.trim()] = values[index];
+        });
+
+        return item;
+
+    });
+
+    console.log("Loaded addresses:", addresses.length);
+
+})
+.catch(error=>{
+    console.error("CSV loading error:", error);
+});
 
 
-  try {
+// Search button
+document.querySelector("#findAddress")
+.addEventListener("click", ()=>{
 
-    const response =
-      await fetch(
-        `${API}/address/${query}`
-      );
+    const input = document.querySelector("#addressInput")
+    .value
+    .toLowerCase()
+    .trim();
 
 
-    if(!response.ok){
-      throw new Error("Address not found");
+    const result = addresses.find(item=>{
+
+        return Object.values(item)
+        .join(" ")
+        .toLowerCase()
+        .includes(input);
+
+    });
+
+
+    if(!result){
+
+        alert("Address not found");
+        return;
+
     }
 
 
-    const data =
-      await response.json();
+    console.log(result);
 
 
-    currentLocation = data;
+    let lat =
+    result.lat ||
+    result.latitude ||
+    result.Latitude;
 
 
-    showResult(data);
+    let lng =
+    result.lng ||
+    result.longitude ||
+    result.Longitude;
 
-    showMarker(
-      Number(data.longitude),
-      Number(data.latitude)
-    );
 
+    if(!lat || !lng){
 
-  } catch(error){
+        alert("Address found but coordinates missing");
+        return;
 
-    alert(error.message);
+    }
 
-  }
 
-}
+    selectedLocation = [
+        Number(lng),
+        Number(lat)
+    ];
 
 
+    map.flyTo({
+        center:selectedLocation,
+        zoom:18
+    });
 
-function showResult(record){
 
- const results =
- document.getElementById("results");
-
-
- results.innerHTML = `
-
- <div class="result-card">
-
- <h2>
- ${record.address}
- </h2>
-
- <p>
- <b>Grid ID:</b>
- ${record.grid_id}
- </p>
-
-
- <p>
- <b>Building ID:</b>
- ${record.building_id}
- </p>
-
-
- <p>
- <b>Coordinates:</b>
- ${record.latitude},
- ${record.longitude}
- </p>
-
-
- <button id="navigateButton">
- 🚗 Navigate Here
- </button>
-
-
- </div>
-
- `;
-
-
- document
- .getElementById("navigateButton")
- .onclick = function(){
-
-    openNavigation(
-      record.latitude,
-      record.longitude
-    );
-
- };
-
-
-}
-
-
-
-function showMarker(lng,lat){
-
- if(marker){
-
-   marker
-   .setLngLat([lng,lat]);
-
- }
- else{
-
- marker =
- new maplibregl.Marker()
- .setLngLat([lng,lat])
- .addTo(map);
-
- }
-
-
- map.flyTo({
-
- center:[lng,lat],
- zoom:18
-
- });
-
-
-}
-
-
-
-function openNavigation(lat,lng){
-
- const url =
- `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
-
-
- window.open(url,"_blank");
-
-}
-
-
-
-document.addEventListener(
-"DOMContentLoaded",
-()=>{
-
-
- initMap();
-
-
- document
- .getElementById("searchButton")
- .addEventListener(
- "click",
- searchAddress
- );
-
-
- document
- .getElementById("searchInput")
- .addEventListener(
- "keydown",
- function(e){
-
- if(e.key==="Enter"){
- searchAddress();
- }
-
- });
+    new maplibregl.Marker()
+    .setLngLat(selectedLocation)
+    .addTo(map);
 
 
 });
