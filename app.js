@@ -1,185 +1,352 @@
-// Uganda National Address Finder - Navigation Engine
+const API =
+  "https://uganda-grid-api-clean-production.up.railway.app";
+
+const ROUTER =
+  "https://router.project-osrm.org";
 
 let map;
-let routeLayer = null;
+let marker = null;
+let routeSource = null;
 
-const ROUTER = "https://router.project-osrm.org";
 
 function initMap() {
+
   map = new maplibregl.Map({
     container: "map",
-    style: "https://demotiles.maplibre.org/style.json",
+    style: "https://tiles.openfreemap.org/styles/liberty",
     center: [32.4216, 0.1491],
     zoom: 13
   });
 
-  map.addControl(new maplibregl.NavigationControl());
-}
+  map.addControl(
+    new maplibregl.NavigationControl()
+  );
 
-async function geocodeAddress(address) {
-  const url =
-    "https://nominatim.openstreetmap.org/search?format=json&q=" +
-    encodeURIComponent(address + ", Uganda");
-
-  const response = await fetch(url);
-  const data = await response.json();
-
-  if (!data.length) {
-    throw new Error("Address not found");
-  }
-
-  return {
-    longitude: Number(data[0].lon),
-    latitude: Number(data[0].lat)
-  };
 }
 
 
-async function findRoute() {
+async function searchUgandaAddress(query) {
 
-  const from =
-    document.getElementById("fromInput").value;
+  const response = await fetch(
+    API +
+    "/search?q=" +
+    encodeURIComponent(query)
+  );
 
-  const to =
-    document.getElementById("toInput").value;
-
-
-  if (!from || !to) {
-    alert("Enter both addresses");
-    return;
+  if (!response.ok) {
+    throw new Error("Search failed");
   }
+
+  return await response.json();
+
+}
+
+
+function showLocation(record) {
+
+  const lng =
+    Number(record.longitude);
+
+  const lat =
+    Number(record.latitude);
+
+
+  if (marker) {
+    marker.remove();
+  }
+
+
+  marker =
+    new maplibregl.Marker()
+      .setLngLat([
+        lng,
+        lat
+      ])
+      .addTo(map);
+
+
+  map.flyTo({
+
+    center: [
+      lng,
+      lat
+    ],
+
+    zoom: 19,
+
+    duration: 1500
+
+  });
+
+
+}
+
+
+function displayResult(record) {
+
+  const results =
+    document.getElementById("results");
+
+
+  results.innerHTML = `
+
+  <div class="result-card">
+
+    <h2>
+      ${record.address}
+    </h2>
+
+    <p>
+      Grid ID:
+      ${record.grid_id}
+    </p>
+
+    <p>
+      Building ID:
+      ${record.building_id}
+    </p>
+
+    <p>
+      Coordinates:
+      ${record.latitude},
+      ${record.longitude}
+    </p>
+
+    <button id="navigateButton">
+      🚗 Navigate Here
+    </button>
+
+  </div>
+
+  `;
+
+
+  document
+    .getElementById("navigateButton")
+    .onclick = function(){
+
+      document.getElementById(
+        "toInput"
+      ).value =
+        record.address;
+
+    };
+
+
+  showLocation(record);
+
+}
+
+
+
+async function findAddress(){
+
+  const input =
+    document.getElementById(
+      "searchInput"
+    );
+
+
+  const message =
+    document.getElementById(
+      "message"
+    );
 
 
   try {
 
-    async function geocodeAddress(address) {
+    message.innerHTML =
+      "Searching...";
 
-  const api =
-    "https://uganda-grid-api-clean-production.up.railway.app/address/" +
-    encodeURIComponent(address);
 
-  const response = await fetch(api);
+    const data =
+      await searchUgandaAddress(
+        input.value
+      );
 
-  if (response.ok) {
-    const data = await response.json();
 
-    return {
-      longitude: Number(data.longitude),
-      latitude: Number(data.latitude),
-      address: data.address
-    };
+    if(
+      data.length === 0
+    ){
+
+      message.innerHTML =
+        "No address found";
+
+      return;
+
+    }
+
+
+    displayResult(
+      data[0]
+    );
+
+
+    message.innerHTML =
+      "Address found";
+
+
   }
 
+  catch(error){
 
-  // fallback to OpenStreetMap
-  const url =
-    "https://nominatim.openstreetmap.org/search?format=json&q=" +
-    encodeURIComponent(address + ", Uganda");
+    console.error(error);
 
-  const osmResponse = await fetch(url);
-  const osmData = await osmResponse.json();
+    message.innerHTML =
+      "Search failed";
 
-  if (!osmData.length) {
-    throw new Error("Address not found");
   }
 
-  return {
-    longitude: Number(osmData[0].lon),
-    latitude: Number(osmData[0].lat),
-    address: osmData[0].display_name
-  };
 }
-    
+
+
+
+async function findRoute(){
+
+  const from =
+    document.getElementById(
+      "fromInput"
+    ).value;
+
+
+  const to =
+    document.getElementById(
+      "toInput"
+    ).value;
+
+
+  try {
+
+
+    const startResults =
+      await searchUgandaAddress(
+        from
+      );
+
+
+    const endResults =
+      await searchUgandaAddress(
+        to
+      );
+
+
+    const start =
+      startResults[0];
+
+
+    const end =
+      endResults[0];
 
 
     const url =
       ROUTER +
       "/route/v1/driving/" +
+
       start.longitude +
       "," +
       start.latitude +
+
       ";" +
+
       end.longitude +
       "," +
       end.latitude +
-      "?overview=full&geometries=geojson&steps=true";
+
+      "?overview=full&geometries=geojson";
 
 
-    const response = await fetch(url);
-    const data = await response.json();
+    const response =
+      await fetch(url);
 
 
-    if (!data.routes.length) {
-      alert("No driving route found");
-      return;
-    }
+    const data =
+      await response.json();
 
 
-    const route = data.routes[0];
+    const route =
+      data.routes[0];
 
 
-    if (routeLayer) {
+    if(
+      map.getSource("route")
+    ){
+
       map.removeLayer("route");
+
       map.removeSource("route");
+
     }
 
 
-    map.addSource("route", {
-      type: "geojson",
-      data: {
-        type: "Feature",
-        geometry: route.geometry
+    map.addSource(
+      "route",
+      {
+
+        type:"geojson",
+
+        data:{
+
+          type:"Feature",
+
+          geometry:
+            route.geometry
+
+        }
+
       }
-    });
-
-
-    map.addLayer({
-      id: "route",
-      type: "line",
-      source: "route",
-      paint: {
-        "line-width": 5
-      }
-    });
-
-
-    map.fitBounds(
-      [
-        [start.longitude, start.latitude],
-        [end.longitude, end.latitude]
-      ],
-      {padding:50}
     );
 
 
-    document.getElementById("routeInfo").innerHTML =
-      `
-      <h3>Driving Route</h3>
-      <p>
-      Distance:
-      ${(route.distance / 1000).toFixed(2)}
-      km
-      </p>
+    map.addLayer({
 
-      <p>
-      Time:
-      ${(route.duration / 60).toFixed(0)}
-      minutes
-      </p>
-      `;
+      id:"route",
+
+      type:"line",
+
+      source:"route",
+
+      paint:{
+
+        "line-width":6
+
+      }
+
+    });
 
 
-  } catch(error){
+    document.getElementById(
+      "routeInfo"
+    ).innerHTML = `
+
+    <h3>Driving Route</h3>
+
+    Distance:
+    ${(route.distance/1000).toFixed(2)}
+    km
+
+    <br>
+
+    Time:
+    ${(route.duration/60).toFixed(0)}
+    minutes
+
+    `;
+
+
+  }
+
+  catch(error){
 
     console.error(error);
 
     alert(
-      "Navigation error. Check addresses."
+      "Route failed"
     );
 
   }
 
 }
+
 
 
 document.addEventListener(
@@ -188,14 +355,33 @@ function(){
 
   initMap();
 
-  const button =
-    document.getElementById("routeButton");
 
-  if(button){
-    button.addEventListener(
-      "click",
-      findRoute
+  const searchButton =
+    document.getElementById(
+      "searchButton"
     );
+
+
+  if(searchButton){
+
+    searchButton.onclick =
+      findAddress;
+
   }
+
+
+  const routeButton =
+    document.getElementById(
+      "routeButton"
+    );
+
+
+  if(routeButton){
+
+    routeButton.onclick =
+      findRoute;
+
+  }
+
 
 });
