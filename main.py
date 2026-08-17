@@ -203,3 +203,55 @@ def import_records(records: list[dict]):
         "status": "import complete",
         "records": len(records)
     }
+
+@app.post("/import")
+def import_records(records: list[dict]):
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    for r in records:
+        cur.execute("""
+        INSERT INTO uganda_grid_records
+        (
+            grid_id,
+            building_id,
+            address,
+            street,
+            house_number,
+            district,
+            sub_county,
+            parish,
+            zip_code,
+            latitude,
+            longitude
+        )
+        VALUES
+        (
+            %(grid_id)s,
+            %(building_id)s,
+            %(address)s,
+            %(street)s,
+            %(house_number)s,
+            %(district)s,
+            %(sub_county)s,
+            %(parish)s,
+            %(zip_code)s,
+            %(latitude)s,
+            %(longitude)s
+        )
+        ON CONFLICT (grid_id)
+        DO UPDATE SET
+            address = EXCLUDED.address,
+            latitude = EXCLUDED.latitude,
+            longitude = EXCLUDED.longitude;
+        """, r)
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {
+        "status": "import complete",
+        "records": len(records)
+    }
