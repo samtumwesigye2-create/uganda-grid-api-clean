@@ -359,11 +359,25 @@ async function findRoute(){
 
 
 
-document.addEventListener(
-"DOMContentLoaded",
-function(){
+document.addEventListener("DOMContentLoaded", () => {
 
   initMap();
+
+  document
+    .getElementById("searchButton")
+    ?.addEventListener(
+      "click",
+      findAddress
+    );
+
+  document
+    .getElementById("routeButton")
+    ?.addEventListener(
+      "click",
+      findRoute
+    );
+
+});
 
 
   const searchButton =
