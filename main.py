@@ -30,7 +30,7 @@ def get_connection():
 
 @app.get("/")
 def home():
-    return FileResponse("index.html")
+    return FileResponse("frontend/index.html")")
 
 
 
