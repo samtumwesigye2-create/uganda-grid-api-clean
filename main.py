@@ -1,16 +1,59 @@
-from fastapi import UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Query
+from fastapi.middleware.cors import CORSMiddleware
+import psycopg
 import json
+import os
+
+app = FastAPI(
+    title="Uganda National Grid API",
+    version="2.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+
+def get_connection():
+    return psycopg.connect(DATABASE_URL)
+
+
+@app.get("/")
+def root():
+    return {
+        "service": "Uganda National Grid API",
+        "status": "online",
+        "version": "2.0"
+    }
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "healthy"
+    }
+
 
 @app.post("/import")
 async def import_records(file: UploadFile = File(...)):
-    contents = await file.read()
 
-    records = json.loads(contents)
+    data = await file.read()
+
+    records = json.loads(data)
 
     conn = get_connection()
     cur = conn.cursor()
 
+    count = 0
+
     for r in records:
+
         cur.execute(
             """
             INSERT INTO uganda_grid_records
@@ -41,113 +84,66 @@ async def import_records(file: UploadFile = File(...)):
                 %(city)s,
                 %(region)s
             )
+            ON CONFLICT (building_id)
+            DO NOTHING
             """,
             r
         )
 
+        count += 1
+
+
     conn.commit()
     cur.close()
     conn.close()
+
 
     return {
         "status": "success",
-        "imported": len(records)
+        "imported": count
     }
 
-app = FastAPI(
-    title="Uganda National Grid API",
-    version="2.0.0"
-)
-
-DATABASE_URL = os.environ.get("DATABASE_URL")
-
-
-def get_connection():
-    if not DATABASE_URL:
-        raise Exception("DATABASE_URL missing")
-    
-    return psycopg.connect(
-        DATABASE_URL,
-        row_factory=dict_row
-    )
-
-
-def create_tables():
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS uganda_grid_records (
-        id SERIAL PRIMARY KEY,
-        grid_id TEXT UNIQUE,
-        building_id TEXT,
-        address TEXT,
-        street TEXT,
-        house_number TEXT,
-        district TEXT,
-        sub_county TEXT,
-        parish TEXT,
-        zip_code TEXT,
-        latitude DOUBLE PRECISION,
-        longitude DOUBLE PRECISION
-    );
-    """)
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-
-@app.on_event("startup")
-def startup():
-    create_tables()
-
-
-@app.get("/")
-def root():
-    return {
-        "service": "Uganda National Grid API",
-        "status": "online",
-        "version": "2.0"
-    }
-
-
-@app.get("/health")
-def health():
-    return {
-        "status": "healthy"
-    }
 
 
 @app.get("/search")
-def search(q: str):
+def search(q: str = Query(...)):
 
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute("""
+    cur.execute(
+        """
         SELECT *
         FROM uganda_grid_records
         WHERE
-            address ILIKE %s
-            OR street ILIKE %s
-            OR building_id ILIKE %s
-            OR grid_id ILIKE %s
-        LIMIT 50;
-    """,
-    (
-        f"%{q}%",
-        f"%{q}%",
-        f"%{q}%",
-        f"%{q}%"
-    ))
+        address ILIKE %s
+        OR building_id ILIKE %s
+        OR grid_id ILIKE %s
+        LIMIT 50
+        """,
+        (
+            f"%{q}%",
+            f"%{q}%",
+            f"%{q}%"
+        )
+    )
 
-    results = cur.fetchall()
+    rows = cur.fetchall()
+
+    columns = [
+        desc[0]
+        for desc in cur.description
+    ]
 
     cur.close()
     conn.close()
 
-    return results
+
+    return [
+        dict(zip(columns,row))
+        for row in rows
+    ]
+
 
 
 @app.get("/address/{grid_id}")
@@ -156,25 +152,22 @@ def get_address(grid_id: str):
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute("""
+    cur.execute(
+        """
         SELECT *
         FROM uganda_grid_records
-        WHERE grid_id=%s;
-    """,
-    (grid_id,))
+        WHERE grid_id=%s
+        """,
+        (grid_id,)
+    )
 
-    result = cur.fetchone()
+    row = cur.fetchone()
 
     cur.close()
     conn.close()
 
-    if not result:
-        raise HTTPException(
-            status_code=404,
-            detail="Address not found"
-        )
+    return row
 
-    return result
 
 
 @app.get("/building/{building_id}")
@@ -183,126 +176,18 @@ def get_building(building_id: str):
     conn = get_connection()
     cur = conn.cursor()
 
-    cur.execute("""
+    cur.execute(
+        """
         SELECT *
         FROM uganda_grid_records
-        WHERE building_id=%s;
-    """,
-    (building_id,))
+        WHERE building_id=%s
+        """,
+        (building_id,)
+    )
 
-    result = cur.fetchone()
+    row = cur.fetchone()
 
     cur.close()
     conn.close()
 
-    if not result:
-        raise HTTPException(
-            status_code=404,
-            detail="Building not found"
-        )
-
-    return result
-
-@app.post("/import")
-def import_records(records: list[dict]):
-
-    conn = get_connection()
-    cur = conn.cursor()
-
-    for r in records:
-        cur.execute("""
-        INSERT INTO uganda_grid_records
-        (
-            grid_id,
-            building_id,
-            address,
-            street,
-            house_number,
-            district,
-            sub_county,
-            parish,
-            zip_code,
-            latitude,
-            longitude
-        )
-        VALUES
-        (
-            %(grid_id)s,
-            %(building_id)s,
-            %(address)s,
-            %(street)s,
-            %(house_number)s,
-            %(district)s,
-            %(sub_county)s,
-            %(parish)s,
-            %(zip_code)s,
-            %(latitude)s,
-            %(longitude)s
-        )
-        ON CONFLICT (grid_id)
-        DO UPDATE SET
-            address = EXCLUDED.address,
-            latitude = EXCLUDED.latitude,
-            longitude = EXCLUDED.longitude;
-        """, r)
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return {
-        "status": "import complete",
-        "records": len(records)
-    }
-
-@app.post("/import")
-def import_records(records: list[dict]):
-
-    conn = get_connection()
-    cur = conn.cursor()
-
-    for r in records:
-        cur.execute("""
-        INSERT INTO uganda_grid_records
-        (
-            grid_id,
-            building_id,
-            address,
-            street,
-            house_number,
-            district,
-            sub_county,
-            parish,
-            zip_code,
-            latitude,
-            longitude
-        )
-        VALUES
-        (
-            %(grid_id)s,
-            %(building_id)s,
-            %(address)s,
-            %(street)s,
-            %(house_number)s,
-            %(district)s,
-            %(sub_county)s,
-            %(parish)s,
-            %(zip_code)s,
-            %(latitude)s,
-            %(longitude)s
-        )
-        ON CONFLICT (grid_id)
-        DO UPDATE SET
-            address = EXCLUDED.address,
-            latitude = EXCLUDED.latitude,
-            longitude = EXCLUDED.longitude;
-        """, r)
-
-    conn.commit()
-    cur.close()
-    conn.close()
-
-    return {
-        "status": "import complete",
-        "records": len(records)
-    }
+    return row
