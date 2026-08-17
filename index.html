@@ -1,186 +1,45 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html>
 <head>
-
-<meta charset="UTF-8">
+<title>Uganda National Grid Map</title>
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>
-Uganda National Address Finder
-</title>
-
-
-<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
-
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 
 <style>
-
 body {
-
     margin:0;
-    font-family:Arial, sans-serif;
-    background:#f4f6f8;
-
+    font-family:Arial;
 }
 
-
-header {
-
-    background:#101827;
-    color:white;
-    text-align:center;
-    padding:25px;
-
+#search {
+    position:absolute;
+    top:10px;
+    left:50px;
+    z-index:1000;
+    padding:10px;
+    width:250px;
 }
-
-
-h1 {
-
-    margin:0;
-    font-size:32px;
-
-}
-
-
-.subtitle {
-
-    margin-top:10px;
-    font-size:18px;
-
-}
-
-
-.container {
-
-    padding:20px;
-
-}
-
-
-button {
-
-    width:100%;
-    padding:18px;
-    margin:8px 0;
-    border:none;
-    border-radius:12px;
-    font-size:20px;
-    font-weight:bold;
-    background:#117a45;
-    color:white;
-
-}
-
-
-input {
-
-    width:100%;
-    box-sizing:border-box;
-    padding:18px;
-    font-size:20px;
-    border-radius:12px;
-    border:2px solid #ccc;
-
-}
-
-
-#status {
-
-    padding:15px;
-    font-size:18px;
-
-}
-
-
-#result {
-
-    background:white;
-    padding:20px;
-    border-radius:15px;
-    margin-top:15px;
-    font-size:18px;
-
-}
-
 
 #map {
-
+    height:100vh;
     width:100%;
-    height:500px;
-    margin-top:15px;
-
 }
-
-
 </style>
-
 
 </head>
 
-
-
 <body>
 
-
-<header>
-
-<h1>
-Uganda National Address Finder
-</h1>
-
-<div class="subtitle">
-Search addresses and navigate between buildings
-</div>
-
-</header>
-
-
-
-<div class="container">
-
-
-<input 
-id="addressInput"
-placeholder="Enter Building ID or Address"
-/>
-
-
-<button id="searchButton">
-Find Address
-</button>
-
-
-<button id="navigateButton">
-🚗 Navigate Here
-</button>
-
-
-<div id="status">
-Ready
-</div>>
-
-
-
-<div id="result"></div>
-
-
+<input id="search" placeholder="Search address..." />
 
 <div id="map"></div>
 
 
-</div>
-
-
-
-<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-
-
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="app.js"></script>
 
 
 </body>
-
-
 </html>
