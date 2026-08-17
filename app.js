@@ -1,3 +1,9 @@
+// =====================================
+// Uganda National Address Finder
+// Complete app.js
+// =====================================
+
+
 let map;
 
 let addresses = [];
@@ -12,9 +18,9 @@ let destinationMarker = null;
 
 
 
-// -------------------------
+// =====================================
 // START MAP
-// -------------------------
+// =====================================
 
 map = new maplibregl.Map({
 
@@ -24,9 +30,12 @@ map = new maplibregl.Map({
     "https://demotiles.maplibre.org/style.json",
 
     center:
-    [32.45, 0.05],
+    [
+        32.45,
+        0.05
+    ],
 
-    zoom: 12
+    zoom:12
 
 });
 
@@ -37,405 +46,497 @@ map.addControl(
 
 
 
+// =====================================
+// LOAD CSV DATABASE
+// =====================================
 
-// -------------------------
-// LOAD DATABASE
-// -------------------------
+async function loadDatabase(){
 
-fetch("./entebbe_database_import.csv")
-
-.then(response => {
-
-
-    if(!response.ok){
-
-        throw new Error(
-        "CSV not found"
-        );
-
-    }
+try{
 
 
-    return response.text();
-
-
-})
-
-
-.then(csv => {
-
-
-    addresses = parseCSV(csv);
+document.getElementById("status").innerHTML =
+"Loading 27,829 addresses...";
 
 
 
-    document.getElementById("status").innerHTML =
-
-    "Database loaded: "
-
-    +
-
-    addresses.length
-
-    +
-
-    " addresses";
+const response =
+await fetch(
+"./entebbe_database_import.csv?v=2"
+);
 
 
-    console.log(
-    "Loaded",
-    addresses.length,
-    "addresses"
-    );
+
+if(!response.ok){
+
+throw new Error(
+"CSV not found: "
++
+response.status
+);
+
+}
 
 
-})
+
+const csv =
+await response.text();
 
 
-.catch(error => {
+
+console.log(
+"CSV size:",
+csv.length
+);
 
 
-    console.log(error);
+
+addresses =
+parseCSV(csv);
 
 
-    document.getElementById("status").innerHTML =
 
-    "Database loading failed";
+document.getElementById("status").innerHTML =
+
+"Database loaded: "
+
++
+
+addresses.length
+
++
+
+" addresses";
+
+
+
+console.log(
+addresses
+);
+
+
+
+}
+
+catch(error){
+
+
+console.error(error);
+
+
+document.getElementById("status").innerHTML =
+
+"Database error: "
+
++
+
+error.message;
+
+
+}
+
+
+
+}
+
+
+
+// =====================================
+// CSV PARSER
+// =====================================
+
+function parseCSV(text){
+
+
+let rows=[];
+
+let row=[];
+
+let value="";
+
+let quotes=false;
+
+
+
+for(let i=0;i<text.length;i++){
+
+
+let c=text[i];
+
+
+
+if(c === '"'){
+
+quotes=!quotes;
+
+}
+
+
+else if(c === "," && !quotes){
+
+row.push(value);
+
+value="";
+
+}
+
+
+else if(c === "\n" && !quotes){
+
+row.push(value);
+
+rows.push(row);
+
+row=[];
+
+value="";
+
+}
+
+
+else{
+
+value+=c;
+
+}
+
+
+
+}
+
+
+
+if(value){
+
+row.push(value);
+
+}
+
+
+
+if(row.length){
+
+rows.push(row);
+
+}
+
+
+
+let headers =
+rows.shift();
+
+
+
+return rows.map(r=>{
+
+
+let obj={};
+
+
+
+headers.forEach((h,i)=>{
+
+
+obj[
+h.trim()
+]=
+(r[i] || "")
+.replace(/^"|"$/g,"")
+.trim();
+
 
 
 });
 
 
 
-
-// -------------------------
-// CSV PARSER
-// -------------------------
-
-function parseCSV(text){
-
-
-    const rows = [];
-
-    let current = "";
-
-    let insideQuotes = false;
-
-    let row = [];
+return obj;
 
 
 
-    for(let i=0;i<text.length;i++){
-
-
-        let char=text[i];
-
-
-        if(char === '"'){
-
-            insideQuotes =
-            !insideQuotes;
-
-        }
-
-
-        else if(
-            char === "," &&
-            !insideQuotes
-        ){
-
-            row.push(current);
-
-            current="";
-
-        }
-
-
-        else if(
-            char === "\n" &&
-            !insideQuotes
-        ){
-
-            row.push(current);
-
-            rows.push(row);
-
-            row=[];
-
-            current="";
-
-        }
-
-
-        else{
-
-            current += char;
-
-        }
-
-
-    }
-
-
-
-    if(current){
-
-        row.push(current);
-
-    }
-
-
-    if(row.length){
-
-        rows.push(row);
-
-    }
-
-
-
-    let headers =
-    rows.shift();
-
-
-
-    return rows.map(row=>{
-
-
-        let obj={};
-
-
-        headers.forEach(
-        (header,index)=>{
-
-
-            obj[
-            header.trim()
-            ] =
-            row[index]
-            ?
-            row[index].trim()
-            :
-            "";
-
-
-        });
-
-
-
-        return obj;
-
-
-    });
+});
 
 
 
 }
 
+
+
+// =====================================
+// SEARCH ADDRESS
+// =====================================
+
+function searchAddress(){
+
+
+let query =
+
+document
+.getElementById("addressInput")
+.value
+.toLowerCase()
+.trim();
+
+
+
+if(!query){
+
+return;
+
 }
 
 
+
+let result =
+
+addresses.find(item=>{
+
+
+let text =
+
+Object.values(item)
+
+.join(" ")
+
+.toLowerCase();
+
+
+
+return text.includes(query);
+
+
+
+});
+
+
+
+if(!result){
+
+
+document.getElementById("result").innerHTML =
+
+"Address not found";
+
+
+return;
+
+
 }
+
+
+
+selectedAddress=result;
+
+
+
+let lat =
+Number(result.latitude);
+
+
+
+let lng =
+Number(result.longitude);
+
+
+
+showDestination(
+lat,
+lng
+);
+
+
+
+document.getElementById("result").innerHTML =
+
+`
+
+<h2>${result.address || "Address Found"}</h2>
+
+<p>
+Building ID:
+${result.building_id || ""}
+</p>
+
+<p>
+Grid ID:
+${result.grid_id || ""}
+</p>
+
+<p>
+Coordinates:
+${lat}, ${lng}
+</p>
+
+`;
+
+
+
+}
+
+
+
+// =====================================
+// SHOW DESTINATION
+// =====================================
+
+function showDestination(lat,lng){
+
+
+
+if(destinationMarker){
+
+destinationMarker.remove();
+
+}
+
+
+
+destinationMarker =
+
+new maplibregl.Marker({
+
+color:"red"
+
+})
+
+.setLngLat(
+[
+lng,
+lat
+]
+)
+
+.addTo(map);
+
+
+
+map.flyTo({
+
+center:
+[
+lng,
+lat
+],
+
+zoom:17
+
+});
+
+
+
+}
+
+
+
+// =====================================
+// GPS
+// =====================================
+
+function getLocation(){
+
+
+navigator.geolocation.getCurrentPosition(
+
+
+position=>{
+
+
+userLocation={
+
+latitude:
+position.coords.latitude,
+
+longitude:
+position.coords.longitude
+
+};
+
+
+
+showUser();
+
+
+
+},
+
+
+
+error=>{
+
+
+alert(
+"GPS permission required"
+);
+
+
+},
+
+
+
+{
+
+enableHighAccuracy:true
+
+}
+
 
 
 );
 
 
+
 }
 
 
 
-});
-// -------------------------
-// SEARCH ADDRESS
-// -------------------------
+// =====================================
+// SHOW USER
+// =====================================
 
-function searchAddress(){
+function showUser(){
 
 
-    let input =
-    document.getElementById(
-    "addressInput"
-    );
 
+let lat =
+userLocation.latitude;
 
-    let query =
-    input.value
-    .toLowerCase()
-    .trim();
 
+let lng =
+userLocation.longitude;
 
 
-    let result =
-    addresses.find(item=>{
 
+if(userMarker){
 
-        let text =
+userMarker.setLngLat(
+[
+lng,
+lat
+]
+);
 
-        (
 
-        item.grid_id
+}
 
-        +
+else{
 
-        " "
 
-        +
+userMarker =
 
-        item.building_id
+new maplibregl.Marker({
 
-        +
+color:"blue"
 
-        " "
+})
 
-        +
+.setLngLat(
+[
+lng,
+lat
+]
+)
 
-        item.address
-
-        +
-
-        " "
-
-        +
-
-        item.street
-
-        +
-
-        " "
-
-        +
-
-        item.city
-
-        )
-
-        .toLowerCase();
-
-
-
-        return text.includes(query);
-
-
-
-    });
-
-
-
-    if(!result){
-
-
-        document.getElementById("result").innerHTML =
-
-        "Address not found";
-
-
-        return;
-
-
-    }
-
-
-
-    selectedAddress = result;
-
-
-
-    let lat =
-    Number(result.latitude);
-
-
-    let lng =
-    Number(result.longitude);
-
-
-
-    if(isNaN(lat) || isNaN(lng)){
-
-
-        alert(
-        "Invalid coordinates"
-        );
-
-        return;
-
-
-    }
-
-
-
-    if(destinationMarker){
-
-        destinationMarker.remove();
-
-    }
-
-
-
-    destinationMarker =
-
-    new maplibregl.Marker({
-
-        color:"red"
-
-    })
-
-    .setLngLat(
-
-        [
-        lng,
-        lat
-        ]
-
-    )
-
-    .addTo(map);
-
-
-
-    map.flyTo({
-
-        center:
-        [
-        lng,
-        lat
-        ],
-
-        zoom:17
-
-
-    });
-
-
-
-    document.getElementById("result").innerHTML =
-
-
-    `
-
-    <h2>
-    ${result.address || "Address Found"}
-    </h2>
-
-
-    <p>
-    Building ID:
-    ${result.building_id || ""}
-    </p>
-
-
-    <p>
-    Grid ID:
-    ${result.grid_id || ""}
-    </p>
-
-
-    <p>
-    Coordinates:
-    ${lat}, ${lng}
-    </p>
-
-
-    `;
+.addTo(map);
 
 
 
@@ -443,344 +544,139 @@ function searchAddress(){
 
 
 
-// -------------------------
-// GPS LOCATION
-// -------------------------
-
-function getLocation(){
-
-
-    navigator.geolocation.getCurrentPosition(
-
-
-    function(position){
-
-
-        userLocation = {
-
-
-            latitude:
-            position.coords.latitude,
-
-
-            longitude:
-            position.coords.longitude
-
-
-        };
-
-
-
-        showUserLocation();
-
-
-
-    },
-
-
-    function(){
-
-
-        alert(
-        "GPS permission required"
-        );
-
-
-    },
-
-
-    {
-
-        enableHighAccuracy:true
-
-    }
-
-
-
-    );
-
 }
 
 
 
-// -------------------------
-// SHOW USER LOCATION
-// -------------------------
-
-function showUserLocation(){
-
-
-
-    if(!userLocation){
-
-        return;
-
-    }
-
-
-
-    let lat =
-    userLocation.latitude;
-
-
-    let lng =
-    userLocation.longitude;
-
-
-
-    if(userMarker){
-
-        userMarker.setLngLat(
-        [
-        lng,
-        lat
-        ]
-        );
-
-    }
-
-    else{
-
-
-        userMarker =
-
-        new maplibregl.Marker({
-
-            color:"blue"
-
-        })
-
-        .setLngLat(
-
-        [
-        lng,
-        lat
-        ]
-
-        )
-
-        .addTo(map);
-
-
-    }
-
-
-}
-
-
-
-// -------------------------
+// =====================================
 // CREATE ROUTE
-// -------------------------
+// =====================================
 
 async function createRoute(){
 
 
-    if(!selectedAddress){
 
+if(!selectedAddress){
 
-        alert(
-        "Select an address first"
-        );
+alert(
+"Search an address first"
+);
 
-
-        return;
-
-
-    }
-
-
-
-    if(!userLocation){
-
-
-        getLocation();
-
-
-        alert(
-        "Getting GPS location. Press navigate again."
-        );
-
-
-        return;
-
-
-    }
-
-
-
-    let startLat =
-    userLocation.latitude;
-
-
-    let startLng =
-    userLocation.longitude;
-
-
-
-    let endLat =
-    Number(selectedAddress.latitude);
-
-
-
-    let endLng =
-    Number(selectedAddress.longitude);
-
-
-
-    let url =
-
-    "https://router.project-osrm.org/route/v1/driving/"
-
-    +
-
-    startLng
-
-    +
-
-    ","
-
-    +
-
-    startLat
-
-    +
-
-    ";"
-
-    +
-
-    endLng
-
-    +
-
-    ","
-
-    +
-
-    endLat
-
-    +
-
-    "?overview=full&geometries=geojson";
-
-
-
-    let response =
-    await fetch(url);
-
-
-
-    let data =
-    await response.json();
-
-
-
-    if(!data.routes || !data.routes.length){
-
-
-        alert(
-        "No route found"
-        );
-
-
-        return;
-
-
-    }
-
-
-
-    drawRoute(
-    data.routes[0].geometry
-    );
-
-
-
-    alert(
-
-    "Distance: "
-
-    +
-
-    (
-
-    data.routes[0].distance / 1000
-
-    )
-
-    .toFixed(2)
-
-    +
-
-    " km"
-
-    );
-
-
+return;
 
 }
 
-// -------------------------
-// DRAW ROUTE ON MAP
-// -------------------------
-
-function drawRoute(route){
 
 
-    if(map.getSource("route")){
+if(!userLocation){
 
+getLocation();
 
-        if(map.getLayer("route")){
+alert(
+"GPS loading. Press Navigate again."
+);
 
-            map.removeLayer("route");
+return;
 
-        }
-
-
-        map.removeSource("route");
-
-
-    }
+}
 
 
 
+let start =
 
-    map.addSource(
-    "route",
-    {
+userLocation.longitude
 
-        type:"geojson",
++
 
-        data:{
+","
 
-            type:"Feature",
++
 
-            geometry:route
-
-        }
-
-    });
+userLocation.latitude;
 
 
 
-    map.addLayer({
+let end =
 
-        id:"route",
+selectedAddress.longitude
 
-        type:"line",
++
 
-        source:"route",
+","
 
-        paint:{
++
 
-            "line-width":6,
+selectedAddress.latitude;
 
-            "line-opacity":0.8
 
-        }
 
-    });
+let url =
+
+"https://router.project-osrm.org/route/v1/driving/"
+
++
+
+start
+
++
+
+";"
+
++
+
+end
+
++
+
+"?overview=full&geometries=geojson";
+
+
+
+let response =
+await fetch(url);
+
+
+
+let data =
+await response.json();
+
+
+
+if(!data.routes.length){
+
+alert(
+"No route found"
+);
+
+return;
+
+}
+
+
+
+drawRoute(
+data.routes[0].geometry
+);
+
+
+
+alert(
+
+"Distance: "
+
++
+
+(
+data.routes[0].distance / 1000
+)
+
+.toFixed(2)
+
++
+
+" km"
+
+);
 
 
 
@@ -788,76 +684,104 @@ function drawRoute(route){
 
 
 
-// -------------------------
-// BUTTON CONNECTIONS
-// -------------------------
+// =====================================
+// DRAW ROUTE
+// =====================================
 
-document
-.addEventListener(
-"DOMContentLoaded",
-
-function(){
+function drawRoute(geometry){
 
 
 
-    const searchButton =
+if(map.getLayer("route")){
 
-    document.getElementById(
-    "searchButton"
-    );
+map.removeLayer("route");
 
-
-    if(searchButton){
-
-        searchButton.onclick =
-        searchAddress;
-
-    }
+}
 
 
 
+if(map.getSource("route")){
 
-    const navigateButton =
+map.removeSource("route");
 
-    document.getElementById(
-    "navigateButton"
-    );
-
-
-    if(navigateButton){
-
-        navigateButton.onclick =
-
-        function(){
-
-            getLocation();
-
-            setTimeout(
-            createRoute,
-            2000
-            );
-
-        };
-
-    }
+}
 
 
+
+map.addSource(
+
+"route",
+
+{
+
+type:"geojson",
+
+data:{
+
+type:"Feature",
+
+geometry:geometry
+
+}
+
+}
+
+);
+
+
+
+map.addLayer({
+
+id:"route",
+
+type:"line",
+
+source:"route",
+
+paint:{
+
+"line-width":6,
+
+"line-opacity":0.8
+
+}
 
 });
 
 
 
-// -------------------------
-// MAKE FUNCTIONS AVAILABLE
-// -------------------------
+}
 
-window.searchAddress =
+
+
+// =====================================
+// BUTTONS
+// =====================================
+
+document.addEventListener(
+"DOMContentLoaded",
+
+()=>{
+
+
+document
+.getElementById("searchButton")
+.onclick =
 searchAddress;
 
 
-window.getLocation =
-getLocation;
 
-
-window.createRoute =
+document
+.getElementById("navigateButton")
+.onclick =
 createRoute;
+
+
+
+loadDatabase();
+
+
+
+}
+
+);
