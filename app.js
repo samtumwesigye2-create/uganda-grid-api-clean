@@ -15,7 +15,7 @@ function initMap() {
     container: "map",
     style: "https://tiles.openfreemap.org/styles/liberty",
     center: [32.4216, 0.1491],
-    zoom: 13
+    zoom: 16
   });
 
   map.addControl(
