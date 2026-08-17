@@ -28,7 +28,9 @@ def get_connection():
 
 
 
-return FileResponse("index.html")
+@app.get("/")
+def home():
+    return FileResponse("index.html")
 
 
 
