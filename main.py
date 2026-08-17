@@ -1,6 +1,74 @@
-from fastapi import FastAPI
+import os
 
-app = FastAPI(title="Uganda National Grid API")
+import psycopg
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
+
+
+app = FastAPI(
+    title="Uganda National Grid API",
+    version="3.0"
+)
+
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+
+class GridRecordCreate(BaseModel):
+    grid_id: str
+    country: str = "UG"
+    district_code: str
+    subcounty_code: str
+    parish_code: str
+    building_id: str
+    latitude: float
+    longitude: float
+    address: str | None = None
+
+
+def get_connection():
+    if not DATABASE_URL:
+        raise RuntimeError("DATABASE_URL is missing")
+
+    return psycopg.connect(DATABASE_URL)
+
+
+def create_tables():
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS uganda_grid_records (
+                    id BIGSERIAL PRIMARY KEY,
+
+                    grid_id TEXT UNIQUE NOT NULL,
+
+                    country TEXT NOT NULL DEFAULT 'UG',
+
+                    district_code TEXT NOT NULL,
+
+                    subcounty_code TEXT NOT NULL,
+
+                    parish_code TEXT NOT NULL,
+
+                    building_id TEXT NOT NULL,
+
+                    latitude DOUBLE PRECISION NOT NULL,
+
+                    longitude DOUBLE PRECISION NOT NULL,
+
+                    address TEXT,
+
+                    created_at TIMESTAMPTZ
+                    DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+
+        conn.commit()
+
+
+@app.on_event("startup")
+def startup():
+    create_tables()
 
 
 @app.get("/")
@@ -8,7 +76,7 @@ def root():
     return {
         "service": "Uganda National Grid API",
         "status": "online",
-        "phase": 2
+        "phase": 3
     }
 
 
@@ -19,72 +87,10 @@ def health():
     }
 
 
-@app.get("/grid")
-def grid():
-    return {
-        "country": "UG",
-        "system": "Uganda National Grid",
-        "status": "ready"
-    }
-
-
-@app.get("/address/{grid_id}")
-def address(grid_id: str):
-    return {
-        "grid_id": grid_id,
-        "country": "UG",
-        "district": "Sample District",
-        "subcounty": "Sample Subcounty",
-        "parish": "Sample Parish",
-        "building_id": "000245",
-        "coordinates": {
-            "latitude": 0.0,
-            "longitude": 32.0
-        }
-    }
-TEST_RECORDS = [
-    {
-        "grid_id": "UG-101-045-018-000245",
-        "country": "UG",
-        "district": "Test District",
-        "subcounty": "Test Subcounty",
-        "parish": "Test Parish",
-        "building_id": "000245",
-        "latitude": 0.0,
-        "longitude": 32.0
-    },
-    {
-        "grid_id": "UG-101-045-018-000246",
-        "country": "UG",
-        "district": "Test District",
-        "subcounty": "Test Subcounty",
-        "parish": "Test Parish",
-        "building_id": "000246",
-        "latitude": 0.001,
-        "longitude": 32.001
-    }
-]
-
-
-@app.get("/records")
-def records():
-    return TEST_RECORDS
-import os
-import psycopg
-
 @app.get("/db-health")
 def db_health():
     try:
-        database_url = os.environ.get("DATABASE_URL")
-
-        if not database_url:
-            return {
-                "status": "error",
-                "database": "not connected",
-                "message": "DATABASE_URL is missing"
-            }
-
-        with psycopg.connect(database_url) as conn:
+        with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1;")
                 result = cur.fetchone()
@@ -98,5 +104,176 @@ def db_health():
     except Exception as e:
         return {
             "status": "error",
+            "database": "connection failed",
             "message": str(e)
         }
+
+
+@app.post("/grid-record")
+def create_grid_record(record: GridRecordCreate):
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+
+                cur.execute("""
+                    INSERT INTO uganda_grid_records (
+                        grid_id,
+                        country,
+                        district_code,
+                        subcounty_code,
+                        parish_code,
+                        building_id,
+                        latitude,
+                        longitude,
+                        address
+                    )
+
+                    VALUES (
+                        %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s
+                    )
+
+                    RETURNING
+                        id,
+                        grid_id,
+                        country,
+                        district_code,
+                        subcounty_code,
+                        parish_code,
+                        building_id,
+                        latitude,
+                        longitude,
+                        address;
+                """, (
+                    record.grid_id,
+                    record.country,
+                    record.district_code,
+                    record.subcounty_code,
+                    record.parish_code,
+                    record.building_id,
+                    record.latitude,
+                    record.longitude,
+                    record.address
+                ))
+
+                row = cur.fetchone()
+
+            conn.commit()
+
+        return {
+            "id": row[0],
+            "grid_id": row[1],
+            "country": row[2],
+            "district_code": row[3],
+            "subcounty_code": row[4],
+            "parish_code": row[5],
+            "building_id": row[6],
+            "latitude": row[7],
+            "longitude": row[8],
+            "address": row[9]
+        }
+
+    except psycopg.errors.UniqueViolation:
+        raise HTTPException(
+            status_code=409,
+            detail="This grid_id already exists"
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+
+
+@app.get("/grid-records")
+def get_grid_records(limit: int = 100):
+
+    limit = max(1, min(limit, 1000))
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+
+            cur.execute("""
+                SELECT
+                    id,
+                    grid_id,
+                    country,
+                    district_code,
+                    subcounty_code,
+                    parish_code,
+                    building_id,
+                    latitude,
+                    longitude,
+                    address
+                FROM uganda_grid_records
+
+                ORDER BY id
+
+                LIMIT %s;
+            """, (limit,))
+
+            rows = cur.fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "grid_id": row[1],
+            "country": row[2],
+            "district_code": row[3],
+            "subcounty_code": row[4],
+            "parish_code": row[5],
+            "building_id": row[6],
+            "latitude": row[7],
+            "longitude": row[8],
+            "address": row[9]
+        }
+
+        for row in rows
+    ]
+
+
+@app.get("/address/{grid_id}")
+def get_address(grid_id: str):
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+
+            cur.execute("""
+                SELECT
+                    id,
+                    grid_id,
+                    country,
+                    district_code,
+                    subcounty_code,
+                    parish_code,
+                    building_id,
+                    latitude,
+                    longitude,
+                    address
+                FROM uganda_grid_records
+
+                WHERE grid_id = %s;
+            """, (grid_id,))
+
+            row = cur.fetchone()
+
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Grid location not found"
+        )
+
+    return {
+        "id": row[0],
+        "grid_id": row[1],
+        "country": row[2],
+        "district_code": row[3],
+        "subcounty_code": row[4],
+        "parish_code": row[5],
+        "building_id": row[6],
+        "latitude": row[7],
+        "longitude": row[8],
+        "address": row[9]
+    }
