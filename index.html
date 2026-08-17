@@ -1182,7 +1182,44 @@ document
 
     }
   );
+function startNavigation() {
 
+  if (!navigator.geolocation) {
+    alert("GPS not supported");
+    return;
+  }
+
+  gpsWatch = navigator.geolocation.watchPosition(
+    function(position) {
+
+      const lat = position.coords.latitude;
+      const lng = position.coords.longitude;
+
+      currentLocation = {
+        latitude: lat,
+        longitude: lng
+      };
+
+      if (!userMarker) {
+        userMarker = new maplibregl.Marker({
+          color: "#007AFF"
+        })
+        .setLngLat([lng, lat])
+        .addTo(map);
+
+      } else {
+        userMarker.setLngLat([lng, lat]);
+      }
+
+      map.easeTo({
+        center: [lng, lat],
+        zoom: 16
+      });
+
+    }
+  );
+
+}
 </script>
 
 </body>
