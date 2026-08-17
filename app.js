@@ -1,8 +1,11 @@
 let map;
 let addresses = [];
-let marker = null;
-let userMarker = null;
 let selectedDestination = null;
+let destinationMarker = null;
+let userMarker = null;
+
+
+// MAP INITIALIZATION
 
 map = new maplibregl.Map({
     container: "map",
@@ -18,17 +21,16 @@ map.addControl(new maplibregl.NavigationControl());
 
 fetch("entebbe_database_import.csv")
 .then(response => response.text())
-.then(csv => {
+.then(data => {
 
-    const rows = csv.trim().split(/\r?\n/);
+    const rows = data.trim().split(/\r?\n/);
 
     const headers = rows[0]
         .split(",")
-        .map(h => h.trim());
+        .map(x => x.trim());
 
 
-    addresses = rows.slice(1)
-    .map(row => {
+    addresses = rows.slice(1).map(row => {
 
         const values = row.split(",");
 
@@ -52,9 +54,9 @@ fetch("entebbe_database_import.csv")
     if(message){
 
         message.innerHTML =
-        "Database loaded: "
-        + addresses.length
-        + " addresses";
+        "Loaded " +
+        addresses.length +
+        " addresses";
 
     }
 
@@ -62,12 +64,13 @@ fetch("entebbe_database_import.csv")
 })
 .catch(error=>{
 
-    console.error(
-        "CSV loading error:",
+    console.log(
+        "CSV error:",
         error
     );
 
 });
+
 
 
 // SEARCH ADDRESS
@@ -79,7 +82,9 @@ function searchAddress(){
 
 
     if(!input){
+
         return;
+
     }
 
 
@@ -99,24 +104,15 @@ function searchAddress(){
     });
 
 
-
-    const results =
-    document.getElementById("results");
-
-
     if(!result){
 
-        if(results){
-
-            results.innerHTML =
-            "Address not found";
-
-        }
+        alert(
+        "Address not found"
+        );
 
         return;
 
     }
-
 
 
     const lat =
@@ -137,21 +133,22 @@ function searchAddress(){
 
 
 
-    if(marker){
+    if(destinationMarker){
 
-        marker.remove();
+        destinationMarker.remove();
 
     }
 
 
 
-    marker =
-    new maplibregl.Marker()
+    destinationMarker =
+    new maplibregl.Marker({
 
-    .setLngLat([
-        lng,
-        lat
-    ])
+        color:"#ff0000"
+
+    })
+
+    .setLngLat([lng,lat])
 
     .addTo(map);
 
@@ -159,15 +156,16 @@ function searchAddress(){
 
     map.flyTo({
 
-        center:[
-            lng,
-            lat
-        ],
+        center:[lng,lat],
 
         zoom:18
 
     });
 
+
+
+    const results =
+    document.getElementById("results");
 
 
     if(results){
@@ -177,15 +175,13 @@ function searchAddress(){
         <div class="result-card">
 
         <h3>
-        ${result.address || "Address found"}
+        ${result.address}
         </h3>
-
 
         <p>
         Building ID:
         ${result.building_id || ""}
         </p>
-
 
         <p>
         ZIP:
@@ -193,10 +189,10 @@ function searchAddress(){
         </p>
 
 
-        <button onclick="
-        startRoute()
-        ">
+        <button onclick="startRoute()">
+
         🚗 Navigate Here
+
         </button>
 
 
@@ -206,84 +202,11 @@ function searchAddress(){
 
     }
 
-}
-
-
-
-// GET USER LOCATION
-
-function startNavigation(){
-
-
-    navigator.geolocation.watchPosition(
-
-        position=>{
-
-
-            const lat =
-            position.coords.latitude;
-
-
-            const lng =
-            position.coords.longitude;
-
-
-
-            if(!userMarker){
-
-
-                userMarker =
-                new maplibregl.Marker({
-
-                    color:"#0066ff"
-
-                })
-
-                .setLngLat([
-                    lng,
-                    lat
-                ])
-
-                .addTo(map);
-
-
-            }
-
-            else{
-
-
-                userMarker
-                .setLngLat([
-                    lng,
-                    lat
-                ]);
-
-            }
-
-
-        },
-
-
-        error=>{
-
-            console.log(error);
-
-        },
-
-
-        {
-
-            enableHighAccuracy:true
-
-        }
-
-    );
 
 }
-// CREATE ROUTE FROM CURRENT LOCATION TO DESTINATION
+// START NAVIGATION
 
 function startRoute(){
-
 
     if(!selectedDestination){
 
@@ -299,246 +222,299 @@ function startRoute(){
 
     navigator.geolocation.getCurrentPosition(
 
-        position=>{
+    function(position){
 
 
-            const startLat =
-            position.coords.latitude;
+        const startLat =
+        position.coords.latitude;
 
 
-            const startLng =
-            position.coords.longitude;
+        const startLng =
+        position.coords.longitude;
 
 
 
-            const endLat =
-            selectedDestination.latitude;
+        const endLat =
+        selectedDestination.latitude;
 
 
-            const endLng =
-            selectedDestination.longitude;
+        const endLng =
+        selectedDestination.longitude;
 
 
 
-            const url =
+        const routeURL =
 
-            "https://router.project-osrm.org/route/v1/driving/" +
+        "https://router.project-osrm.org/route/v1/driving/" +
 
-            startLng + "," +
-            startLat +
+        startLng + "," + startLat +
 
-            ";" +
+        ";" +
 
-            endLng + "," +
-            endLat +
+        endLng + "," + endLat +
 
-            "?overview=full&geometries=geojson";
+        "?overview=full&geometries=geojson";
 
 
 
-            fetch(url)
+        fetch(routeURL)
 
-            .then(response=>response.json())
+        .then(response=>response.json())
 
-            .then(data=>{
+        .then(data=>{
 
 
-                const route =
-                data.routes[0].geometry;
+            if(!data.routes || !data.routes.length){
 
-
-
-                if(map.getSource("route")){
-
-
-                    map.removeLayer("route");
-
-                    map.removeSource("route");
-
-
-                }
-
-
-
-                map.addSource("route",{
-
-
-                    type:"geojson",
-
-
-                    data:{
-
-
-                        type:"Feature",
-
-
-                        geometry:route
-
-
-                    }
-
-
-                });
-
-
-
-                map.addLayer({
-
-
-                    id:"route",
-
-
-                    type:"line",
-
-
-                    source:"route",
-
-
-                    paint:{
-
-
-                        "line-width":6
-
-
-                    }
-
-
-                });
-
-
-
-                const distance =
-
-                (
-                data.routes[0].distance / 1000
-                )
-
-                .toFixed(1);
-
-
-
-                const message =
-
-                document.getElementById(
-                    "routeMessage"
+                alert(
+                "No route found"
                 );
 
+                return;
 
-                if(message){
+            }
 
 
-                    message.innerHTML =
 
-                    "Distance: "
-                    + distance
-                    + " km";
+            const route =
+            data.routes[0].geometry;
 
+
+
+            if(map.getLayer("route")){
+
+                map.removeLayer("route");
+
+            }
+
+
+            if(map.getSource("route")){
+
+                map.removeSource("route");
+
+            }
+
+
+
+            map.addSource("route",{
+
+                type:"geojson",
+
+                data:{
+
+                    type:"Feature",
+
+                    geometry:route
 
                 }
-
-
-
-            })
-
-            .catch(error=>{
-
-
-                console.log(
-                "Route error:",
-                error
-                );
-
 
             });
 
 
 
-        },
+            map.addLayer({
+
+                id:"route",
+
+                type:"line",
+
+                source:"route",
+
+                paint:{
+
+                    "line-width":6,
+
+                    "line-color":"#0066ff"
+
+                }
+
+            });
 
 
-        error=>{
+
+            const km =
+
+            (
+            data.routes[0].distance / 1000
+            )
+            .toFixed(1);
 
 
-            alert(
-            "Allow GPS location to navigate"
+
+            const message =
+            document.getElementById("routeMessage");
+
+
+            if(message){
+
+                message.innerHTML =
+                "Distance: "
+                + km
+                + " km";
+
+            }
+
+
+
+            map.fitBounds(
+
+                [
+
+                [startLng,startLat],
+
+                [endLng,endLat]
+
+                ],
+
+                {
+
+                padding:80
+
+                }
+
             );
 
 
-        },
+        })
 
 
-        {
+        .catch(error=>{
+
+            console.log(error);
+
+            alert(
+            "Routing failed"
+            );
+
+        });
 
 
-            enableHighAccuracy:true
+
+    },
 
 
-        }
+    function(){
 
-    );
+        alert(
+        "GPS permission required"
+        );
+
+    },
+
+
+    {
+
+        enableHighAccuracy:true
+
+    });
 
 
 }
 
 
 
-// CONNECT BUTTONS WHEN PAGE LOADS
 
-document.addEventListener(
-"DOMContentLoaded",
+// SHOW CURRENT LOCATION
 
-()=>{
+function startNavigation(){
 
 
-    const searchButton =
+    navigator.geolocation.watchPosition(
 
-    document.getElementById(
-        "searchButton"
-    );
+    function(position){
 
 
-    if(searchButton){
+        const lat =
+        position.coords.latitude;
 
 
-        searchButton.onclick =
-        searchAddress;
-
-
-    }
+        const lng =
+        position.coords.longitude;
 
 
 
-    const navigationButton =
-
-    document.getElementById(
-        "navigationButton"
-    );
+        if(!userMarker){
 
 
-    if(navigationButton){
+            userMarker =
+            new maplibregl.Marker({
+
+                color:"#0066ff"
+
+            })
+
+            .setLngLat([lng,lat])
+
+            .addTo(map);
 
 
-        navigationButton.onclick =
-        startNavigation;
+        }
+
+        else{
 
 
-    }
+            userMarker
+            .setLngLat([lng,lat]);
+
+
+        }
+
+
+    });
+
+
+}
 
 
 
-});
-
-
-
-// MAKE FUNCTIONS AVAILABLE
+// CONNECT BUTTONS
 
 window.searchAddress =
 searchAddress;
+
+
+window.startRoute =
+startRoute;
 
 
 window.startNavigation =
 startNavigation;
 
 
-window.startRoute =
-startRoute;
+
+document.addEventListener(
+
+"DOMContentLoaded",
+
+function(){
+
+
+const searchButton =
+document.getElementById(
+"searchButton"
+);
+
+
+if(searchButton){
+
+searchButton.onclick =
+searchAddress;
+
+}
+
+
+const navButton =
+document.getElementById(
+"navigationButton"
+);
+
+
+if(navButton){
+
+navButton.onclick =
+startNavigation;
+
+}
+
+
+});
