@@ -3,7 +3,7 @@ let addresses = [];
 let marker;
 
 
-// MAP
+// Create map
 map = new maplibregl.Map({
     container: "map",
     style: "https://demotiles.maplibre.org/style.json",
@@ -14,79 +14,86 @@ map = new maplibregl.Map({
 map.addControl(new maplibregl.NavigationControl());
 
 
-// LOAD DATABASE
+// Load Uganda address database
 fetch("entebbe_database_import.csv")
 .then(response => response.text())
 .then(csv => {
 
-    const lines = csv.trim().split("\n");
+    const lines = csv.split(/\r?\n/);
 
     const headers = lines[0]
         .split(",")
-        .map(h => h.trim());
+        .map(x => x.trim());
 
 
-    addresses = lines.slice(1).map(line => {
+    addresses = lines.slice(1)
+    .filter(line => line.trim() !== "")
+    .map(line => {
 
         const values = line.split(",");
 
-        let obj = {};
+        let record = {};
 
         headers.forEach((header,index)=>{
-            obj[header] = values[index];
+
+            record[header] = values[index] || "";
+
         });
 
-        return obj;
+        return record;
 
     });
 
 
     console.log(
-        "DATABASE LOADED:",
-        addresses.length,
-        "records"
+        "Loaded addresses:",
+        addresses.length
     );
 
 })
 .catch(error => {
 
-    alert("Database failed to load");
-
-    console.error(error);
+    console.error(
+        "Database error:",
+        error
+    );
 
 });
 
 
 
-// SEARCH
-function searchAddress(){
+// Find Address button
+document
+.getElementById("findAddress")
+.addEventListener("click", function(){
 
 
-    let query = document
-        .getElementById("addressInput")
-        .value
-        .toLowerCase()
-        .trim();
-
-
-
-    if(!query){
-
-        alert("Enter an address");
-
-        return;
-    }
+    const search =
+    document
+    .getElementById("addressInput")
+    .value
+    .toLowerCase()
+    .trim();
 
 
 
-    let result = addresses.find(record=>{
+    const result =
+    addresses.find(item => {
 
 
-        return Object.values(record)
-        .join(" ")
-        .toLowerCase()
-        .includes(query);
+        let searchable =
 
+        (
+        item.address +
+        " " +
+        item.building_id +
+        " " +
+        item.grid_id
+        )
+        .toLowerCase();
+
+
+        return searchable.includes(search);
 
     });
 
@@ -94,9 +101,7 @@ function searchAddress(){
 
     if(!result){
 
-        alert(
-          "Address not found"
-        );
+        alert("Address not found");
 
         return;
 
@@ -104,24 +109,22 @@ function searchAddress(){
 
 
 
-    let latitude =
-        Number(result.latitude);
+    let lat =
+    Number(result.latitude);
+
+
+    let lng =
+    Number(result.longitude);
 
 
 
-    let longitude =
-        Number(result.longitude);
+    if(isNaN(lat) || isNaN(lng)){
 
-
-
-    if(
-        isNaN(latitude) ||
-        isNaN(longitude)
-    ){
 
         alert(
         "Address found but coordinates missing"
         );
+
 
         return;
 
@@ -138,47 +141,17 @@ function searchAddress(){
 
 
     marker = new maplibregl.Marker()
-    .setLngLat([
-        longitude,
-        latitude
-    ])
+    .setLngLat([lng,lat])
     .addTo(map);
 
 
 
     map.flyTo({
 
-        center:[
-            longitude,
-            latitude
-        ],
-
+        center:[lng,lat],
         zoom:18
 
     });
 
 
-
-    alert(
-
-        "FOUND:\n\n" +
-        (result.address || "") +
-        "\n\nBuilding ID: " +
-        (result.building_id || "") +
-        "\n\nGrid ID: " +
-        (result.grid_id || "")
-
-    );
-
-}
-
-
-
-// BUTTON CONNECTION
-
-document
-.getElementById("findAddress")
-.addEventListener(
-    "click",
-    searchAddress
-);
+});
