@@ -52,8 +52,44 @@ async function findRoute() {
 
   try {
 
-    const start = await geocodeAddress(from);
-    const end = await geocodeAddress(to);
+    async function geocodeAddress(address) {
+
+  const api =
+    "https://uganda-grid-api-clean-production.up.railway.app/address/" +
+    encodeURIComponent(address);
+
+  const response = await fetch(api);
+
+  if (response.ok) {
+    const data = await response.json();
+
+    return {
+      longitude: Number(data.longitude),
+      latitude: Number(data.latitude),
+      address: data.address
+    };
+  }
+
+
+  // fallback to OpenStreetMap
+  const url =
+    "https://nominatim.openstreetmap.org/search?format=json&q=" +
+    encodeURIComponent(address + ", Uganda");
+
+  const osmResponse = await fetch(url);
+  const osmData = await osmResponse.json();
+
+  if (!osmData.length) {
+    throw new Error("Address not found");
+  }
+
+  return {
+    longitude: Number(osmData[0].lon),
+    latitude: Number(osmData[0].lat),
+    address: osmData[0].display_name
+  };
+}
+    
 
 
     const url =
