@@ -12,3 +12,4 @@ After deployment, generate a public domain and test:
 - `/health` should return `{"status":"healthy"}`
 
 Only after both work should PostgreSQL/PostGIS be added in Phase 2.
+Deployment retry
