@@ -1,3 +1,6 @@
+from fastapi import FastAPI, HTTPException
+
+app = FastAPI()
 @app.get("/search")
 def search_address(q: str):
     query = q.strip()
