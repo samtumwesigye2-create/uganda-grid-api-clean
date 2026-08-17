@@ -60,9 +60,7 @@ document.getElementById("status").innerHTML =
 
 
 
-const response =
-await fetch(
-"./entebbe_database_import.csv?v=2"
+"./entebbe_database.json?v=1"
 );
 
 
