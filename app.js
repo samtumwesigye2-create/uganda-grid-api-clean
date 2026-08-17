@@ -121,12 +121,23 @@ function displayResult(record) {
   `;
 
 
-  document
-.getElementById("navigateButton")
-.onclick = function(){
+document
+  .getElementById("navigateButton")
+  .onclick = function(){
 
-  const destination =
-    document.querySelector(".result-card h2").innerText;
+    const lat = document.getElementById("latitude")?.value;
+    const lng = document.getElementById("longitude")?.value;
+
+    if(lat && lng){
+      window.open(
+        `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
+        "_blank"
+      );
+    } else {
+      alert("Destination coordinates not found");
+    }
+
+};;
 
   document.getElementById("toInput").value =
     destination;
