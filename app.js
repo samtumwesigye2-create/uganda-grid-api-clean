@@ -1,3 +1,14 @@
+let addresses = [];
+
+fetch("entebbe_database_import.csv")
+  .then(response => response.text())
+  .then(csv => {
+      console.log("Address database loaded");
+      console.log(csv.slice(0,500));
+  })
+  .catch(error => {
+      console.error("Database loading failed:", error);
+  });
 // Uganda National Address Finder
 // Clean frontend version
 
