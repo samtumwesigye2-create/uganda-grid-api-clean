@@ -28,7 +28,7 @@ def get_connection():
 
 
 
-return FileResponse("index.html"))
+return FileResponse("index.html")
 
 
 
