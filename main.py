@@ -1,7 +1,58 @@
-import os
-import psycopg
-from fastapi import FastAPI, HTTPException
-from psycopg.rows import dict_row
+from fastapi import UploadFile, File
+import json
+
+@app.post("/import")
+async def import_records(file: UploadFile = File(...)):
+    contents = await file.read()
+
+    records = json.loads(contents)
+
+    conn = get_connection()
+    cur = conn.cursor()
+
+    for r in records:
+        cur.execute(
+            """
+            INSERT INTO uganda_grid_records
+            (
+                grid_id,
+                building_id,
+                address,
+                latitude,
+                longitude,
+                zip_code,
+                division,
+                house_number,
+                street,
+                city,
+                region
+            )
+            VALUES
+            (
+                %(grid_id)s,
+                %(building_id)s,
+                %(address)s,
+                %(latitude)s,
+                %(longitude)s,
+                %(zip_code)s,
+                %(division)s,
+                %(house_number)s,
+                %(street)s,
+                %(city)s,
+                %(region)s
+            )
+            """,
+            r
+        )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {
+        "status": "success",
+        "imported": len(records)
+    }
 
 app = FastAPI(
     title="Uganda National Grid API",
