@@ -1,90 +1,160 @@
 let map;
 let addresses = [];
-let selectedDestination = null;
-let destinationMarker = null;
+let selectedAddress = null;
+let userLocation = null;
 let userMarker = null;
+let destinationMarker = null;
 
 
-// MAP INITIALIZATION
+// ----------------------------
+// CREATE MAP
+// ----------------------------
 
 map = new maplibregl.Map({
+
     container: "map",
-    style: "https://demotiles.maplibre.org/style.json",
-    center: [32.46, 0.05],
+
+    style:
+    "https://demotiles.maplibre.org/style.json",
+
+    center:
+    [32.46, 0.05],
+
     zoom: 12
+
 });
 
-map.addControl(new maplibregl.NavigationControl());
+
+map.addControl(
+    new maplibregl.NavigationControl()
+);
 
 
+// ----------------------------
 // LOAD ADDRESS DATABASE
+// ----------------------------
+
 
 fetch("entebbe_database_import.csv")
+
 .then(response => response.text())
-.then(data => {
 
-    const rows = data.trim().split(/\r?\n/);
-
-    const headers = rows[0]
-        .split(",")
-        .map(x => x.trim());
+.then(csv => {
 
 
-    addresses = rows.slice(1).map(row => {
-
-        const values = row.split(",");
-
-        let item = {};
-
-        headers.forEach((header,index)=>{
-
-            item[header] = values[index] || "";
-
-        });
-
-        return item;
-
-    });
+    addresses = parseCSV(csv);
 
 
-    const message =
+    console.log(
+        "Loaded",
+        addresses.length,
+        "addresses"
+    );
+
+
+    const status =
     document.getElementById("message");
 
 
-    if(message){
+    if(status){
 
-        message.innerHTML =
-        "Loaded " +
-        addresses.length +
-        " addresses";
+        status.innerHTML =
+        "Database loaded: "
+        + addresses.length
+        + " addresses";
 
     }
 
 
 })
-.catch(error=>{
 
-    console.log(
-        "CSV error:",
-        error
+.catch(error => {
+
+    console.log(error);
+
+    alert(
+    "Database failed to load"
     );
 
 });
 
 
 
+// ----------------------------
+// CSV READER
+// ----------------------------
+
+
+function parseCSV(text){
+
+
+    const rows =
+    text.trim().split("\n");
+
+
+    const headers =
+    rows[0]
+    .split(",")
+    .map(h=>h.trim());
+
+
+    let result=[];
+
+
+    for(let i=1;i<rows.length;i++){
+
+
+        let values =
+        rows[i].split(",");
+
+
+        let item={};
+
+
+        headers.forEach(
+        (h,index)=>{
+
+
+            item[h]=
+            values[index]
+            ?
+            values[index].trim()
+            :
+            "";
+
+        });
+
+
+        result.push(item);
+
+
+    }
+
+
+    return result;
+
+
+}
+
+
+
+
+// ----------------------------
 // SEARCH ADDRESS
+// ----------------------------
+
 
 function searchAddress(){
 
+
     const input =
-    document.getElementById("searchInput");
+    document.getElementById(
+    "addressInput"
+    );
 
 
     if(!input){
-
         return;
-
     }
 
 
@@ -94,17 +164,33 @@ function searchAddress(){
     .trim();
 
 
-    const result =
+
+    let found =
     addresses.find(item=>{
 
-        return JSON.stringify(item)
-        .toLowerCase()
-        .includes(query);
+
+        let text =
+        (
+        item.address
+        +" "
+        +item.building_id
+        +" "
+        +item.grid_id
+        +" "
+        +item.zip
+        )
+        .toLowerCase();
+
+
+
+        return text.includes(query);
+
 
     });
 
 
-    if(!result){
+
+    if(!found){
 
         alert(
         "Address not found"
@@ -115,21 +201,50 @@ function searchAddress(){
     }
 
 
+
+    selectedAddress = found;
+
+
+
+    showAddress(found);
+
+
+
+}
+
+
+
+// ----------------------------
+// SHOW ADDRESS RESULT
+// ----------------------------
+
+
+function showAddress(item){
+
+
     const lat =
-    Number(result.latitude);
+    Number(
+    item.latitude
+    );
 
 
     const lng =
-    Number(result.longitude);
+    Number(
+    item.longitude
+    );
 
 
 
-    selectedDestination = {
+    if(isNaN(lat)||isNaN(lng)){
 
-        latitude: lat,
-        longitude: lng
 
-    };
+        alert(
+        "Coordinates missing"
+        );
+
+        return;
+
+    }
 
 
 
@@ -144,11 +259,13 @@ function searchAddress(){
     destinationMarker =
     new maplibregl.Marker({
 
-        color:"#ff0000"
+        color:"red"
 
     })
 
-    .setLngLat([lng,lat])
+    .setLngLat(
+    [lng,lat]
+    )
 
     .addTo(map);
 
@@ -156,47 +273,41 @@ function searchAddress(){
 
     map.flyTo({
 
-        center:[lng,lat],
+        center:
+        [lng,lat],
 
-        zoom:18
+        zoom:17
 
     });
 
 
 
-    const results =
-    document.getElementById("results");
+    const box =
+    document.getElementById(
+    "result"
+    );
 
 
-    if(results){
+    if(box){
 
-        results.innerHTML = `
+        box.innerHTML =
 
-        <div class="result-card">
-
-        <h3>
-        ${result.address}
-        </h3>
+        `
+        <h2>${item.address}</h2>
 
         <p>
         Building ID:
-        ${result.building_id || ""}
+        ${item.building_id}
         </p>
 
         <p>
         ZIP:
-        ${result.zip_code || ""}
+        ${item.zip}
         </p>
 
-
-        <button onclick="startRoute()">
-
+        <button onclick="startNavigation()">
         🚗 Navigate Here
-
         </button>
-
-
-        </div>
 
         `;
 
@@ -204,14 +315,33 @@ function searchAddress(){
 
 
 }
-// START NAVIGATION
 
-function startRoute(){
 
-    if(!selectedDestination){
+// ----------------------------
+// GPS START
+// ----------------------------
+
+
+function startNavigation(){
+
+
+    if(!selectedAddress){
 
         alert(
-        "Please select an address first"
+        "Choose an address first"
+        );
+
+        return;
+
+    }
+
+
+
+    if(!navigator.geolocation){
+
+
+        alert(
+        "GPS not supported"
         );
 
         return;
@@ -222,182 +352,40 @@ function startRoute(){
 
     navigator.geolocation.getCurrentPosition(
 
-    function(position){
+    position=>{
 
 
-        const startLat =
-        position.coords.latitude;
+        userLocation={
 
 
-        const startLng =
-        position.coords.longitude;
+            latitude:
+            position.coords.latitude,
 
 
+            longitude:
+            position.coords.longitude
 
-        const endLat =
-        selectedDestination.latitude;
+        };
 
 
-        const endLng =
-        selectedDestination.longitude;
 
+        showUser();
 
 
-        const routeURL =
 
-        "https://router.project-osrm.org/route/v1/driving/" +
-
-        startLng + "," + startLat +
-
-        ";" +
-
-        endLng + "," + endLat +
-
-        "?overview=full&geometries=geojson";
-
-
-
-        fetch(routeURL)
-
-        .then(response=>response.json())
-
-        .then(data=>{
-
-
-            if(!data.routes || !data.routes.length){
-
-                alert(
-                "No route found"
-                );
-
-                return;
-
-            }
-
-
-
-            const route =
-            data.routes[0].geometry;
-
-
-
-            if(map.getLayer("route")){
-
-                map.removeLayer("route");
-
-            }
-
-
-            if(map.getSource("route")){
-
-                map.removeSource("route");
-
-            }
-
-
-
-            map.addSource("route",{
-
-                type:"geojson",
-
-                data:{
-
-                    type:"Feature",
-
-                    geometry:route
-
-                }
-
-            });
-
-
-
-            map.addLayer({
-
-                id:"route",
-
-                type:"line",
-
-                source:"route",
-
-                paint:{
-
-                    "line-width":6,
-
-                    "line-color":"#0066ff"
-
-                }
-
-            });
-
-
-
-            const km =
-
-            (
-            data.routes[0].distance / 1000
-            )
-            .toFixed(1);
-
-
-
-            const message =
-            document.getElementById("routeMessage");
-
-
-            if(message){
-
-                message.innerHTML =
-                "Distance: "
-                + km
-                + " km";
-
-            }
-
-
-
-            map.fitBounds(
-
-                [
-
-                [startLng,startLat],
-
-                [endLng,endLat]
-
-                ],
-
-                {
-
-                padding:80
-
-                }
-
-            );
-
-
-        })
-
-
-        .catch(error=>{
-
-            console.log(error);
-
-            alert(
-            "Routing failed"
-            );
-
-        });
-
+        createRoute();
 
 
     },
 
 
-    function(){
+    error=>{
+
 
         alert(
         "GPS permission required"
         );
+
 
     },
 
@@ -406,6 +394,68 @@ function startRoute(){
 
         enableHighAccuracy:true
 
+    }
+
+
+    );
+
+
+}
+// ----------------------------
+// SHOW USER LOCATION
+// ----------------------------
+
+function showUser(){
+
+
+    const lng =
+    userLocation.longitude;
+
+
+    const lat =
+    userLocation.latitude;
+
+
+
+    if(userMarker){
+
+
+        userMarker
+        .setLngLat(
+        [lng,lat]
+        );
+
+
+    }
+
+    else{
+
+
+        userMarker =
+        new maplibregl.Marker({
+
+            color:"blue"
+
+        })
+
+        .setLngLat(
+        [lng,lat]
+        )
+
+        .addTo(map);
+
+
+    }
+
+
+
+    map.flyTo({
+
+        center:
+        [lng,lat],
+
+        zoom:16
+
     });
 
 
@@ -414,47 +464,214 @@ function startRoute(){
 
 
 
-// SHOW CURRENT LOCATION
-
-function startNavigation(){
-
-
-    navigator.geolocation.watchPosition(
-
-    function(position){
+// ----------------------------
+// CREATE ROUTE
+// ----------------------------
 
 
-        const lat =
-        position.coords.latitude;
+async function createRoute(){
 
 
-        const lng =
-        position.coords.longitude;
+    if(!selectedAddress){
+
+        alert(
+        "No destination selected"
+        );
+
+        return;
+
+    }
 
 
 
-        if(!userMarker){
+    const startLng =
+    userLocation.longitude;
 
 
-            userMarker =
-            new maplibregl.Marker({
+    const startLat =
+    userLocation.latitude;
 
-                color:"#0066ff"
 
-            })
 
-            .setLngLat([lng,lat])
+    const endLng =
+    Number(
+    selectedAddress.longitude
+    );
 
-            .addTo(map);
 
+    const endLat =
+    Number(
+    selectedAddress.latitude
+    );
+
+
+
+    if(
+    isNaN(startLng) ||
+    isNaN(startLat) ||
+    isNaN(endLng) ||
+    isNaN(endLat)
+    ){
+
+        alert(
+        "Invalid coordinates"
+        );
+
+        return;
+
+    }
+
+
+
+    const url =
+
+    "https://router.project-osrm.org/route/v1/driving/"
+    +
+
+    startLng
+    + ","
+    + startLat
+
+    + ";"
+
+    +
+
+    endLng
+    + ","
+    + endLat
+
+    +
+
+    "?overview=full&geometries=geojson";
+
+
+
+
+    try{
+
+
+        const response =
+        await fetch(url);
+
+
+
+        const data =
+        await response.json();
+
+
+
+
+        if(
+        !data.routes ||
+        data.routes.length===0
+        ){
+
+            alert(
+            "No route found"
+            );
+
+            return;
 
         }
 
-        else{
 
 
-            userMarker
-            .setLngLat([lng,lat]);
+
+        drawRoute(
+        data.routes[0].geometry
+        );
+
+
+
+        alert(
+
+        "Distance: "
+        +
+
+        (
+        data.routes[0].distance
+        /
+        1000
+        )
+
+        .toFixed(2)
+
+        +
+
+        " km"
+
+        );
+
+
+
+    }
+
+
+    catch(error){
+
+
+        console.log(error);
+
+
+        alert(
+        "Routing service unavailable"
+        );
+
+
+    }
+
+
+
+}
+
+
+
+
+// ----------------------------
+// DRAW ROUTE ON MAP
+// ----------------------------
+
+
+function drawRoute(route){
+
+
+
+    if(
+    map.getSource("route")
+    ){
+
+
+        map.removeLayer(
+        "route"
+        );
+
+
+        map.removeSource(
+        "route"
+        );
+
+
+    }
+
+
+
+
+
+    map.addSource(
+    "route",
+    {
+
+
+        type:"geojson",
+
+
+        data:{
+
+
+            type:"Feature",
+
+
+            geometry:route
 
 
         }
@@ -463,30 +680,49 @@ function startNavigation(){
     });
 
 
+
+    map.addLayer({
+
+        id:"route",
+
+
+        type:"line",
+
+
+        source:"route",
+
+
+        paint:{
+
+
+            "line-width":6,
+
+
+            "line-opacity":0.8
+
+
+        }
+
+
+    });
+
+
+
 }
 
 
 
-// CONNECT BUTTONS
-
-window.searchAddress =
-searchAddress;
 
 
-window.startRoute =
-startRoute;
-
-
-window.startNavigation =
-startNavigation;
-
+// ----------------------------
+// BUTTON CONNECTIONS
+// ----------------------------
 
 
 document.addEventListener(
-
 "DOMContentLoaded",
 
-function(){
+()=>{
 
 
 const searchButton =
@@ -495,26 +731,70 @@ document.getElementById(
 );
 
 
+
 if(searchButton){
+
 
 searchButton.onclick =
 searchAddress;
 
+
 }
+
+
 
 
 const navButton =
 document.getElementById(
-"navigationButton"
+"navigateButton"
 );
+
 
 
 if(navButton){
 
+
 navButton.onclick =
 startNavigation;
 
+
 }
+
+
+
+
+const input =
+document.getElementById(
+"addressInput"
+);
+
+
+
+if(input){
+
+
+input.addEventListener(
+
+"keydown",
+
+event=>{
+
+
+if(event.key==="Enter"){
+
+searchAddress();
+
+}
+
+
+}
+
+
+);
+
+
+}
+
 
 
 });
