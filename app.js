@@ -1,102 +1,107 @@
-let map;
-let marker;
-
-const API_URL = "https://ugrid-api-clean.onrender.com";
+const API =
+"https://uganda-grid-api-clean.onrender.com";
 
 
-// MAP
-map = new maplibregl.Map({
-    container: "map",
-    style: "https://demotiles.maplibre.org/style.json",
-    center: [32.46, 0.05],
-    zoom: 12
-});
-
-
-map.addControl(
-    new maplibregl.NavigationControl()
+const map = L.map("map").setView(
+    [0.05,32.46],
+    13
 );
 
 
-// SEARCH
-async function searchAddress() {
-
-    const input = document
-        .getElementById("addressInput")
-        .value
-        .trim();
-
-
-    if (!input) {
-        alert("Enter Building ID or Address");
-        return;
-    }
+L.tileLayer(
+"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+{
+    maxZoom:19
+}
+).addTo(map);
 
 
-    try {
 
-        const response = await fetch(
-            `${API_URL}/search?q=${encodeURIComponent(input)}`
+let markers=[];
+
+
+
+function addBuilding(record){
+
+    let id = record[1];
+    let address = record[3];
+    let lat = record[10];
+    let lon = record[11];
+
+
+    if(lat && lon){
+
+        let marker = L.marker(
+            [lat,lon]
+        ).addTo(map);
+
+
+        marker.bindPopup(
+        `
+        <b>${id}</b><br>
+        ${address}
+        `
         );
 
 
-        const result = await response.json();
-
-
-        console.log(result);
-
-
-        if (!result || !result.latitude) {
-
-            alert("Address not found");
-            return;
-
-        }
-
-
-        const lat = Number(result.latitude);
-        const lng = Number(result.longitude);
-
-
-
-        if (marker) {
-            marker.remove();
-        }
-
-
-        marker = new maplibregl.Marker()
-            .setLngLat([lng, lat])
-            .addTo(map);
-
-
-
-        map.flyTo({
-
-            center: [lng, lat],
-            zoom: 18
-
-        });
-
-
-
-    } catch(error) {
-
-        console.error(error);
-
-        alert(
-            "Cannot connect to Uganda Grid API"
-        );
-
+        markers.push(marker);
     }
 
 }
 
 
 
-// BUTTON
+async function loadBuildings(){
+
+    let response =
+    await fetch(
+    API+"/search?q=Entebbe"
+    );
+
+
+    let data =
+    await response.json();
+
+
+    data.forEach(addBuilding);
+
+
+}
+
+
+
+loadBuildings();
+
+
+
 document
-.getElementById("findAddress")
+.getElementById("search")
 .addEventListener(
-    "click",
-    searchAddress
-);
+"change",
+async function(){
+
+    let q=this.value;
+
+
+    let response =
+    await fetch(
+    API+"/search?q="+q
+    );
+
+
+    let data =
+    await response.json();
+
+
+    markers.forEach(
+        m=>map.removeLayer(m)
+    );
+
+
+    markers=[];
+
+
+    data.forEach(addBuilding);
+
+
+});
