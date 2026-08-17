@@ -301,31 +301,35 @@ def search_address(q: str):
 
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT
-                    id,
-                    grid_id,
-                    country,
-                    district_code,
-                    subcounty_code,
-                    parish_code,
-                    building_id,
-                    latitude,
-                    longitude,
-                    address
-                FROM uganda_grid_records
-                WHERE
-                    grid_id ILIKE %s
-                    OR address ILIKE %s
-                    OR building_id ILIKE %s
-                ORDER BY id
-                LIMIT 25;
-                """,
-                (
-                    f"%{query}%",
-                    f"%{query}%",
-                    f"%{query}%"
+                            cur.execute(
+                    """
+                    SELECT
+                        id,
+                        grid_id,
+                        country,
+                        district_code,
+                        subcounty_code,
+                        parish_code,
+                        building_id,
+                        latitude,
+                        longitude,
+                        address
+                    FROM uganda_grid_records
+                    WHERE
+                        grid_id ILIKE %s
+                        OR building_id ILIKE %s
+                        OR address ILIKE %s
+                        OR address ILIKE %s
+                    ORDER BY id
+                    LIMIT 25;
+                    """,
+                    (
+                        f"%{query}%",
+                        f"%{query}%",
+                        f"%{query}%",
+                        f"%{query.replace('Victoria', 'Lake Victoria')}%"
+                    )
+                )
                 )
             )
 
