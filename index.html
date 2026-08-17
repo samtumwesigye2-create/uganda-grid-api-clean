@@ -1,43 +1,58 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Uganda National Grid Map</title>
+    <title>Uganda National Grid</title>
 
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <link rel="stylesheet" 
+    href="https://unpkg.com/leaflet/dist/leaflet.css">
 
-<style>
-body {
-    margin:0;
-    font-family:Arial;
-}
+    <style>
+        body {
+            margin:0;
+            font-family:Arial;
+        }
 
-#search {
-    position:absolute;
-    top:10px;
-    left:50px;
-    z-index:1000;
-    padding:10px;
-    width:250px;
-}
+        h2 {
+            text-align:center;
+        }
 
-#map {
-    height:100vh;
-    width:100%;
-}
-</style>
+        #searchBox {
+            width:70%;
+            padding:10px;
+            margin:10px;
+        }
+
+        button {
+            padding:10px;
+        }
+
+        #map {
+            height:80vh;
+            width:100%;
+        }
+    </style>
 
 </head>
 
 <body>
 
-<input id="search" placeholder="Search address..." />
+<h2>Uganda National Grid Address Map</h2>
+
+<input 
+id="searchBox"
+placeholder="Search address e.g. Entebbe">
+
+<button onclick="searchAddress()">
+Search
+</button>
 
 <div id="map"></div>
 
 
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
 <script src="app.js"></script>
 
 
