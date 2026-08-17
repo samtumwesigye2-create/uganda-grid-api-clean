@@ -122,8 +122,18 @@ function displayResult(record) {
 
 
   document
-    .getElementById("navigateButton")
-    .onclick = function(){
+.getElementById("navigateButton")
+.onclick = function(){
+
+  const destination =
+    document.querySelector(".result-card h2").innerText;
+
+  document.getElementById("toInput").value =
+    destination;
+
+  document.getElementById("navigationTab").click();
+
+};
 
       document.getElementById(
         "toInput"
