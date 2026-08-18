@@ -1,8 +1,25 @@
 const API =
-"https://uganda-grid-api-clean-production.up.railway.app";
+"https://YOUR-API-URL.com";
 
 
-let map;
+let latitude = null;
+let longitude = null;
+
+
+let map = L.map('map').setView(
+[0.3476,32.5825],
+7
+);
+
+
+L.tileLayer(
+'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+{
+maxZoom:19
+}
+).addTo(map);
+
+
 let marker;
 
 
@@ -10,130 +27,115 @@ let marker;
 async function searchAddress(){
 
 
-    const query =
-    document.getElementById("searchBox").value;
+let query =
+document.getElementById("searchBox").value;
 
 
-    const response = await fetch(
-        `${API}/search?q=${encodeURIComponent(query)}`
-    );
+let response =
+await fetch(
+`${API}/search?q=${query}`
+);
 
 
-    const data = await response.json();
-
-
-
-    const table =
-    document.getElementById("results");
-
-
-    table.innerHTML = "";
+let data =
+await response.json();
 
 
 
-    if(!data.results || data.results.length === 0){
+let table =
+document.getElementById("results");
 
-        table.innerHTML =
-        `
-        <tr>
-        <td colspan="3">
-        No results found
-        </td>
-        </tr>
-        `;
 
-        return;
-
-    }
+table.innerHTML="";
 
 
 
-    const place = data.results[0];
+data.results.forEach(place=>{
+
+
+latitude =
+place.latitude;
+
+
+longitude =
+place.longitude;
 
 
 
-    table.innerHTML =
-    `
+table.innerHTML += `
 
-    <tr>
+<tr>
 
-    <td>
-    ${place.grid_id || ""}
-    </td>
+<td>${place.grid_id || ""}</td>
 
+<td>${place.street || ""}</td>
 
-    <td>
-    ${place.street || ""}
-    </td>
+<td>${place.address || ""}</td>
 
+</tr>
 
-    <td>
-    ${place.address || ""}
-    </td>
-
-    </tr>
-
-    `;
+`;
 
 
 
-    const lat =
-    Number(place.latitude);
+if(marker){
 
+map.removeLayer(marker);
 
-    const lon =
-    Number(place.longitude);
-
-
-
-    if(!map){
-
-
-        map = L.map("map")
-        .setView(
-            [lat, lon],
-            16
-        );
-
-
-        L.tileLayer(
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-            attribution:
-            "© OpenStreetMap"
-        }
-        ).addTo(map);
-
-
-    } else {
-
-
-        map.setView(
-            [lat, lon],
-            16
-        );
-
-    }
+}
 
 
 
-    if(marker){
+marker =
+L.marker(
+[
+latitude,
+longitude
+]
+)
+.addTo(map)
+.bindPopup(
+place.address
+)
+.openPopup();
 
-        marker.remove();
-
-    }
 
 
+map.setView(
+[
+latitude,
+longitude
+],
+17
+);
 
-    marker =
-    L.marker(
-        [lat, lon]
-    )
-    .addTo(map)
-    .bindPopup(
-        place.address
-    )
-    .openPopup();
+
+
+});
+
+}
+
+
+
+function navigate(){
+
+
+if(!latitude || !longitude){
+
+alert(
+"Search a location first"
+);
+
+return;
+
+}
+
+
+window.open(
+
+`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
+
+);
 
 
 }
