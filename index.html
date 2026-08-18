@@ -303,29 +303,60 @@ function ugamap(){
 
 if(latitude && longitude){
 
-let navigationBox = document.getElementById("ugamapPanel");
+let panel = document.getElementById("ugamapPanel");
 
-navigationBox.innerHTML = `
+panel.style.display = "block";
 
-<h2>🧭 UGAMAP</h2>
+document.getElementById("routeInfo").innerHTML = 
+`
+Destination coordinates:<br><br>
 
-<p>
-Destination coordinates:
-</p>
-
-<p>
 Latitude: ${latitude}<br>
-Longitude: ${longitude}
-</p>
 
-<button onclick="startUGAMAPRoute()">
-Start UGAMAP Route
-</button>
+Longitude: ${longitude}
 
 `;
 
-navigationBox.style.display = "block";
+}
 
+else{
+
+alert("Search location first");
+
+}
+
+}
+
+
+function startUGAMAPRoute(){
+
+if(userLat && userLng && latitude && longitude){
+
+let distance = 
+L.latLng(userLat,userLng)
+.distanceTo(
+L.latLng(latitude,longitude)
+);
+
+
+document.getElementById("routeInfo").innerHTML =
+`
+🧭 UGAMAP Route Active<br><br>
+
+Distance:
+${(distance/1000).toFixed(2)} km
+
+`;
+
+}
+
+else{
+
+alert("Press My Location first");
+
+}
+
+}
 }
 
 else{
