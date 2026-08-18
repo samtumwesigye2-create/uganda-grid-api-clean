@@ -1,15 +1,14 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 import json
-from pathlib import Path
-
+import os
 
 app = FastAPI(
-    title="Uganda National Grid API"
+    title="Uganda National Grid API",
+    version="1.0"
 )
 
-
+# Allow web app access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,77 +17,90 @@ app.add_middleware(
 )
 
 
-BASE_DIR = Path(__file__).resolve().parent
+# Database file
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE = os.path.join(
+    BASE_DIR,
+    "uganda_national_grid_addresses_v2.json"
+)
 
-DATABASE = BASE_DIR / "uganda_national_grid_addresses_v2.json"
 
+# Load database
+try:
+    with open(DATABASE, "r", encoding="utf-8") as file:
+        addresses = json.load(file)
 
-with open(DATABASE, "r", encoding="utf-8") as file:
-    addresses = json.load(file)
+    print(f"Loaded {len(addresses)} addresses")
 
+except Exception as e:
+    print("Database loading failed:", e)
+    addresses = []
 
 
 @app.get("/")
 def home():
-
-    if (BASE_DIR / "index.html").exists():
-        return FileResponse(
-            BASE_DIR / "index.html"
-        )
-
     return {
-        "message": "Uganda National Grid API is running"
+        "name": "Uganda National Grid API",
+        "status": "online",
+        "records": len(addresses)
     }
-
 
 
 @app.get("/search")
-def search(q: str = Query(...)):
-
-    query = q.lower()
+def search(
+    q: str = Query(...)
+):
+    q = q.lower()
 
     results = []
 
+    for item in addresses:
+        text = json.dumps(item).lower()
 
-    for place in addresses:
-
-        searchable = json.dumps(place).lower()
-
-
-        if query in searchable:
-
-
-            results.append({
-
-                "grid_id": place["grid_id"],
-
-                "street": place["address"]["street"],
-
-                "address": place["address"]["full_address"],
-
-                "latitude": place["coordinates"]["latitude"],
-
-                "longitude": place["coordinates"]["longitude"],
-
-                "certification": place["certification"]
-
-            })
-
+        if q in text:
+            results.append(item)
 
     return {
-
         "count": len(results),
-
-        "results": results
-
+        "results": results[:50]
     }
 
 
+@app.get("/address/{grid_id}")
+def get_address(grid_id: str):
 
-@app.get("/health")
-def health():
+    for item in addresses:
+
+        if item.get("grid_id") == grid_id:
+            return item
 
     return {
-        "status": "ok",
-        "records": len(addresses)
+        "error": "Address not found"
+    }
+
+
+@app.get("/nearby")
+def nearby(
+    lat: float,
+    lon: float,
+    radius: float = 0.01
+):
+
+    results = []
+
+    for item in addresses:
+
+        item_lat = float(item.get("latitude", 0))
+        item_lon = float(item.get("longitude", 0))
+
+        if (
+            abs(item_lat - lat) <= radius
+            and
+            abs(item_lon - lon) <= radius
+        ):
+            results.append(item)
+
+    return {
+        "count": len(results),
+        "results": results
     }
