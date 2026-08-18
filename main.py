@@ -1,5 +1,4 @@
 from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse
 import psycopg2
 import os
 
@@ -17,10 +16,14 @@ def get_connection():
     )
 
 
-# Website homepage
+# Homepage
 @app.get("/")
 def home():
-    return FileResponse("index.html")
+    return {
+        "message": "Uganda National Grid API is running",
+        "status": "online",
+        "version": "2.0"
+    }
 
 
 # Health check
@@ -31,7 +34,7 @@ def health():
     }
 
 
-# API information
+# API info
 @app.get("/api")
 def api_info():
     return {
@@ -41,7 +44,7 @@ def api_info():
     }
 
 
-# Search records
+# Search grid records
 @app.get("/search")
 def search(q: str = Query("")):
 
@@ -52,9 +55,9 @@ def search(q: str = Query("")):
         """
         SELECT *
         FROM uganda_grid_records
-        WHERE 
-        address ILIKE %s
-        OR code ILIKE %s
+        WHERE
+            address ILIKE %s
+            OR code ILIKE %s
         LIMIT 100
         """,
         (
