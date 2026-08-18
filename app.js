@@ -1,81 +1,32 @@
-const API = "";
-
-
-const map = L.map("map").setView(
-    [1.3733, 32.2903],
-    7
-);
-
-
-L.tileLayer(
-"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-{
-    maxZoom:19
-}
-).addTo(map);
-
+const API = "https://uganda-grid-api-clean-production.up.railway.app";
 
 
 async function searchAddress(){
 
-    let query =
-    document.getElementById("searchBox").value;
+    let query = document.getElementById("searchBox").value;
 
-
-    let response =
-    await fetch(
+    let response = await fetch(
         `${API}/search?q=${query}`
     );
 
-
-    let results =
-    await response.json();
+    let data = await response.json();
 
 
-    console.log(results);
+    let table = document.getElementById("results");
+
+    table.innerHTML = "";
 
 
-    results.forEach(place=>{
+    data.results.forEach(place => {
 
-
-        let latitude =
-        place[12];
-
-
-        let longitude =
-        place[13];
-
-
-        L.marker(
-            [
-                latitude,
-                longitude
-            ]
-        )
-        .addTo(map)
-        .bindPopup(
-        `
-        <b>${place[1]}</b><br>
-        Address:<br>
-        ${place[3]}<br>
-        ZIP: ${place[8]}
-        `
-        );
-
+        table.innerHTML += `
+        <tr>
+            <td>${place.grid_id || ""}</td>
+            <td>${place.street || ""}</td>
+            <td>${place.address || ""}</td>
+        </tr>
+        `;
 
     });
-
-
-    if(results.length > 0){
-
-        map.setView(
-            [
-                results[0][12],
-                results[0][13]
-            ],
-            16
-        );
-
-    }
 
 }
