@@ -1,60 +1,98 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Uganda National Grid</title>
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <link rel="stylesheet" 
-    href="https://unpkg.com/leaflet/dist/leaflet.css">
-
+    <title>Uganda National Grid Search</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body {
-            margin:0;
-            font-family:Arial;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
         }
 
-        h2 {
-            text-align:center;
-        }
-
-        #searchBox {
-            width:70%;
-            padding:10px;
-            margin:10px;
+        input {
+            width: 80%;
+            padding: 12px;
+            font-size: 16px;
         }
 
         button {
-            padding:10px;
+            padding: 12px;
+            background: green;
+            color: white;
+            border: none;
         }
 
-        #map {
-            height:80vh;
+        table {
+            margin-top:20px;
             width:100%;
+            background:white;
+            border-collapse:collapse;
+        }
+
+        td, th {
+            border:1px solid #ddd;
+            padding:8px;
         }
     </style>
-
 </head>
 
 <body>
 
-<h2>Uganda National Grid Address Map</h2>
+<h1>Uganda National Grid API</h1>
 
-<input 
-id="searchBox"
-placeholder="Search address e.g. Entebbe">
+<input id="search" placeholder="Search address or code">
+<button onclick="searchData()">Search</button>
 
-<button onclick="searchAddress()">
-Search
-</button>
+<table id="results">
+<tr>
+<th>ID</th>
+<th>Code</th>
+<th>Address</th>
+</tr>
+</table>
 
-<div id="map"></div>
+
+<script>
+
+async function searchData(){
+
+let q=document.getElementById("search").value;
+
+let response = await fetch("/search?q="+q);
+
+let data = await response.json();
 
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+let table=document.getElementById("results");
 
-<script src="app.js"></script>
+table.innerHTML=
+`
+<tr>
+<th>ID</th>
+<th>Code</th>
+<th>Address</th>
+</tr>
+`;
 
+
+data.forEach(row=>{
+
+table.innerHTML +=
+`
+<tr>
+<td>${row[0]}</td>
+<td>${row[1]}</td>
+<td>${row[7]}</td>
+</tr>
+`;
+
+});
+
+
+}
+
+</script>
 
 </body>
 </html>
