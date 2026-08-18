@@ -98,5 +98,5 @@ def stats():
 
     return {
         "total_records": len(addresses),
-        "database": "uganda_national_grid_addresses_v2.json"
+        "database": "entebbe_database.json"
     }
