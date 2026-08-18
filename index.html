@@ -106,6 +106,9 @@ Search
 <div id="map"></div>
 
 
+<div id="ugamapPanel" class="navigation" style="display:none;"></div>
+
+
 <div class="navigation">
 
 <h2>Navigation</h2>
@@ -290,9 +293,28 @@ function ugamap(){
 
 if(latitude && longitude){
 
-alert(
-"UGAMAP internal navigation is ready for development"
-);
+let navigationBox = document.getElementById("ugamapPanel");
+
+navigationBox.innerHTML = `
+
+<h2>🧭 UGAMAP</h2>
+
+<p>
+Destination coordinates:
+</p>
+
+<p>
+Latitude: ${latitude}<br>
+Longitude: ${longitude}
+</p>
+
+<button onclick="startUGAMAPRoute()">
+Start UGAMAP Route
+</button>
+
+`;
+
+navigationBox.style.display = "block";
 
 }
 
@@ -303,7 +325,6 @@ alert("Search location first");
 }
 
 }
-
 
 
 
