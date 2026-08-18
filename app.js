@@ -1,6 +1,5 @@
 const API = "https://uganda-grid-api-clean-production.up.railway.app";
 
-
 async function searchAddress(){
 
     let query = document.getElementById("searchBox").value;
@@ -11,11 +10,9 @@ async function searchAddress(){
 
     let data = await response.json();
 
-
     let table = document.getElementById("results");
 
     table.innerHTML = "";
-
 
     data.results.forEach(place => {
 
@@ -28,6 +25,4 @@ async function searchAddress(){
         `;
 
     });
-
-}
 }
