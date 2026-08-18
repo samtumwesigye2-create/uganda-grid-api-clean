@@ -16,14 +16,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 # Database file
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 DATABASE = os.path.join(
     BASE_DIR,
-    "entebbe_database.json"
+    "uganda_national_grid_addresses_v2.json"
 )
-
 
 # Load database
 try:
@@ -50,15 +49,61 @@ def home():
 def search(
     q: str = Query(...)
 ):
-    q = q.lower()
 
-    results = []
+    q = q.lower().strip()
+
+    exact = []
+    matches = []
 
     for item in addresses:
-        text = json.dumps(item).lower()
 
-        if q in text:
-            results.append(item)
+        grid_id = str(
+            item.get("grid_id", "")
+        ).lower()
+
+        house = str(
+            item.get("house_number", "")
+        ).lower()
+
+        street = str(
+            item.get("street", "")
+        ).lower()
+
+        city = str(
+            item.get("city", "")
+        ).lower()
+
+        district = str(
+            item.get("district_code", "")
+        ).lower()
+
+        address = str(
+            item.get("address", "")
+        ).lower()
+
+
+        # Exact priority
+        if (
+            q == grid_id
+            or q == house
+        ):
+            exact.append(item)
+
+
+        # General search
+        elif (
+            q in grid_id
+            or q in house
+            or q in street
+            or q in city
+            or q in district
+            or q in address
+        ):
+            matches.append(item)
+
+
+    results = exact + matches
+
 
     return {
         "count": len(results),
@@ -69,38 +114,14 @@ def search(
 @app.get("/address/{grid_id}")
 def get_address(grid_id: str):
 
+    grid_id = grid_id.lower()
+
     for item in addresses:
 
-        if item.get("grid_id") == grid_id:
+        if item.get("grid_id", "").lower() == grid_id:
             return item
+
 
     return {
         "error": "Address not found"
-    }
-
-
-@app.get("/nearby")
-def nearby(
-    lat: float,
-    lon: float,
-    radius: float = 0.01
-):
-
-    results = []
-
-    for item in addresses:
-
-        item_lat = float(item.get("latitude", 0))
-        item_lon = float(item.get("longitude", 0))
-
-        if (
-            abs(item_lat - lat) <= radius
-            and
-            abs(item_lon - lon) <= radius
-        ):
-            results.append(item)
-
-    return {
-        "count": len(results),
-        "results": results
     }
