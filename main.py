@@ -1,13 +1,15 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from pathlib import Path
 import json
 import os
 
+
 app = FastAPI(title="Uganda National Grid API")
 
-# Allow frontend requests
+
+# Allow frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,8 +20,6 @@ app.add_middleware(
 
 
 BASE_DIR = Path(__file__).resolve().parent
-
-# Database file
 DATABASE_FILE = BASE_DIR / "entebbe_database.json"
 
 
@@ -39,35 +39,33 @@ def health():
 
 @app.get("/search")
 def search(q: str = Query(...)):
-    if not DATABASE_FILE.exists():
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "Database file missing",
-                "file": str(DATABASE_FILE)
-            }
-        )
 
-    with open(DATABASE_FILE, "r", encoding="utf-8") as file:
+    if not DATABASE_FILE.exists():
+        return {
+            "error": "Database file missing",
+            "checked": str(DATABASE_FILE)
+        }
+
+
+    with open(
+        DATABASE_FILE,
+        "r",
+        encoding="utf-8"
+    ) as file:
         data = json.load(file)
+
 
     results = []
 
     query = q.lower()
 
+
     for item in data:
 
-        item_text = json.dumps(item).lower()
+        text = json.dumps(item).lower()
 
-        if query in item_text:
-
-            results.append({
-                "id": item.get("id"),
-                "code": item.get("code"),
-                "address": item.get("address"),
-                "latitude": item.get("latitude"),
-                "longitude": item.get("longitude")
-            })
+        if query in text:
+            results.append(item)
 
 
     return {
@@ -76,13 +74,15 @@ def search(q: str = Query(...)):
     }
 
 
-# Serve frontend
+
+# Frontend
 @app.get("/app")
 def frontend():
-    frontend_file = BASE_DIR / "index.html"
 
-    if frontend_file.exists():
-        return FileResponse(frontend_file)
+    index = BASE_DIR / "index.html"
+
+    if index.exists():
+        return FileResponse(index)
 
     return {
         "message": "Frontend file missing",
@@ -93,8 +93,10 @@ def frontend():
     }
 
 
+
 @app.get("/debug/files")
-def debug_files():
+def files():
+
     return {
         "files": os.listdir(BASE_DIR)
     }
