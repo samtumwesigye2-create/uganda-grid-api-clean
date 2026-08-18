@@ -125,3 +125,12 @@ window.open(url,"_blank");
 
 
 }
+function navigate(){
+
+  let address = document.querySelector("#searchBox").value;
+
+  let url = "https://www.google.com/maps/search/?api=1&query=" 
+            + encodeURIComponent(address);
+
+  window.open(url, "_blank");
+}
