@@ -1,66 +1,85 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path
 import json
-import os
 
 
-app = FastAPI(title="Uganda National Grid API")
+app = FastAPI(
+    title="Uganda National Grid API",
+    version="2.0"
+)
 
 
-# Allow frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
 BASE_DIR = Path(__file__).resolve().parent
-DATABASE_FILE = BASE_DIR / "entebbe_database.json"
+
+DATA_FILE = BASE_DIR / "entebbe_database.json"
+INDEX_FILE = BASE_DIR / "index.html"
 
 
+# Load data
+if DATA_FILE.exists():
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+        records = json.load(f)
+else:
+    records = []
+
+
+# THIS IS THE WEBSITE PAGE
 @app.get("/")
 def home():
+
+    if INDEX_FILE.exists():
+        return FileResponse(
+            INDEX_FILE
+        )
+
+    return JSONResponse(
+        {
+            "error": "index.html not found",
+            "location": str(INDEX_FILE)
+        }
+    )
+
+
+# API status
+@app.get("/api")
+def api():
+
     return {
-        "message": "Uganda National Grid API is running"
+        "message": "Uganda National Grid API is running",
+        "records": len(records)
     }
 
 
+# Health check
 @app.get("/health")
 def health():
+
     return {
-        "status": "ok"
+        "status": "healthy"
     }
 
 
+# Search
 @app.get("/search")
-def search(q: str = Query(...)):
-
-    if not DATABASE_FILE.exists():
-        return {
-            "error": "Database file missing",
-            "checked": str(DATABASE_FILE)
-        }
-
-
-    with open(
-        DATABASE_FILE,
-        "r",
-        encoding="utf-8"
-    ) as file:
-        data = json.load(file)
-
-
-    results = []
+def search(
+    q: str = Query(...)
+):
 
     query = q.lower()
 
+    results = []
 
-    for item in data:
+    for item in records:
 
         text = json.dumps(item).lower()
 
@@ -71,32 +90,4 @@ def search(q: str = Query(...)):
     return {
         "count": len(results),
         "results": results
-    }
-
-
-
-# Frontend
-@app.get("/app")
-def frontend():
-
-    index = BASE_DIR / "index.html"
-
-    if index.exists():
-        return FileResponse(index)
-
-    return {
-        "message": "Frontend file missing",
-        "checked": [
-            str(BASE_DIR / "index.html"),
-            str(BASE_DIR / "frontend" / "index.html")
-        ]
-    }
-
-
-
-@app.get("/debug/files")
-def files():
-
-    return {
-        "files": os.listdir(BASE_DIR)
     }
