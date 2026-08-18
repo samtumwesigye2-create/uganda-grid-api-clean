@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
-import os
+from fastapi.staticfiles import StaticFiles
 import psycopg2
+import os
+
 
 app = FastAPI(
     title="Uganda National Grid API",
@@ -9,19 +11,37 @@ app = FastAPI(
 )
 
 
+# Database connection
 def get_connection():
     return psycopg2.connect(
         os.environ["DATABASE_URL"]
     )
 
 
+# Serve frontend files if they exist
+if os.path.exists("frontend"):
+    app.mount(
+        "/static",
+        StaticFiles(directory="frontend"),
+        name="static"
+    )
+
+
+# Homepage
 @app.get("/")
 def home():
+    if os.path.exists("index.html"):
+        return FileResponse("index.html")
+
+    if os.path.exists("frontend/index.html"):
+        return FileResponse("frontend/index.html")
+
     return {
-        "message": "Uganda National Grid API is running"
+        "message": "Frontend file missing"
     }
 
 
+# Health check
 @app.get("/health")
 def health():
     return {
@@ -29,6 +49,7 @@ def health():
     }
 
 
+# API information
 @app.get("/api")
 def api_info():
     return {
@@ -38,8 +59,11 @@ def api_info():
     }
 
 
+# Search records
 @app.get("/search")
-def search(q: str = Query(...)):
+def search(
+    q: str = Query("")
+):
 
     conn = get_connection()
     cur = conn.cursor()
@@ -50,16 +74,15 @@ def search(q: str = Query(...)):
         FROM uganda_grid_records
         WHERE
         address ILIKE %s
-        OR street ILIKE %s
-        OR city ILIKE %s
+        OR code ILIKE %s
         LIMIT 100
         """,
         (
             f"%{q}%",
-            f"%{q}%",
             f"%{q}%"
         )
     )
+
 
     rows = cur.fetchall()
 
