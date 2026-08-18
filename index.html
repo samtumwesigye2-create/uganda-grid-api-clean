@@ -1,36 +1,57 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Uganda National Grid API</title>
+
+<title>Uganda National Grid Search</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+
 
 <style>
+
 body {
-    font-family: Arial;
-    margin: 40px;
+    font-family: Arial, sans-serif;
+    margin: 30px;
+}
+
+h1 {
+    font-size: 36px;
 }
 
 input {
-    width: 400px;
+    width: 350px;
     padding: 12px;
-    font-size: 18px;
+    font-size: 16px;
 }
 
 button {
-    padding: 12px 25px;
-    font-size: 18px;
+    padding: 12px 20px;
+    font-size: 16px;
+    cursor: pointer;
 }
 
 table {
-    margin-top: 30px;
+    margin-top: 25px;
+    width: 100%;
     border-collapse: collapse;
-    width: 80%;
 }
 
-td, th {
+th, td {
     border: 1px solid #ccc;
-    padding: 12px;
-    text-align: left;
+    padding: 10px;
 }
+
+th {
+    background: #eee;
+}
+
+#map {
+    height: 450px;
+    margin-top: 30px;
+}
+
 </style>
 
 </head>
@@ -38,24 +59,34 @@ td, th {
 
 <body>
 
-<h1>Uganda National Grid API</h1>
+
+<h1>
+Uganda National Grid Search
+</h1>
 
 
-<input id="searchBox" placeholder="Search address or code">
+<input 
+id="searchBox"
+placeholder="Search address or code"
+/>
+
 
 <button onclick="searchAddress()">
 Search
 </button>
 
 
+
 <table>
 
 <thead>
+
 <tr>
 <th>ID</th>
-<th>Code</th>
+<th>Street</th>
 <th>Address</th>
 </tr>
+
 </thead>
 
 
@@ -68,56 +99,15 @@ Search
 
 
 
-<script>
-
-const API = "https://uganda-grid-api-clean-production.up.railway.app";
+<div id="map"></div>
 
 
-async function searchAddress(){
 
-    let q = document.getElementById("searchBox").value;
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-
-    let response = await fetch(
-        API + "/search?q=" + encodeURIComponent(q)
-    );
-
-
-    let data = await response.json();
-
-
-    console.log(data);
-
-
-    let table = document.getElementById("results");
-
-
-    table.innerHTML = "";
-
-
-    data.results.forEach(function(item){
-
-        table.innerHTML += `
-
-        <tr>
-
-        <td>${item.grid_id || ""}</td>
-
-        <td>${item.street || ""}</td>
-
-        <td>${item.address || ""}</td>
-
-        </tr>
-
-        `;
-
-    });
-
-
-}
-
-</script>
+<script src="app.js"></script>
 
 
 </body>
+
 </html>
