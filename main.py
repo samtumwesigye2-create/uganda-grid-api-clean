@@ -17,10 +17,9 @@ app.add_middleware(
 )
 
 
-@app.get("/")
+@@app.get("/")
 def home():
-    if INDEX_FILE.exists():
-        return FileResponse(INDEX_FILE)
+    return FileResponse("index.html")
 
     return {
         "message": "Uganda National Grid API is running"
