@@ -17,7 +17,7 @@ app.add_middleware(
 )
 
 
-@@app.get("/")
+@app.get("/")
 def home():
     return FileResponse("index.html")
 
