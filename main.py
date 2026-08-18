@@ -18,7 +18,6 @@ app.add_middleware(
 
 # Database file
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 DATABASE = os.path.join(
     BASE_DIR,
     "uganda_national_grid_addresses_v2.json"
@@ -46,9 +45,7 @@ def home():
 
 
 @app.get("/search")
-def search(
-    q: str = Query(...)
-):
+def search(q: str = Query(...)):
 
     q = q.lower().strip()
 
@@ -57,53 +54,24 @@ def search(
 
     for item in addresses:
 
-        grid_id = str(
-            item.get("grid_id", "")
-        ).lower()
+        grid_id = str(item.get("grid_id", "")).lower()
+        street = str(item.get("street", "")).lower()
+        city = str(item.get("city", "")).lower()
+        district = str(item.get("district_code", "")).lower()
+        address = str(item.get("address", "")).lower()
 
-        house = str(
-            item.get("house_number", "")
-        ).lower()
-
-        street = str(
-            item.get("street", "")
-        ).lower()
-
-        city = str(
-            item.get("city", "")
-        ).lower()
-
-        district = str(
-            item.get("district_code", "")
-        ).lower()
-
-        address = str(
-            item.get("address", "")
-        ).lower()
-
-
-        # Exact priority
-        if (
-            q == grid_id
-            or q == house
-        ):
+        if q == grid_id:
             exact.append(item)
 
-
-        # General search
         elif (
-            q in grid_id
-            or q in house
-            or q in street
+            q in street
             or q in city
             or q in district
             or q in address
         ):
             matches.append(item)
 
-
     results = exact + matches
-
 
     return {
         "count": len(results),
@@ -111,14 +79,16 @@ def search(
     }
 
 
-@@app.get("/address/{grid_id}")
+@app.get("/address/{grid_id}")
 def get_address(grid_id: str):
 
     search_id = grid_id.lower().strip()
 
     for item in addresses:
 
-        stored_id = str(item.get("grid_id", "")).lower().strip()
+        stored_id = str(
+            item.get("grid_id", "")
+        ).lower().strip()
 
         if stored_id == search_id:
             return item
@@ -126,16 +96,4 @@ def get_address(grid_id: str):
     return {
         "error": "Address not found",
         "searched": search_id
-    }
-
-    grid_id = grid_id.lower()
-
-    for item in addresses:
-
-        if item.get("grid_id", "").lower() == grid_id:
-            return item
-
-
-    return {
-        "error": "Address not found"
     }
