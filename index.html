@@ -1,57 +1,59 @@
 <!DOCTYPE html>
 <html>
 <head>
+
 <title>Uganda National Grid API</title>
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <link 
-rel="stylesheet" 
+rel="stylesheet"
 href="https://unpkg.com/leaflet/dist/leaflet.css"
 />
 
 <style>
 
 body{
-    font-family: Arial, sans-serif;
-    margin:30px;
+font-family:Arial,sans-serif;
+margin:30px;
 }
 
 h1{
-    font-size:36px;
+font-size:36px;
 }
 
 input{
-    width:60%;
-    padding:12px;
-    font-size:18px;
+width:60%;
+padding:12px;
+font-size:18px;
 }
 
 button{
-    padding:12px 20px;
-    font-size:18px;
-    cursor:pointer;
+padding:12px 20px;
+font-size:18px;
+cursor:pointer;
 }
 
 table{
-    margin-top:20px;
-    border-collapse:collapse;
-    width:100%;
+margin-top:20px;
+border-collapse:collapse;
+width:100%;
 }
 
-td,th{
-    border:1px solid #ccc;
-    padding:12px;
-    text-align:left;
+th,td{
+border:1px solid #ccc;
+padding:12px;
+text-align:left;
 }
 
 #map{
-    height:400px;
-    margin-top:30px;
+height:400px;
+width:100%;
+margin-top:20px;
 }
 
 .nav{
-    margin-top:20px;
+margin-top:20px;
 }
 
 </style>
@@ -61,14 +63,16 @@ td,th{
 
 <body>
 
+
 <h1>Uganda National Grid API</h1>
 
 
 <input 
 id="searchBox"
-placeholder="Search address or code"
 value="UG-ENT-000211"
-/>
+placeholder="Search address or code"
+>
+
 
 <button onclick="searchAddress()">
 Search
@@ -78,17 +82,20 @@ Search
 <table>
 
 <thead>
+
 <tr>
 <th>ID</th>
 <th>Code</th>
 <th>Address</th>
 </tr>
+
 </thead>
 
 
 <tbody id="results">
 
 </tbody>
+
 
 </table>
 
@@ -105,9 +112,153 @@ Navigate
 </div>
 
 
+
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-<script src="app.js"></script>
+
+<script>
+
+
+const API =
+"https://uganda-grid-api-clean-production.up.railway.app";
+
+
+let latitude;
+let longitude;
+
+
+let map = L.map('map')
+.setView([0.3476,32.5825],10);
+
+
+L.tileLayer(
+'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+).addTo(map);
+
+
+
+let marker;
+
+
+
+async function searchAddress(){
+
+
+let query =
+document.getElementById("searchBox").value;
+
+
+let response =
+await fetch(
+`${API}/search?q=${query}`
+);
+
+
+let data =
+await response.json();
+
+
+let table =
+document.getElementById("results");
+
+
+table.innerHTML="";
+
+
+
+data.results.forEach(place=>{
+
+
+latitude = place.latitude;
+
+longitude = place.longitude;
+
+
+
+table.innerHTML += `
+
+<tr>
+
+<td>${place.grid_id}</td>
+
+<td>${place.street}</td>
+
+<td>${place.address}</td>
+
+</tr>
+
+`;
+
+
+
+if(marker){
+
+map.removeLayer(marker);
+
+}
+
+
+marker =
+L.marker(
+[
+latitude,
+longitude
+]
+)
+.addTo(map)
+.bindPopup(
+place.address
+)
+.openPopup();
+
+
+
+map.setView(
+[
+latitude,
+longitude
+],
+16
+);
+
+
+
+});
+
+
+}
+
+
+
+function navigate(){
+
+
+if(latitude && longitude){
+
+
+window.open(
+
+`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
+
+);
+
+}
+
+else{
+
+alert("Search an address first");
+
+}
+
+
+}
+
+
+
+searchAddress();
+
+
+</script>
 
 
 </body>
