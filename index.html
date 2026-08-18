@@ -1,13 +1,32 @@
-<table>
-<thead>
+<!DOCTYPE html>
+<html>
+<head>
+<title>Uganda National Grid API</title>
+</head>
+
+<body>
+
+<h1>Uganda National Grid API</h1>
+
+<input id="searchBox" placeholder="Search address or code">
+
+<button onclick="searchAddress()">
+Search
+</button>
+
+<table border="1">
 <tr>
 <th>ID</th>
-<th>Street</th>
+<th>Code</th>
 <th>Address</th>
 </tr>
-</thead>
 
 <tbody id="results">
 </tbody>
 
 </table>
+
+<script src="app.js"></script>
+
+</body>
+</html>
