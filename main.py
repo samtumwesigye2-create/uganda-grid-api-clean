@@ -8,7 +8,6 @@ app = FastAPI(
     version="1.0"
 )
 
-# Allow web app access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,12 +17,10 @@ app.add_middleware(
 
 # Database file
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 DATABASE = os.path.join(
     BASE_DIR,
-    DATABASE = os.path.join(
-    BASE_DIR,
     "enteebe_database.json"
-)
 )
 
 # Load database
