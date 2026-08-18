@@ -11,14 +11,7 @@ app = FastAPI(
 )
 
 
-# Database connection
-def get_connection():
-    return psycopg2.connect(
-        os.environ["DATABASE_URL"]
-    )
-
-
-# Serve frontend files if they exist
+# Serve frontend folder
 if os.path.exists("frontend"):
     app.mount(
         "/static",
@@ -27,18 +20,19 @@ if os.path.exists("frontend"):
     )
 
 
+# Database connection
+def get_connection():
+    return psycopg2.connect(
+        os.environ["DATABASE_URL"]
+    )
+
+
 # Homepage
 @app.get("/")
 def home():
-    if os.path.exists("index.html"):
-        return FileResponse("index.html")
-
-    if os.path.exists("frontend/index.html"):
-        return FileResponse("frontend/index.html")
-
-    return {
-        "message": "Frontend file missing"
-    }
+    return FileResponse(
+        "frontend/index.html"
+    )
 
 
 # Health check
@@ -59,7 +53,7 @@ def api_info():
     }
 
 
-# Search records
+# Search database
 @app.get("/search")
 def search(
     q: str = Query("")
@@ -78,11 +72,10 @@ def search(
         LIMIT 100
         """,
         (
-            f"%{q}%",
-            f"%{q}%"
+            "%" + q + "%",
+            "%" + q + "%"
         )
     )
-
 
     rows = cur.fetchall()
 
