@@ -1,5 +1,4 @@
-const API =
-"https://uganda-grid-api-clean.onrender.com";
+const API = "";
 
 
 const map = L.map("map").setView(
