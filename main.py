@@ -1,6 +1,5 @@
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 import psycopg2
 import os
 
@@ -11,15 +10,6 @@ app = FastAPI(
 )
 
 
-# Serve frontend folder
-if os.path.exists("frontend"):
-    app.mount(
-        "/static",
-        StaticFiles(directory="frontend"),
-        name="static"
-    )
-
-
 # Database connection
 def get_connection():
     return psycopg2.connect(
@@ -27,12 +17,10 @@ def get_connection():
     )
 
 
-# Homepage
+# Website homepage
 @app.get("/")
 def home():
-    return FileResponse(
-        "frontend/index.html"
-    )
+    return FileResponse("index.html")
 
 
 # Health check
@@ -53,11 +41,9 @@ def api_info():
     }
 
 
-# Search database
+# Search records
 @app.get("/search")
-def search(
-    q: str = Query("")
-):
+def search(q: str = Query("")):
 
     conn = get_connection()
     cur = conn.cursor()
@@ -66,7 +52,7 @@ def search(
         """
         SELECT *
         FROM uganda_grid_records
-        WHERE
+        WHERE 
         address ILIKE %s
         OR code ILIKE %s
         LIMIT 100
