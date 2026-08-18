@@ -1,13 +1,12 @@
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
-from pathlib import Path
+from fastapi.responses import FileResponse
 import json
+from pathlib import Path
 
 
 app = FastAPI(
-    title="Uganda National Grid API",
-    version="2.0"
+    title="Uganda National Grid API"
 )
 
 
@@ -21,73 +20,75 @@ app.add_middleware(
 
 BASE_DIR = Path(__file__).resolve().parent
 
-DATA_FILE = BASE_DIR / "entebbe_database.json"
-INDEX_FILE = BASE_DIR / "index.html"
+DATABASE = BASE_DIR / "uganda_national_grid_addresses_v2.json"
 
 
-# Load data
-if DATA_FILE.exists():
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        records = json.load(f)
-else:
-    records = []
+with open(DATABASE, "r", encoding="utf-8") as file:
+    addresses = json.load(file)
 
 
-# THIS IS THE WEBSITE PAGE
+
 @app.get("/")
 def home():
 
-    if INDEX_FILE.exists():
+    if (BASE_DIR / "index.html").exists():
         return FileResponse(
-            INDEX_FILE
+            BASE_DIR / "index.html"
         )
 
-    return JSONResponse(
-        {
-            "error": "index.html not found",
-            "location": str(INDEX_FILE)
-        }
-    )
-
-
-# API status
-@app.get("/api")
-def api():
-
     return {
-        "message": "Uganda National Grid API is running",
-        "records": len(records)
+        "message": "Uganda National Grid API is running"
     }
 
 
-# Health check
-@app.get("/health")
-def health():
 
-    return {
-        "status": "healthy"
-    }
-
-
-# Search
 @app.get("/search")
-def search(
-    q: str = Query(...)
-):
+def search(q: str = Query(...)):
 
     query = q.lower()
 
     results = []
 
-    for item in records:
 
-        text = json.dumps(item).lower()
+    for place in addresses:
 
-        if query in text:
-            results.append(item)
+        searchable = json.dumps(place).lower()
+
+
+        if query in searchable:
+
+
+            results.append({
+
+                "grid_id": place["grid_id"],
+
+                "street": place["address"]["street"],
+
+                "address": place["address"]["full_address"],
+
+                "latitude": place["coordinates"]["latitude"],
+
+                "longitude": place["coordinates"]["longitude"],
+
+                "certification": place["certification"]
+
+            })
 
 
     return {
+
         "count": len(results),
+
         "results": results
+
+    }
+
+
+
+@app.get("/health")
+def health():
+
+    return {
+        "status": "ok",
+        "records": len(addresses)
     }
