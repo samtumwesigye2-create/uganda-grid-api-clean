@@ -1,61 +1,139 @@
-const API = "https://uganda-grid-api-clean-production.up.railway.app";
+const API =
+"https://uganda-grid-api-clean-production.up.railway.app";
+
+
+let map;
+let marker;
+
 
 
 async function searchAddress(){
 
-    let query = document.getElementById("searchBox").value;
+
+    const query =
+    document.getElementById("searchBox").value;
 
 
-    try {
+    const response = await fetch(
+        `${API}/search?q=${encodeURIComponent(query)}`
+    );
 
-        let response = await fetch(
-            `${API}/search?q=${encodeURIComponent(query)}`
+
+    const data = await response.json();
+
+
+
+    const table =
+    document.getElementById("results");
+
+
+    table.innerHTML = "";
+
+
+
+    if(!data.results || data.results.length === 0){
+
+        table.innerHTML =
+        `
+        <tr>
+        <td colspan="3">
+        No results found
+        </td>
+        </tr>
+        `;
+
+        return;
+
+    }
+
+
+
+    const place = data.results[0];
+
+
+
+    table.innerHTML =
+    `
+
+    <tr>
+
+    <td>
+    ${place.grid_id || ""}
+    </td>
+
+
+    <td>
+    ${place.street || ""}
+    </td>
+
+
+    <td>
+    ${place.address || ""}
+    </td>
+
+    </tr>
+
+    `;
+
+
+
+    const lat =
+    Number(place.latitude);
+
+
+    const lon =
+    Number(place.longitude);
+
+
+
+    if(!map){
+
+
+        map = L.map("map")
+        .setView(
+            [lat, lon],
+            16
         );
 
 
-        let data = await response.json();
+        L.tileLayer(
+        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+            attribution:
+            "© OpenStreetMap"
+        }
+        ).addTo(map);
 
 
-        console.log(data);
+    } else {
 
 
-        let table = document.getElementById("results");
-
-        table.innerHTML = "";
-
-
-        data.results.forEach(place => {
-
-
-            table.innerHTML += `
-
-            <tr>
-
-                <td>
-                    ${place.grid_id || ""}
-                </td>
-
-                <td>
-                    ${place.subcounty_code || place.street || ""}
-                </td>
-
-                <td>
-                    ${place.address || ""}
-                </td>
-
-            </tr>
-
-            `;
-
-        });
-
-
-    } catch(error){
-
-        console.log(error);
-
-        alert("API connection failed");
+        map.setView(
+            [lat, lon],
+            16
+        );
 
     }
+
+
+
+    if(marker){
+
+        marker.remove();
+
+    }
+
+
+
+    marker =
+    L.marker(
+        [lat, lon]
+    )
+    .addTo(map)
+    .bindPopup(
+        place.address
+    )
+    .openPopup();
+
 
 }
