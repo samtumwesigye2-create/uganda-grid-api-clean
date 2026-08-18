@@ -2,10 +2,14 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 import json
 import os
-
-app = FastAPI(
+@app = FastAPI(
     title="Uganda National Grid API",
     version="1.0"
+)
+
+@app.head("/")
+def health():
+    return {"status": "ok"}
 )
 
 # Allow frontend access
