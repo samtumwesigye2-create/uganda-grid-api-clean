@@ -1,50 +1,27 @@
 const API = "https://uganda-grid-api-clean-production.up.railway.app";
 
-
 async function searchAddress(){
 
-    const query = document
-        .getElementById("searchBox")
-        .value;
+    let query = document.getElementById("searchBox").value;
 
-
-    const response = await fetch(
-        `${API}/search?q=${encodeURIComponent(query)}`
+    let response = await fetch(
+        `${API}/search?q=${query}`
     );
 
+    let data = await response.json();
 
-    const data = await response.json();
+    let table = document.getElementById("results");
 
-
-    const results = document.getElementById("results");
-
-
-    results.innerHTML = "";
-
+    table.innerHTML = "";
 
     data.results.forEach(place => {
 
-
-        results.innerHTML += `
-
+        table.innerHTML += `
         <tr>
-
-            <td>
-                ${place.grid_id || place.id || ""}
-            </td>
-
-
-            <td>
-                ${place.code || place.street || ""}
-            </td>
-
-
-            <td>
-                ${place.address || ""}
-            </td>
-
+            <td>${place.grid_id || ""}</td>
+            <td>${place.street || ""}</td>
+            <td>${place.address || ""}</td>
         </tr>
-
         `;
 
     });
