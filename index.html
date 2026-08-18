@@ -312,6 +312,7 @@ function ugamap(){
     }
 
     if(!userLat || !userLng){
+
         navigator.geolocation.getCurrentPosition(
             function(position){
 
@@ -322,7 +323,9 @@ function ugamap(){
 
             },
             function(){
+
                 alert("Location permission required");
+
             }
         );
 
@@ -333,7 +336,6 @@ function ugamap(){
     }
 
 }
-
 
 function drawUGAMAPRoute(){
 
