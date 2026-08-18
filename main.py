@@ -8,6 +8,7 @@ app = FastAPI(
     version="1.0"
 )
 
+# Allow frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,13 +16,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Database file
+
+# Database location
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DATABASE = os.path.join(
     BASE_DIR,
-    "enteebe_database.json"
+    "uganda_national_grid_addresses_v2.json"
 )
+
 
 # Load database
 try:
@@ -47,31 +50,15 @@ def home():
 @app.get("/search")
 def search(q: str = Query(...)):
 
-    q = q.lower().strip()
+    q = q.strip().lower()
 
-    exact = []
-    matches = []
+    results = []
 
     for item in addresses:
+        text = json.dumps(item).lower()
 
-        grid_id = str(item.get("grid_id", "")).lower()
-        street = str(item.get("street", "")).lower()
-        city = str(item.get("city", "")).lower()
-        district = str(item.get("district_code", "")).lower()
-        address = str(item.get("address", "")).lower()
-
-        if q == grid_id:
-            exact.append(item)
-
-        elif (
-            q in street
-            or q in city
-            or q in district
-            or q in address
-        ):
-            matches.append(item)
-
-    results = exact + matches
+        if q in text:
+            results.append(item)
 
     return {
         "count": len(results),
@@ -79,21 +66,33 @@ def search(q: str = Query(...)):
     }
 
 
+
 @app.get("/address/{grid_id}")
 def get_address(grid_id: str):
 
-    search_id = grid_id.lower().strip()
+    search_id = grid_id.strip()
 
     for item in addresses:
 
         stored_id = str(
             item.get("grid_id", "")
-        ).lower().strip()
+        ).strip()
 
         if stored_id == search_id:
             return item
 
+
     return {
         "error": "Address not found",
         "searched": search_id
+    }
+
+
+
+@app.get("/stats")
+def stats():
+
+    return {
+        "total_records": len(addresses),
+        "database": "uganda_national_grid_addresses_v2.json"
     }
