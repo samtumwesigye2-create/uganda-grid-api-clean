@@ -306,21 +306,89 @@ alert("Search location first");
 
 function ugamap(){
 
-if(latitude && longitude){
+    if(!latitude || !longitude){
+        alert("Search destination first");
+        return;
+    }
 
-let panel = document.getElementById("ugamapPanel");
+    if(!userLat || !userLng){
+        navigator.geolocation.getCurrentPosition(
+            function(position){
 
-panel.style.display = "block";
+                userLat = position.coords.latitude;
+                userLng = position.coords.longitude;
 
-document.getElementById("routeInfo").innerHTML = 
-`
-Destination coordinates:<br><br>
+                drawUGAMAPRoute();
 
-Latitude: ${latitude}<br>
+            },
+            function(){
+                alert("Location permission required");
+            }
+        );
 
-Longitude: ${longitude}
+    } else {
 
-`;
+        drawUGAMAPRoute();
+
+    }
+
+}
+
+
+function drawUGAMAPRoute(){
+
+    if(window.routeLine){
+        map.removeLayer(window.routeLine);
+    }
+
+    let start = [
+        userLat,
+        userLng
+    ];
+
+    let end = [
+        latitude,
+        longitude
+    ];
+
+
+    window.routeLine = L.polyline(
+        [
+            start,
+            end
+        ],
+        {
+            color:"blue",
+            weight:5
+        }
+    ).addTo(map);
+
+
+    map.fitBounds(
+        window.routeLine.getBounds()
+    );
+
+
+    document.getElementById("routeInfo").innerHTML =
+    `
+    <h3>🧭 UGAMAP Route</h3>
+
+    <p>
+    Route created successfully.
+    </p>
+
+    <p>
+    From:
+    ${userLat},
+    ${userLng}
+    </p>
+
+    <p>
+    To:
+    ${latitude},
+    ${longitude}
+    </p>
+    `;
 
 }
 
