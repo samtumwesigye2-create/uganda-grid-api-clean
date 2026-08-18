@@ -22,7 +22,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 DATABASE = os.path.join(
     BASE_DIR,
-    ""entebbe_database.json"
+    "entebbe_database.json"
 )
 
 
