@@ -1,326 +1,27 @@
-<!DOCTYPE html>
-<html>
-<head>
+<function startUGAMAPRoute(){
 
-<title>Uganda National Grid API</title>
+    if(userLat && userLng && latitude && longitude){
 
-<meta name="viewport" content="width=device-width, initial-scale=1">
+        let distance =
+        L.latLng(userLat,userLng)
+        .distanceTo(
+            L.latLng(latitude,longitude)
+        );
 
-<link 
-rel="stylesheet"
-href="https://unpkg.com/leaflet/dist/leaflet.css"
-/>
 
-<style>
+        document.getElementById("routeInfo").innerHTML =
+        `
+        🧭 UGAMAP Route Active<br><br>
 
-body{
-font-family:Arial,sans-serif;
-margin:30px;
-}
+        Distance:
+        ${(distance/1000).toFixed(2)} km
+        `;
 
-h1{
-font-size:36px;
-}
-
-input{
-width:60%;
-padding:12px;
-font-size:18px;
-}
-
-button{
-padding:12px 20px;
-font-size:18px;
-cursor:pointer;
-margin:5px;
-}
-
-table{
-margin-top:20px;
-border-collapse:collapse;
-width:100%;
-}
-
-th,td{
-border:1px solid #ccc;
-padding:12px;
-}
-
-#map{
-height:400px;
-width:100%;
-margin-top:20px;
-}
-
-.navigation{
-margin-top:20px;
-padding:15px;
-border:1px solid #ccc;
-}
-
-</style>
-
-</head>
-
-
-<body>
-
-
-<h1>Uganda National Grid API</h1>
-
-
-<input 
-id="searchBox"
-value="UG-ENT-000211"
->
-
-
-<button onclick="searchAddress()">
-Search
-</button>
-
-
-
-<table>
-
-<thead>
-
-<tr>
-<th>ID</th>
-<th>Code</th>
-<th>Address</th>
-</tr>
-
-</thead>
-
-
-<tbody id="results">
-
-</tbody>
-
-
-</table>
-
-
-
-<<div id="map"></div>
-
-
-<div id="ugamapPanel" class="navigation" style="display:none;">
-
-<h2>🧭 UGAMAP Navigation</h2>
-
-<p id="routeInfo">
-Destination ready.
-</p>
-
-<button onclick="startUGAMAPRoute()">
-Start UGAMAP Route
-</button>
-
-</div>
-<div class="navigation">
-
-<h2>Navigation</h2>
-
-<button onclick="ugamap()">
-🧭 UGAMAP
-</button>
-
-
-<button onclick="navigate()">
-🌍 Google Maps
-</button>
-
-
-<button onclick="getLocation()">
-📍 My Location
-</button>
-
-
-</div>
-
-
-
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
-
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
-
-<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
-
-
-<script>
-
-
-const API =
-"https://uganda-grid-api-clean-production.up.railway.app";
-
-
-let latitude;
-let longitude;
-
-let userLat;
-let userLng;
-
-
-let map =
-L.map('map')
-.setView([0.3476,32.5825],10);
-
-
-
-L.tileLayer(
-'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-)
-.addTo(map);
-
-
-
-let marker;
-let userMarker;
-
-
-
-async function searchAddress(){
-
-
-let query =
-document.getElementById("searchBox").value;
-
-
-let response =
-await fetch(
-`${API}/search?q=${query}`
-);
-
-
-let data =
-await response.json();
-
-
-
-let table =
-document.getElementById("results");
-
-
-table.innerHTML="";
-
-
-
-data.results.forEach(place=>{
-
-
-latitude =
-Number(place.latitude);
-
-
-longitude =
-Number(place.longitude);
-
-
-
-table.innerHTML += `
-
-<tr>
-
-<td>${place.grid_id}</td>
-
-<td>${place.street}</td>
-
-<td>${place.address}</td>
-
-</tr>
-
-`;
-
-
-
-if(marker){
-
-map.removeLayer(marker);
-
-}
-
-
-
-marker =
-L.marker(
-[
-latitude,
-longitude
-]
-)
-.addTo(map)
-.bindPopup(
-place.address
-)
-.openPopup();
-
-
-
-map.setView(
-[
-latitude,
-longitude
-],
-16
-);
-
-
-
-});
-
-
-}
-
-
-
-
-function navigate(){
-
-
-if(latitude && longitude){
-
-
-window.open(
-
-`https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`
-
-);
-
-
-}
-
-else{
-
-alert("Search location first");
-
-}
-
-
-}
-
-
-
-function ugamap(){
-
-    if(!latitude || !longitude){
-        alert("Search destination first");
-        return;
     }
 
-    if(!userLat || !userLng){
+    else{
 
-        userLat = -0.0466;
-        userLng = 32.4635;
-
-        drawUGAMAPRoute();
-
-    } else {
-
-        drawUGAMAPRoute();
+        alert("Search destination first");
 
     }
 
@@ -342,7 +43,6 @@ function drawUGAMAPRoute(){
         longitude
     ];
 
-
     window.routeLine = L.polyline(
         [
             start,
@@ -363,166 +63,41 @@ function drawUGAMAPRoute(){
     document.getElementById("routeInfo").innerHTML =
     `
     <h3>🧭 UGAMAP Route</h3>
-
+    <p>Route created successfully.</p>
     <p>
-    Route created successfully.
+    From: ${userLat}, ${userLng}
     </p>
-
     <p>
-    From:
-    ${userLat},
-    ${userLng}
-    </p>
-
-    <p>
-    To:
-    ${latitude},
-    ${longitude}
+    To: ${latitude}, ${longitude}
     </p>
     `;
-
-}
-
-else{
-
-alert("Search location first");
-
-}
-
 }
 
 
 function startUGAMAPRoute(){
 
-if(userLat && userLng && latitude && longitude){
+    if(userLat && userLng && latitude && longitude){
 
-let distance = 
-L.latLng(userLat,userLng)
-.distanceTo(
-L.latLng(latitude,longitude)
-);
+        let distance =
+        L.latLng(userLat,userLng)
+        .distanceTo(
+            L.latLng(latitude,longitude)
+        );
 
 
-document.getElementById("routeInfo").innerHTML =
-`
-🧭 UGAMAP Route Active<br><br>
+        document.getElementById("routeInfo").innerHTML =
+        `
+        🧭 UGAMAP Route Active<br><br>
+        Distance:
+        ${(distance/1000).toFixed(2)} km
+        `;
 
-Distance:
-${(distance/1000).toFixed(2)} km
+    }
 
-`;
+    else{
 
-}
+        alert("Search destination first");
 
-else{
-
-alert("Press My Location first");
-
-}
+    }
 
 }
-}
-
-else{
-
-alert("Search location first");
-
-}
-
-}
-
-
-
-function getLocation(){
-
-
-if(navigator.geolocation){
-
-
-navigator.geolocation.getCurrentPosition(
-
-function(position){
-
-
-userLat =
-position.coords.latitude;
-
-
-userLng =
-position.coords.longitude;
-
-
-
-if(userMarker){
-
-map.removeLayer(userMarker);
-
-}
-
-
-
-userMarker =
-
-L.marker(
-[
-userLat,
-userLng
-]
-)
-.addTo(map)
-.bindPopup(
-"You are here"
-)
-.openPopup();
-
-
-
-map.setView(
-[
-userLat,
-userLng
-],
-14
-);
-
-
-
-},
-
-
-function(){
-
-alert(
-"Location permission denied"
-);
-
-}
-
-
-);
-
-
-}
-
-else{
-
-alert(
-"GPS not supported"
-);
-
-}
-
-
-}
-
-
-
-
-searchAddress();
-
-
-</script>
-
-
-</body>
-</html>
