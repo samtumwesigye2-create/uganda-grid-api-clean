@@ -71,9 +71,19 @@ document.getElementById("results").innerHTML=
 
 
 
-function getLocation(){
+function navigate(){
 
-navigator.geolocation.getCurrentPosition(
+if(!destination){
+alert("Search for a location first");
+return;
+}
+
+let url =
+`https://www.google.com/maps/dir/?api=1&destination=${destination.lat},${destination.lon}&travelmode=driving`;
+
+window.open(url,"_blank");
+
+}
 
 function(position){
 
