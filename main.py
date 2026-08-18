@@ -1,74 +1,48 @@
-from fastapi import FastAPI, Query
-import psycopg2
 import os
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+from pathlib import Path
 
+app = FastAPI(title="Uganda National Grid API")
 
-app = FastAPI(
-    title="Uganda National Grid API",
-    version="2.0"
-)
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIR = BASE_DIR / "frontend"
 
-
-# Database connection
-def get_connection():
-    return psycopg2.connect(
-        os.environ["DATABASE_URL"]
+# Serve frontend if it exists
+if FRONTEND_DIR.exists():
+    app.mount(
+        "/frontend",
+        StaticFiles(directory=str(FRONTEND_DIR)),
+        name="frontend"
     )
 
 
-# Homepage
 @app.get("/")
 def home():
-    return {
-        "message": "Uganda National Grid API is running",
-        "status": "online",
-        "version": "2.0"
-    }
+    index = FRONTEND_DIR / "index.html"
 
+    if index.exists():
+        return FileResponse(str(index))
 
-# Health check
-@app.get("/health")
-def health():
-    return {
-        "status": "healthy"
-    }
-
-
-# API info
-@app.get("/api")
-def api_info():
-    return {
-        "name": "Uganda National Grid API",
-        "status": "online",
-        "version": "2.0"
-    }
-
-
-# Search grid records
-@app.get("/search")
-def search(q: str = Query("")):
-
-    conn = get_connection()
-    cur = conn.cursor()
-
-    cur.execute(
-        """
-        SELECT *
-        FROM uganda_grid_records
-        WHERE
-            address ILIKE %s
-            OR code ILIKE %s
-        LIMIT 100
-        """,
-        (
-            "%" + q + "%",
-            "%" + q + "%"
-        )
+    return JSONResponse(
+        {"message": "Uganda National Grid API is running"}
     )
 
-    rows = cur.fetchall()
 
-    cur.close()
-    conn.close()
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
-    return rows
+
+# Railway startup
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.environ.get("PORT", 8080))
+
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=port
+    )
