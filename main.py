@@ -111,8 +111,22 @@ def search(
     }
 
 
-@app.get("/address/{grid_id}")
+@@app.get("/address/{grid_id}")
 def get_address(grid_id: str):
+
+    search_id = grid_id.lower().strip()
+
+    for item in addresses:
+
+        stored_id = str(item.get("grid_id", "")).lower().strip()
+
+        if stored_id == search_id:
+            return item
+
+    return {
+        "error": "Address not found",
+        "searched": search_id
+    }
 
     grid_id = grid_id.lower()
 
