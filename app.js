@@ -3,50 +3,59 @@ const API = "https://uganda-grid-api-clean-production.up.railway.app";
 
 async function searchAddress(){
 
-    const query = document
-        .getElementById("searchBox")
-        .value;
+    let query = document.getElementById("searchBox").value;
 
 
-    const response = await fetch(
-        `${API}/search?q=${encodeURIComponent(query)}`
-    );
+    try {
+
+        let response = await fetch(
+            `${API}/search?q=${encodeURIComponent(query)}`
+        );
 
 
-    const data = await response.json();
+        let data = await response.json();
 
 
-    const table = document.getElementById("results");
+        console.log(data);
 
 
-    table.innerHTML = "";
+        let table = document.getElementById("results");
+
+        table.innerHTML = "";
 
 
-    data.results.forEach(place => {
+        data.results.forEach(place => {
 
 
-        table.innerHTML += `
+            table.innerHTML += `
 
-        <tr>
+            <tr>
 
-            <td>
-                ${place.grid_id || ""}
-            </td>
+                <td>
+                    ${place.grid_id || ""}
+                </td>
+
+                <td>
+                    ${place.subcounty_code || place.street || ""}
+                </td>
+
+                <td>
+                    ${place.address || ""}
+                </td>
+
+            </tr>
+
+            `;
+
+        });
 
 
-            <td>
-                ${place.street || ""}
-            </td>
+    } catch(error){
 
+        console.log(error);
 
-            <td>
-                ${place.address || ""}
-            </td>
+        alert("API connection failed");
 
-        </tr>
-
-        `;
-
-    });
+    }
 
 }
