@@ -2,15 +2,18 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 import json
 import os
-@app = FastAPI(
+
+
+app = FastAPI(
     title="Uganda National Grid API",
     version="1.0"
 )
 
-@app.head("/")
+
+@app.get("/health")
 def health():
     return {"status": "ok"}
-)
+
 
 # Allow frontend access
 app.add_middleware(
@@ -70,7 +73,6 @@ def search(q: str = Query(...)):
     }
 
 
-
 @app.get("/address/{grid_id}")
 def get_address(grid_id: str):
 
@@ -85,12 +87,10 @@ def get_address(grid_id: str):
         if stored_id == search_id:
             return item
 
-
     return {
         "error": "Address not found",
         "searched": search_id
     }
-
 
 
 @app.get("/stats")
