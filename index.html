@@ -52,6 +52,12 @@ width:100%;
 margin-top:20px;
 }
 
+.navigation{
+margin-top:20px;
+padding:15px;
+border:1px solid #ccc;
+}
+
 </style>
 
 </head>
@@ -100,17 +106,26 @@ Search
 <div id="map"></div>
 
 
-<br>
+<div class="navigation">
+
+<h2>Navigation</h2>
+
+<button onclick="ugamap()">
+🧭 UGAMAP
+</button>
 
 
 <button onclick="navigate()">
-Navigate
+🌍 Google Maps
 </button>
 
 
 <button onclick="getLocation()">
-My Location
+📍 My Location
 </button>
+
+
+</div>
 
 
 
@@ -266,6 +281,26 @@ alert("Search location first");
 
 }
 
+
+}
+
+
+
+function ugamap(){
+
+if(latitude && longitude){
+
+alert(
+"UGAMAP internal navigation is ready for development"
+);
+
+}
+
+else{
+
+alert("Search location first");
+
+}
 
 }
 
