@@ -1,4 +1,4 @@
-const API = "YOUR_RAILWAY_API_URL";
+const API = "https://uganda-grid-api-clean-production.up.railway.app";
 
 
 async function searchAddress(){
@@ -14,20 +14,18 @@ async function searchAddress(){
     let data = await response.json();
 
 
-    let results =
-    document.getElementById("results");
+    let table = document.getElementById("results");
 
-
-    results.innerHTML = "";
+    table.innerHTML = "";
 
 
     data.results.forEach(place => {
 
-        results.innerHTML += `
+        table.innerHTML += `
         <tr>
-            <td>${place.grid_id}</td>
-            <td>${place.street}</td>
-            <td>${place.address}</td>
+        <td>${place.grid_id}</td>
+        <td>${place.street}</td>
+        <td>${place.address}</td>
         </tr>
         `;
 
