@@ -414,31 +414,53 @@ drawUGAMAPRoute();
 
 
 }
-function
+function drawUGAMAPRoute(){
+
+    if(routeLine){
+        map.removeLayer(routeLine);
+    }
+
+    let start = [
+        startLatitude,
+        startLongitude
+    ];
+
+    let end = [
+        latitude,
+        longitude
+    ];
+
+    routeLine = L.polyline(
+        [
+            start,
+            end
+        ],
+        {
+            color:"blue",
+            weight:5
+        }
+    ).addTo(map);
 
 
-if(routeLine){
+    map.fitBounds(
+        routeLine.getBounds()
+    );
 
-map.removeLayer(routeLine);
 
+    document.getElementById("routeInfo").innerHTML =
+    `
+    🧭 UGAMAP Route Active<br><br>
+
+    From:
+    ${startLatitude},
+    ${startLongitude}
+    <br><br>
+
+    To:
+    ${latitude},
+    ${longitude}
+    `;
 }
-
-
-
-let start =
-[
-    startLatitude,
-    startLongitude
-];
-
-
-
-let end =
-[
-latitude,
-longitude
-];
-
 
 
 routeLine =
