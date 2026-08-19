@@ -459,3 +459,39 @@ button.addEventListener(
   Uganda National Grid: Test Mode
 </div>
 </html>
+<script>
+/* UGANDA NATIONAL GRID — SAFE TEST LAYER */
+
+const testGridPoints = [
+  { name: "Kampala Grid Node", lat: 0.3476, lon: 32.5825 },
+  { name: "Entebbe Grid Node", lat: 0.0512, lon: 32.4637 },
+  { name: "Jinja Grid Node", lat: 0.4479, lon: 33.2026 },
+  { name: "Mbarara Grid Node", lat: -0.6072, lon: 30.6545 },
+  { name: "Mbale Grid Node", lat: 1.0821, lon: 34.1750 }
+];
+
+const gridLayer = L.layerGroup().addTo(map);
+
+testGridPoints.forEach(point => {
+
+  L.circleMarker(
+    [point.lat, point.lon],
+    {
+      radius: 7,
+      weight: 2,
+      fillOpacity: 0.8
+    }
+  )
+  .addTo(gridLayer)
+  .bindPopup(
+    "<strong>" +
+    point.name +
+    "</strong><br>" +
+    "Uganda National Grid Test Node"
+  );
+
+});
+
+document.getElementById("gridStatus").textContent =
+  "Uganda National Grid: Test Layer Active";
+</script>
