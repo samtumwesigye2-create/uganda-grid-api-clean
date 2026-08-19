@@ -438,26 +438,83 @@ ${longitude}
 
 function startUGAMAPRoute(){
 
+    if(!latitude || !longitude){
 
-if(latitude && longitude){
+        alert("Search destination first");
+        return;
+
+    }
 
 
-drawUGAMAPRoute();
+    if(ugamapVehicle){
+
+        map.removeLayer(ugamapVehicle);
+
+    }
+
+
+    ugamapVehicle = L.marker(
+        [
+            userLat,
+            userLng
+        ]
+    )
+    .addTo(map)
+    .bindPopup("UGAMAP Navigation Active")
+    .openPopup();
+
+
+
+    let steps = 100;
+    let current = 0;
+
+
+    if(ugamapTimer){
+
+        clearInterval(ugamapTimer);
+
+    }
+
+
+
+    ugamapTimer = setInterval(function(){
+
+
+        current++;
+
+
+        let newLat =
+        userLat +
+        ((latitude - userLat) * current / steps);
+
+
+
+        let newLng =
+        userLng +
+        ((longitude - userLng) * current / steps);
+
+
+
+        ugamapVehicle.setLatLng(
+            [
+                newLat,
+                newLng
+            ]
+        );
+
+
+
+        if(current >= steps){
+
+            clearInterval(ugamapTimer);
+
+        }
+
+
+    },100);
 
 
 }
-
-else{
-
-
-alert("Search destination first");
-
-
-}
-
-
-}
-
 
 
 
