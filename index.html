@@ -206,7 +206,48 @@ let marker = null;
 let userMarker = null;
 let routeLine = null;
 
+async function setStartLocation(){
 
+let query =
+document.getElementById("startBox").value;
+
+
+let response =
+await fetch(
+`${API}/search?q=${query}`
+);
+
+
+let data =
+await response.json();
+
+
+let place =
+data.results[0];
+
+
+if(!place){
+
+alert("Start location not found");
+return;
+
+}
+
+
+userLat =
+Number(place.latitude);
+
+
+userLng =
+Number(place.longitude);
+
+
+alert(
+"Start location set"
+);
+
+
+}
 
 
 async function searchAddress(){
