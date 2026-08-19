@@ -17,20 +17,12 @@ app.add_middleware(
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-DATABASE = os.path.join(
-    BASE_DIR,
-    "entebbe_database.json"
-)
+DATABASE = os.path.join(BASE_DIR, "entebbe_database.json")
 
 try:
     with open(DATABASE, "r", encoding="utf-8") as file:
         addresses = json.load(file)
-
-    print(f"Loaded {len(addresses)} addresses")
-
-except Exception as e:
-    print("Database loading failed:", e)
+except Exception:
     addresses = []
 
 
@@ -41,16 +33,12 @@ def health():
 
 @app.get("/", response_class=HTMLResponse)
 def home():
-
     return """
 <!DOCTYPE html>
 <html>
 <head>
-
 <meta charset="UTF-8">
-
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <title>Uganda National Grid</title>
 
@@ -60,6 +48,9 @@ href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
 />
 
 <style>
+* {
+    box-sizing: border-box;
+}
 
 body {
     margin: 0;
@@ -88,9 +79,8 @@ header h1 {
 
 input {
     width: 100%;
-    box-sizing: border-box;
     padding: 13px;
-    margin: 6px 0 12px;
+    margin: 7px 0 14px;
     border: 1px solid #ccc;
     border-radius: 7px;
     font-size: 16px;
@@ -100,32 +90,26 @@ button {
     padding: 13px 22px;
     background: #d71920;
     color: white;
-    border: 0;
+    border: none;
     border-radius: 7px;
     font-size: 16px;
 }
 
 #map {
     height: 600px;
+    width: 100%;
     max-width: 1100px;
     margin: 20px auto;
     border-radius: 12px;
 }
-
 </style>
-
 </head>
 
 <body>
 
 <header>
-
 <h1>Uganda National Grid</h1>
-
-<p>
-National transportation and infrastructure network
-</p>
-
+<p>National transportation and infrastructure network</p>
 </header>
 
 <div class="search">
@@ -152,9 +136,7 @@ Find Route
 
 <div id="map"></div>
 
-<script
-src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-</script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 
@@ -167,112 +149,82 @@ L.tileLayer(
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
     {
         maxZoom: 19,
-        attribution:
-        "&copy; OpenStreetMap contributors"
+        attribution: "&copy; OpenStreetMap contributors"
     }
 ).addTo(map);
 
 
-/* Uganda cities */
+/* Major Ugandan cities */
 
 const cities = [
-
-["Kampala", 0.3476, 32.5825],
-
-["Jinja", 0.4479, 33.2026],
-
-["Mbarara", -0.6072, 30.6545],
-
-["Mbale", 1.0821, 34.1750],
-
-["Gulu", 2.7746, 32.2990],
-
-["Arua", 3.0303, 30.9111],
-
-["Soroti", 1.7146, 33.6111],
-
-["Moroto", 2.5345, 34.6666],
-
-["Hoima", 1.4331, 31.3524],
-
-["Masaka", -0.3476, 31.7330]
-
+    ["Kampala", 0.3476, 32.5825],
+    ["Jinja", 0.4479, 33.2026],
+    ["Mbarara", -0.6072, 30.6545],
+    ["Mbale", 1.0821, 34.1750],
+    ["Gulu", 2.7746, 32.2990],
+    ["Arua", 3.0303, 30.9111],
+    ["Soroti", 1.7146, 33.6111],
+    ["Moroto", 2.5345, 34.6666],
+    ["Hoima", 1.4331, 31.3524],
+    ["Masaka", -0.3476, 31.7330]
 ];
 
-
 cities.forEach(city => {
-
-    L.marker([
-        city[1],
-        city[2]
-    ])
-    .addTo(map)
-    .bindPopup(
-        "<strong>" + city[0] + "</strong>"
-    );
-
+    L.marker([city[1], city[2]])
+        .addTo(map)
+        .bindPopup("<strong>" + city[0] + "</strong>");
 });
 
 
-/* National Grid */
+/* Initial national grid */
 
 const routes = [
 
-[
-[0.3476,32.5825],
-[0.4479,33.2026],
-[1.0821,34.1750]
-],
+    [
+        [0.3476, 32.5825],
+        [0.4479, 33.2026],
+        [1.0821, 34.1750]
+    ],
 
-[
-[0.3476,32.5825],
-[-0.3476,31.7330],
-[-0.6072,30.6545]
-],
+    [
+        [0.3476, 32.5825],
+        [-0.3476, 31.7330],
+        [-0.6072, 30.6545]
+    ],
 
-[
-[0.3476,32.5825],
-[1.4331,31.3524],
-[2.7746,32.2990],
-[3.0303,30.9111]
-],
+    [
+        [0.3476, 32.5825],
+        [1.4331, 31.3524],
+        [2.7746, 32.2990],
+        [3.0303, 30.9111]
+    ],
 
-[
-[1.0821,34.1750],
-[1.7146,33.6111],
-[2.5345,34.6666]
-]
+    [
+        [1.0821, 34.1750],
+        [1.7146, 33.6111],
+        [2.5345, 34.6666]
+    ]
 
 ];
 
-
 routes.forEach(route => {
-
-    L.polyline(
-        route,
-        {
-            color: "#d71920",
-            weight: 4
-        }
-    ).addTo(map);
-
+    L.polyline(route, {
+        color: "#d71920",
+        weight: 4
+    }).addTo(map);
 });
 
 
 function findRoute() {
 
     const start =
-        document.getElementById("start").value;
+        document.getElementById("start").value.trim();
 
     const destination =
-        document.getElementById("destination").value;
+        document.getElementById("destination").value.trim();
 
     if (!start || !destination) {
-
-        alert(
-            "Please enter both locations."
-        );
-
+        alert("Please enter both locations.");
         return;
     }
 
