@@ -20,7 +20,6 @@
       margin: 0;
       font-family: Arial, sans-serif;
       background: #f4f6f8;
-      color: #17202a;
     }
 
     header {
@@ -32,12 +31,6 @@
 
     header h1 {
       margin: 0;
-      font-size: 28px;
-    }
-
-    header p {
-      margin: 7px 0 0;
-      opacity: .8;
     }
 
     .search {
@@ -46,7 +39,6 @@
       margin: 20px auto;
       padding: 20px;
       border-radius: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,.08);
     }
 
     label {
@@ -73,7 +65,6 @@
       background: #d71920;
       color: white;
       font-size: 16px;
-      cursor: pointer;
     }
 
     #map {
@@ -96,18 +87,14 @@
 
 <section class="search">
 
-  <label for="start">
-    Start Location
-  </label>
+  <label for="start">Start Location</label>
 
   <input
     id="start"
     placeholder="Enter starting location"
   >
 
-  <label for="destination">
-    Destination
-  </label>
+  <label for="destination">Destination</label>
 
   <input
     id="destination"
@@ -121,123 +108,6 @@
 </section>
 
 <div id="map"></div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<script>
-
-const map = L.map("map").setView(
-  [1.3733, 32.2903],
-  7
-);
-
-L.tileLayer(
-  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors"
-  }
-).addTo(map);
-
-
-/* Major Ugandan cities */
-
-const cities = [
-  ["Kampala", 0.3476, 32.5825],
-  ["Jinja", 0.4479, 33.2026],
-  ["Mbarara", -0.6072, 30.6545],
-  ["Mbale", 1.0821, 34.1750],
-  ["Gulu", 2.7746, 32.2990],
-  ["Arua", 3.0303, 30.9111],
-  ["Soroti", 1.7146, 33.6111],
-  ["Moroto", 2.5345, 34.6666],
-  ["Hoima", 1.4331, 31.3524],
-  ["Masaka", -0.3476, 31.7330]
-];
-
-cities.forEach(city => {
-
-  L.marker([
-    city[1],
-    city[2]
-  ])
-  .addTo(map)
-  .bindPopup(
-    "<strong>" + city[0] + "</strong>"
-  );
-
-});
-
-
-/* Initial national grid */
-
-const routes = [
-
-  [
-    [0.3476, 32.5825],
-    [0.4479, 33.2026],
-    [1.0821, 34.1750]
-  ],
-
-  [
-    [0.3476, 32.5825],
-    [-0.3476, 31.7330],
-    [-0.6072, 30.6545]
-  ],
-
-  [
-    [0.3476, 32.5825],
-    [1.4331, 31.3524],
-    [2.7746, 32.2990],
-    [3.0303, 30.9111]
-  ],
-
-  [
-    [1.0821, 34.1750],
-    [1.7146, 33.6111],
-    [2.5345, 34.6666]
-  ]
-
-];
-
-
-routes.forEach(route => {
-
-  L.polyline(
-    route,
-    {
-      color: "#d71920",
-      weight: 4
-    }
-  ).addTo(map);
-
-});
-
-
-function findRoute() {
-
-  const start =
-    document.getElementById("start").value.trim();
-
-  const destination =
-    document.getElementById("destination").value.trim();
-
-  if (!start || !destination) {
-
-    alert(
-      "Please enter both a start location and destination."
-    );
-
-    return;
-  }
-
-  alert(
-    "Route requested from " +
-    start +
-    " to " +
-    destination
-  );
-}
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="app.js"></script>
