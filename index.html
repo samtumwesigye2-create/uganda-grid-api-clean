@@ -403,24 +403,18 @@ return;
 
 
 
-if(!userLat || !userLng){
+if(!startLatitude || !startLongitude){
 
-
-userLat = -0.0466;
-
-userLng = 32.4635;
-
+    alert("Set start location first");
+    return;
 
 }
-
-
 
 drawUGAMAPRoute();
 
 
-
 }
-function drawUGAMAPRoute(){
+function
 
 
 if(routeLine){
