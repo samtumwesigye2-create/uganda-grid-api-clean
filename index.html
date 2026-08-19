@@ -1,67 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Uganda National Grid</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <style>
-    *{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#17202a}
-    header{background:#111827;color:white;padding:20px;text-align:center}header h1{margin:0;font-size:28px}header p{margin:7px 0 0;opacity:.8}
-    .search{background:white;max-width:1000px;margin:20px auto;padding:20px;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,.08)}
-    label{display:block;font-weight:bold;margin-top:10px}input{width:100%;padding:13px;margin-top:6px;margin-bottom:10px;border:1px solid #ccc;border-radius:7px;font-size:16px}
-    button{padding:13px 22px;margin-top:8px;border:none;border-radius:7px;background:#d71920;color:white;font-size:16px;cursor:pointer}button:disabled{opacity:.6}
-    #status{margin-top:12px;font-size:14px}#map{width:100%;max-width:1100px;height:600px;margin:20px auto;border-radius:12px;overflow:hidden}
-    #routeInfo,#gridStatus{max-width:1000px;margin:15px auto;padding:15px 20px;background:white;border-radius:10px}#routeInfo{display:none}
-  </style>
-</head>
-<body>
-<header><h1>Uganda National Grid</h1><p>National transportation and infrastructure network</p></header>
-<section class="search">
-  <label for="start">Start Location</label>
-  <input id="start" placeholder="Example: Kampala, Uganda" autocomplete="off">
-  <label for="destination">Destination</label>
-  <input id="destination" placeholder="Example: Jinja, Uganda" autocomplete="off">
-  <button id="findRouteButton">Find Route</button>
-  <div id="status"></div>
-</section>
-<div id="routeInfo"></div>
-<div id="gridStatus">Uganda National Grid: Loading test layer...</div>
-<div id="map"></div>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-const map=L.map("map").setView([1.3733,32.2903],7);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap contributors"}).addTo(map);
-let routeLine=null,startMarker=null,destinationMarker=null;
-const statusBox=document.getElementById("status"),routeInfo=document.getElementById("routeInfo"),button=document.getElementById("findRouteButton");
-async function geocode(place){const url="https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ug&q="+encodeURIComponent(place);const response=await fetch(url,{headers:{Accept:"application/json"}});if(!response.ok)throw new Error("Location search failed.");const data=await response.json();if(!data.length)return null;return{lat:parseFloat(data[0].lat),lon:parseFloat(data[0].lon),name:data[0].display_name}}
-button.addEventListener("click",async function(){const start=document.getElementById("start").value.trim(),destination=document.getElementById("destination").value.trim();if(!start||!destination){statusBox.textContent="Please enter both locations.";return}button.disabled=true;statusBox.textContent="Finding locations...";try{const startLocation=await geocode(start);if(!startLocation)throw new Error("Start location could not be found.");const destinationLocation=await geocode(destination);if(!destinationLocation)throw new Error("Destination could not be found.");statusBox.textContent="Calculating road route...";const routeUrl="https://router.project-osrm.org/route/v1/driving/"+startLocation.lon+","+startLocation.lat+";"+destinationLocation.lon+","+destinationLocation.lat+"?overview=full&geometries=geojson";const response=await fetch(routeUrl);if(!response.ok)throw new Error("Routing service unavailable.");const data=await response.json();if(!data.routes||!data.routes.length)throw new Error("No road route was found.");const route=data.routes[0],coordinates=route.geometry.coordinates.map(point=>[point[1],point[0]]);if(routeLine)map.removeLayer(routeLine);if(startMarker)map.removeLayer(startMarker);if(destinationMarker)map.removeLayer(destinationMarker);routeLine=L.polyline(coordinates,{color:"#d71920",weight:6}).addTo(map);startMarker=L.marker([startLocation.lat,startLocation.lon]).addTo(map).bindPopup("<strong>Start</strong><br>"+startLocation.name);destinationMarker=L.marker([destinationLocation.lat,destinationLocation.lon]).addTo(map).bindPopup("<strong>Destination</strong><br>"+destinationLocation.name);map.fitBounds(routeLine.getBounds(),{padding:[30,30]});const distanceKm=(route.distance/1000).toFixed(1),hours=Math.floor(route.duration/3600),minutes=Math.round((route.duration%3600)/60);routeInfo.style.display="block";routeInfo.innerHTML="<strong>Route found</strong><br>Distance: "+distanceKm+" km<br>Estimated driving time: "+hours+" hr "+minutes+" min";statusBox.textContent="Route found successfully."}catch(error){console.error(error);statusBox.textContent=error.message;routeInfo.style.display="none"}finally{button.disabled=false}});
-
-/* SAFE GRID TEST LAYER — uses the real database through the existing API. */
-const GRID_API="https://uganda-grid-api-clean-production.up.railway.app";
-const gridLayer=L.layerGroup().addTo(map);
-async function loadGridTest(){
-  try{
-    const response=await fetch(GRID_API+"/search?q=Entebbe");
-    if(!response.ok)throw new Error("Grid API unavailable");
-    const data=await response.json();
-    const records=Array.isArray(data.results)?data.results:[];
-    records.forEach(item=>{
-      const lat=parseFloat(item.latitude),lon=parseFloat(item.longitude);
-      if(!Number.isFinite(lat)||!Number.isFinite(lon))return;
-      L.circleMarker([lat,lon],{radius:5,weight:1,fillOpacity:.75}).addTo(gridLayer).bindPopup(
-        "<strong>"+(item.grid_id||"Grid record")+"</strong><br>"+
-        (item.address||"")+"<br>"+
-        (item.city||"Entebbe")
-      );
-    });
-    document.getElementById("gridStatus").textContent="Uganda National Grid: "+records.length+" real test records loaded";
-  }catch(error){
-    console.error(error);
-    document.getElementById("gridStatus").textContent="Uganda National Grid: Test layer unavailable";
-  }
-}
-loadGridTest();
-</script>
-</body>
-</html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Uganda National Grid</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#17202a}header{background:#111827;color:white;padding:20px;text-align:center}header h1{margin:0;font-size:28px}header p{margin:7px 0 0;opacity:.8}.search{background:white;max-width:1000px;margin:20px auto;padding:20px;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,.08)}label{display:block;font-weight:bold;margin-top:10px}input{width:100%;padding:13px;margin-top:6px;margin-bottom:10px;border:1px solid #ccc;border-radius:7px;font-size:16px}button{padding:13px 22px;margin-top:8px;border:none;border-radius:7px;background:#d71920;color:white;font-size:16px;cursor:pointer}button:disabled{opacity:.6}#status{margin-top:12px;font-size:14px}#map{width:100%;max-width:1100px;height:600px;margin:20px auto;border-radius:12px;overflow:hidden}#routeInfo,#gridStatus,#gridResult{max-width:1000px;margin:15px auto;padding:15px 20px;background:white;border-radius:10px}#routeInfo{display:none}</style></head>
+<body><header><h1>Uganda National Grid</h1><p>National transportation and infrastructure network</p></header>
+<section class="search"><label for="start">Start Location</label><input id="start" placeholder="Example: Kampala, Uganda" autocomplete="off"><label for="destination">Destination</label><input id="destination" placeholder="Example: Jinja, Uganda" autocomplete="off"><button id="findRouteButton">Find Route</button><div id="status"></div></section>
+<section class="search"><label for="gridSearch">Grid ID / Address Search</label><input id="gridSearch" placeholder="Example: UG-ENT-000001" autocomplete="off"><button id="gridSearchButton">Search Grid</button></section>
+<div id="gridResult" style="display:none"></div><div id="routeInfo"></div><div id="gridStatus">Uganda National Grid: Loading test layer...</div><div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script>
+const map=L.map("map").setView([1.3733,32.2903],7);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap contributors"}).addTo(map);let routeLine=null,startMarker=null,destinationMarker=null;const API="https://uganda-grid-api-clean-production.up.railway.app";const statusBox=document.getElementById("status"),routeInfo=document.getElementById("routeInfo"),button=document.getElementById("findRouteButton");
+async function geocode(place){const response=await fetch("https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ug&q="+encodeURIComponent(place),{headers:{Accept:"application/json"}});if(!response.ok)throw new Error("Location search failed.");const data=await response.json();if(!data.length)return null;return{lat:parseFloat(data[0].lat),lon:parseFloat(data[0].lon),name:data[0].display_name}}
+button.addEventListener("click",async()=>{const start=document.getElementById("start").value.trim(),destination=document.getElementById("destination").value.trim();if(!start||!destination){statusBox.textContent="Please enter both locations.";return}button.disabled=true;statusBox.textContent="Finding locations...";try{const a=await geocode(start),b=await geocode(destination);if(!a)throw new Error("Start location could not be found.");if(!b)throw new Error("Destination could not be found.");statusBox.textContent="Calculating road route...";const r=await(await fetch("https://router.project-osrm.org/route/v1/driving/"+a.lon+","+a.lat+";"+b.lon+","+b.lat+"?overview=full&geometries=geojson")).json();if(!r.routes?.length)throw new Error("No road route was found.");const route=r.routes[0],coords=route.geometry.coordinates.map(p=>[p[1],p[0]]);if(routeLine)map.removeLayer(routeLine);if(startMarker)map.removeLayer(startMarker);if(destinationMarker)map.removeLayer(destinationMarker);routeLine=L.polyline(coords,{color:"#d71920",weight:6}).addTo(map);startMarker=L.marker([a.lat,a.lon]).addTo(map);destinationMarker=L.marker([b.lat,b.lon]).addTo(map);map.fitBounds(routeLine.getBounds(),{padding:[30,30]});routeInfo.style.display="block";routeInfo.innerHTML="<strong>Route found</strong><br>Distance: "+(route.distance/1000).toFixed(1)+" km<br>Estimated driving time: "+Math.floor(route.duration/3600)+" hr "+Math.round(route.duration%3600/60)+" min";statusBox.textContent="Route found successfully."}catch(e){statusBox.textContent=e.message;routeInfo.style.display="none"}finally{button.disabled=false}});
+const gridLayer=L.layerGroup().addTo(map);async function loadGrid(){try{const d=await(await fetch(API+"/search?q=Entebbe")).json(),records=Array.isArray(d.results)?d.results:[];records.forEach(i=>{const lat=+i.latitude,lon=+i.longitude;if(!Number.isFinite(lat)||!Number.isFinite(lon))return;L.circleMarker([lat,lon],{radius:5,weight:1,fillOpacity:.75}).addTo(gridLayer).bindPopup("<strong>"+(i.grid_id||"")+"</strong><br>"+(i.address||"")+"<br>"+(i.city||""))});document.getElementById("gridStatus").textContent="Uganda National Grid: "+records.length+" real test records loaded"}catch(e){document.getElementById("gridStatus").textContent="Uganda National Grid: Test layer unavailable"}}loadGrid();
+const gs=document.getElementById("gridSearch"),gb=document.getElementById("gridSearchButton"),gr=document.getElementById("gridResult");gb.addEventListener("click",async()=>{const q=gs.value.trim();if(!q){gr.style.display="block";gr.textContent="Enter a Grid ID or address.";return}gb.disabled=true;gr.style.display="block";gr.textContent="Searching...";try{const r=await fetch(API+"/search?q="+encodeURIComponent(q)),d=await r.json();const items=Array.isArray(d.results)?d.results:[];if(!items.length){gr.textContent="Grid record not found.";return}const i=items[0],lat=+i.latitude,lon=+i.longitude;gr.innerHTML="<strong>"+(i.grid_id||"")+"</strong><br>"+(i.address||"")+"<br>Latitude: "+i.latitude+"<br>Longitude: "+i.longitude;map.setView([lat,lon],17);L.marker([lat,lon]).addTo(map).bindPopup("<strong>"+(i.grid_id||"")+"</strong><br>"+(i.address||"")).openPopup()}catch(e){gr.textContent="Grid search unavailable."}finally{gb.disabled=false}});
+</script></body></html>
