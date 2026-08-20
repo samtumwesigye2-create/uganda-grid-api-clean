@@ -1,3 +1,5 @@
+const API = "https://uganda-grid-api-clean-1.onrender.com";
+
 const map = L.map("map").setView([1.3733, 32.2903], 7);
 
 L.tileLayer(
@@ -9,55 +11,44 @@ L.tileLayer(
 ).addTo(map);
 
 
-// Uganda cities
-const cities = [
-  ["Kampala", 0.3476, 32.5825],
-  ["Entebbe", 0.0512, 32.4637],
-  ["Jinja", 0.4479, 33.2026],
-  ["Mbarara", -0.6072, 30.6545],
-  ["Mbale", 1.0821, 34.1750],
-  ["Gulu", 2.7746, 32.2990],
-  ["Arua", 3.0303, 30.9111],
-  ["Soroti", 1.7146, 33.6111],
-  ["Moroto", 2.5345, 34.6666],
-  ["Hoima", 1.4331, 31.3524],
-  ["Masaka", -0.3476, 31.7330]
-];
+// Route storage
+let routeLine = null;
+let selectedStart = null;
+let selectedDestination = null;
 
 
-// Add city markers
-cities.forEach(city => {
+// Search database
+async function searchAddress(query) {
 
-  L.marker([city[1], city[2]])
-    .addTo(map)
-    .bindPopup("<strong>" + city[0] + "</strong>");
+  const response = await fetch(
+    API + "/search?q=" + encodeURIComponent(query)
+  );
 
-});
+  const data = await response.json();
+
+  return data.results || [];
+}
 
 
-// Find city coordinates
-function findCity(name) {
+// Find coordinates from database result
+function getCoordinates(item) {
 
-  name = name.trim().toLowerCase();
+  if (item.latitude && item.longitude) {
+    return [
+      item.latitude,
+      item.longitude
+    ];
+  }
 
-  for (const city of cities) {
-
-    if (city[0].toLowerCase() === name) {
-
-      return [
-        city[1],
-        city[2]
-      ];
-
-    }
+  if (item.lat && item.lon) {
+    return [
+      item.lat,
+      item.lon
+    ];
   }
 
   return null;
 }
-
-
-// Route line
-let routeLine = null;
 
 
 // Route function
@@ -72,36 +63,54 @@ async function findRoute() {
 
   if (!start || !destination) {
 
-    alert(
-      "Please enter both a start location and destination."
-    );
+    alert("Please enter both locations.");
 
     return;
   }
 
 
-  const startCoords = findCity(start);
-  const destinationCoords = findCity(destination);
+  const startResults =
+    await searchAddress(start);
 
 
-  if (!startCoords) {
+  const destinationResults =
+    await searchAddress(destination);
 
-    alert(
-      "Start location not found. Try a major Ugandan city."
-    );
+
+
+  if (!startResults.length) {
+
+    alert("Start location not found.");
+
+    return;
+  }
+
+
+  if (!destinationResults.length) {
+
+    alert("Destination not found.");
 
     return;
   }
 
 
-  if (!destinationCoords) {
 
-    alert(
-      "Destination not found. Try a major Ugandan city."
-    );
+  const startCoords =
+    getCoordinates(startResults[0]);
+
+
+  const destinationCoords =
+    getCoordinates(destinationResults[0]);
+
+
+
+  if (!startCoords || !destinationCoords) {
+
+    alert("Coordinates unavailable.");
 
     return;
   }
+
 
 
   const url =
@@ -112,63 +121,62 @@ async function findRoute() {
     "?overview=full&geometries=geojson";
 
 
-  try {
 
-    const response = await fetch(url);
-
-    const data = await response.json();
+  const response =
+    await fetch(url);
 
 
-    if (!data.routes || data.routes.length === 0) {
-
-      alert("No route found.");
-
-      return;
-    }
+  const data =
+    await response.json();
 
 
-    const route =
-      data.routes[0];
 
+  if (!data.routes || !data.routes.length) {
 
-    const coordinates =
-      route.geometry.coordinates.map(
-        point => [point[1], point[0]]
-      );
+    alert("No route found.");
 
-
-    if (routeLine) {
-
-      map.removeLayer(routeLine);
-
-    }
-
-
-    routeLine = L.polyline(
-      coordinates,
-      {
-        color: "#d71920",
-        weight: 6
-      }
-    ).addTo(map);
-
-
-    map.fitBounds(
-      routeLine.getBounds(),
-      {
-        padding: [30, 30]
-      }
-    );
-
-
-  } catch (error) {
-
-    console.error(error);
-
-    alert(
-      "Unable to calculate the route right now."
-    );
+    return;
 
   }
+
+
+
+  const coordinates =
+    data.routes[0]
+    .geometry
+    .coordinates
+    .map(point => [
+      point[1],
+      point[0]
+    ]);
+
+
+
+  if (routeLine) {
+
+    map.removeLayer(routeLine);
+
+  }
+
+
+
+  routeLine =
+    L.polyline(
+      coordinates,
+      {
+        color:"#d71920",
+        weight:6
+      }
+    )
+    .addTo(map);
+
+
+
+  map.fitBounds(
+    routeLine.getBounds(),
+    {
+      padding:[30,30]
+    }
+  );
 
 }
