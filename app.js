@@ -90,10 +90,41 @@ async function resolveLocation(value) {
   }
 
   return {
-    coordinates: coordinates,
+    coordinates,
     name: value,
     data: results[0]
   };
+}
+
+function clearRoute() {
+  if (routeLine) {
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+
+  if (startMarker) {
+    map.removeLayer(startMarker);
+    startMarker = null;
+  }
+
+  if (destinationMarker) {
+    map.removeLayer(destinationMarker);
+    destinationMarker = null;
+  }
+}
+
+function swapLocations() {
+  const startInput = document.getElementById("start");
+  const destinationInput = document.getElementById("destination");
+
+  const oldStart = startInput.value;
+
+  startInput.value = destinationInput.value;
+  destinationInput.value = oldStart;
+
+  if (startInput.value && destinationInput.value) {
+    findRoute();
+  }
 }
 
 async function findRoute() {
@@ -137,13 +168,11 @@ async function findRoute() {
       return;
     }
 
+    clearRoute();
+
     const coordinates = data.routes[0].geometry.coordinates.map(
       point => [point[1], point[0]]
     );
-
-    if (routeLine) map.removeLayer(routeLine);
-    if (startMarker) map.removeLayer(startMarker);
-    if (destinationMarker) map.removeLayer(destinationMarker);
 
     routeLine = L.polyline(coordinates, {
       color: "#d71920",
@@ -166,3 +195,12 @@ async function findRoute() {
     alert("Unable to search or calculate the route right now.");
   }
 }
+
+document.getElementById("destination").addEventListener("change", () => {
+  const start = document.getElementById("start").value.trim();
+  const destination = document.getElementById("destination").value.trim();
+
+  if (start && destination) {
+    findRoute();
+  }
+});
