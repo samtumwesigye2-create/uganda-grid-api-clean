@@ -10,173 +10,187 @@ L.tileLayer(
   }
 ).addTo(map);
 
-
-// Route storage
 let routeLine = null;
-let selectedStart = null;
-let selectedDestination = null;
+let startMarker = null;
+let destinationMarker = null;
 
+const cities = [
+  ["Kampala", 0.3476, 32.5825],
+  ["Entebbe", 0.0512, 32.4637],
+  ["Jinja", 0.4479, 33.2026],
+  ["Mbarara", -0.6072, 30.6545],
+  ["Mbale", 1.0821, 34.1750],
+  ["Gulu", 2.7746, 32.2990],
+  ["Arua", 3.0303, 30.9111],
+  ["Soroti", 1.7146, 33.6111],
+  ["Moroto", 2.5345, 34.6666],
+  ["Hoima", 1.4331, 31.3524],
+  ["Masaka", -0.3476, 31.7330]
+];
 
-// Search database
-async function searchAddress(query) {
+cities.forEach(city => {
+  L.marker([city[1], city[2]])
+    .addTo(map)
+    .bindPopup("<strong>" + city[0] + "</strong>");
+});
 
+function findCity(name) {
+  name = name.trim().toLowerCase();
+
+  for (const city of cities) {
+    if (city[0].toLowerCase() === name) {
+      return [city[1], city[2]];
+    }
+  }
+
+  return null;
+}
+
+async function searchDatabase(query) {
   const response = await fetch(
     API + "/search?q=" + encodeURIComponent(query)
   );
+
+  if (!response.ok) {
+    throw new Error("Search failed");
+  }
 
   const data = await response.json();
 
   return data.results || [];
 }
 
+function extractCoordinates(item) {
+  const lat =
+    item.latitude ??
+    item.lat ??
+    item.y;
 
-// Find coordinates from database result
-function getCoordinates(item) {
+  const lon =
+    item.longitude ??
+    item.lon ??
+    item.lng ??
+    item.x;
 
-  if (item.latitude && item.longitude) {
-    return [
-      item.latitude,
-      item.longitude
-    ];
-  }
-
-  if (item.lat && item.lon) {
-    return [
-      item.lat,
-      item.lon
-    ];
+  if (
+    typeof lat === "number" &&
+    typeof lon === "number"
+  ) {
+    return [lat, lon];
   }
 
   return null;
 }
 
+async function resolveLocation(value) {
 
-// Route function
+  const city = findCity(value);
+
+  if (city) {
+    return city;
+  }
+
+  const results = await searchDatabase(value);
+
+  if (!results.length) {
+    return null;
+  }
+
+  return extractCoordinates(results[0]);
+}
+
 async function findRoute() {
 
   const start =
-    document.getElementById("start").value;
+    document.getElementById("start").value.trim();
 
   const destination =
-    document.getElementById("destination").value;
-
+    document.getElementById("destination").value.trim();
 
   if (!start || !destination) {
-
     alert("Please enter both locations.");
-
     return;
   }
 
+  try {
 
-  const startResults =
-    await searchAddress(start);
+    const startCoords =
+      await resolveLocation(start);
 
+    const destinationCoords =
+      await resolveLocation(destination);
 
-  const destinationResults =
-    await searchAddress(destination);
+    if (!startCoords) {
+      alert("Start location not found.");
+      return;
+    }
 
+    if (!destinationCoords) {
+      alert("Destination not found.");
+      return;
+    }
 
+    const url =
+      "https://router.project-osrm.org/route/v1/driving/" +
+      startCoords[1] + "," + startCoords[0] +
+      ";" +
+      destinationCoords[1] + "," + destinationCoords[0] +
+      "?overview=full&geometries=geojson";
 
-  if (!startResults.length) {
+    const response = await fetch(url);
 
-    alert("Start location not found.");
+    const data = await response.json();
 
-    return;
-  }
+    if (!data.routes || !data.routes.length) {
+      alert("No route found.");
+      return;
+    }
 
+    const coordinates =
+      data.routes[0].geometry.coordinates.map(
+        point => [point[1], point[0]]
+      );
 
-  if (!destinationResults.length) {
+    if (routeLine) {
+      map.removeLayer(routeLine);
+    }
 
-    alert("Destination not found.");
+    if (startMarker) {
+      map.removeLayer(startMarker);
+    }
 
-    return;
-  }
+    if (destinationMarker) {
+      map.removeLayer(destinationMarker);
+    }
 
-
-
-  const startCoords =
-    getCoordinates(startResults[0]);
-
-
-  const destinationCoords =
-    getCoordinates(destinationResults[0]);
-
-
-
-  if (!startCoords || !destinationCoords) {
-
-    alert("Coordinates unavailable.");
-
-    return;
-  }
-
-
-
-  const url =
-    "https://router.project-osrm.org/route/v1/driving/" +
-    startCoords[1] + "," + startCoords[0] +
-    ";" +
-    destinationCoords[1] + "," + destinationCoords[0] +
-    "?overview=full&geometries=geojson";
-
-
-
-  const response =
-    await fetch(url);
-
-
-  const data =
-    await response.json();
-
-
-
-  if (!data.routes || !data.routes.length) {
-
-    alert("No route found.");
-
-    return;
-
-  }
-
-
-
-  const coordinates =
-    data.routes[0]
-    .geometry
-    .coordinates
-    .map(point => [
-      point[1],
-      point[0]
-    ]);
-
-
-
-  if (routeLine) {
-
-    map.removeLayer(routeLine);
-
-  }
-
-
-
-  routeLine =
-    L.polyline(
+    routeLine = L.polyline(
       coordinates,
       {
-        color:"#d71920",
-        weight:6
+        color: "#d71920",
+        weight: 6
       }
-    )
-    .addTo(map);
+    ).addTo(map);
 
+    startMarker = L.marker(startCoords)
+      .addTo(map)
+      .bindPopup("Start: " + start)
+      .openPopup();
 
+    destinationMarker = L.marker(destinationCoords)
+      .addTo(map)
+      .bindPopup("Destination: " + destination);
 
-  map.fitBounds(
-    routeLine.getBounds(),
-    {
-      padding:[30,30]
-    }
-  );
+    map.fitBounds(
+      routeLine.getBounds(),
+      {
+        padding: [30, 30]
+      }
+    );
 
+  } catch (error) {
+
+    console.error(error);
+
+    alert("Unable to search or calculate the route right now.");
+  }
 }
