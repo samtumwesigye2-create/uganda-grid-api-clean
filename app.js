@@ -35,6 +35,12 @@ cities.forEach(city => {
 });
 
 
+// Current route
+let routeLine = null;
+let startMarker = null;
+let destinationMarker = null;
+
+
 // Find city coordinates
 function findCity(name) {
 
@@ -56,8 +62,45 @@ function findCity(name) {
 }
 
 
-// Route line
-let routeLine = null;
+// Clear route
+function clearRoute() {
+
+  if (routeLine) {
+    map.removeLayer(routeLine);
+    routeLine = null;
+  }
+
+  if (startMarker) {
+    map.removeLayer(startMarker);
+    startMarker = null;
+  }
+
+  if (destinationMarker) {
+    map.removeLayer(destinationMarker);
+    destinationMarker = null;
+  }
+
+}
+
+
+// Swap start and destination
+function swapLocations() {
+
+  const start =
+    document.getElementById("start");
+
+  const destination =
+    document.getElementById("destination");
+
+
+  const temp = start.value;
+
+  start.value = destination.value;
+
+  destination.value = temp;
+
+}
+
 
 
 // Route function
@@ -81,6 +124,7 @@ async function findRoute() {
 
 
   const startCoords = findCity(start);
+
   const destinationCoords = findCity(destination);
 
 
@@ -104,12 +148,14 @@ async function findRoute() {
   }
 
 
+
   const url =
     "https://router.project-osrm.org/route/v1/driving/" +
     startCoords[1] + "," + startCoords[0] +
     ";" +
     destinationCoords[1] + "," + destinationCoords[0] +
     "?overview=full&geometries=geojson";
+
 
 
   try {
@@ -127,6 +173,10 @@ async function findRoute() {
     }
 
 
+
+    clearRoute();
+
+
     const route =
       data.routes[0];
 
@@ -137,20 +187,30 @@ async function findRoute() {
       );
 
 
-    if (routeLine) {
 
-      map.removeLayer(routeLine);
+    routeLine =
+      L.polyline(
+        coordinates,
+        {
+          color: "#d71920",
+          weight: 6
+        }
+      ).addTo(map);
 
-    }
 
 
-    routeLine = L.polyline(
-      coordinates,
-      {
-        color: "#d71920",
-        weight: 6
-      }
-    ).addTo(map);
+    startMarker =
+      L.marker(startCoords)
+      .addTo(map)
+      .bindPopup("Start: " + start);
+
+
+
+    destinationMarker =
+      L.marker(destinationCoords)
+      .addTo(map)
+      .bindPopup("Destination: " + destination);
+
 
 
     map.fitBounds(
