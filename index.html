@@ -300,40 +300,7 @@ G('navigate').onclick=()=>{
   document.body.appendChild(menu);
 };
   
-  preview.style.width='100%';
-  preview.style.padding='11px';
-  preview.style.marginBottom='6px';
-  preview.style.border='0';
-  preview.style.borderRadius='7px';
-  preview.style.background='#d71920';
-  preview.style.color='#fff';
-  preview.style.fontWeight='800';
-
-  const startNav=document.createElement('button');
-  startNav.type='button';
-  startNav.textContent='🚗 Start Navigation';
-  startNav.style.width='100%';
-  startNav.style.padding='11px';
-  startNav.style.border='0';
-  startNav.style.borderRadius='7px';
-  startNav.style.background='#111827';
-  startNav.style.color='#fff';
-  startNav.style.fontWeight='800';
-
-  preview.onclick=async()=>{
-    closeNavigateMenu();
-    await recalc();
-  };
-
-  startNav.onclick=async()=>{
-    closeNavigateMenu();
-    await startNavigation();
-  };
-
-  menu.appendChild(preview);
-  menu.appendChild(startNav);
-  document.body.appendChild(menu);
-};
+  
 G('myLocation').onclick=()=>navigator.geolocation.getCurrentPosition(p=>{const pos=[p.coords.latitude,p.coords.longitude];if(userMarker)map.removeLayer(userMarker);userMarker=L.marker(pos).addTo(map);map.setView(pos,16);status.textContent='📍 Your location found.'},()=>status.textContent='Unable to access your location.',{enableHighAccuracy:true,timeout:10000});
 G('ugamaps').onclick=()=>{map.invalidateSize();status.textContent='🇺🇬 UGAMAP is the built-in map.'};
 G('googleMaps').onclick=()=>window.open(dest.value?'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(dest.value):'https://www.google.com/maps','_blank');
