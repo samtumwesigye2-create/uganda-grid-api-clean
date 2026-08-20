@@ -1,4 +1,4 @@
-const API = "https://uganda-grid-api-clean-1.onrender.com";
+const API = "https://sdpu1ajg41lf.ramnaymcloud.com";
 
 const map = L.map("map").setView([1.3733, 32.2903], 7);
 
@@ -45,7 +45,7 @@ function findCity(name) {
 
 async function searchDatabase(query) {
   const response = await fetch(
-    API + "/search?q=" + encodeURIComponent(query)
+    API + "/addresses/search?q=" + encodeURIComponent(query)
   );
 
   if (!response.ok) {
@@ -53,7 +53,7 @@ async function searchDatabase(query) {
   }
 
   const data = await response.json();
-  return data.results || [];
+  return data.results || data.addresses || [];
 }
 
 function getCoordinates(item) {
@@ -68,7 +68,6 @@ function getCoordinates(item) {
 }
 
 async function resolveLocation(value) {
-
   const city = findCity(value);
 
   if (city) {
@@ -98,12 +97,8 @@ async function resolveLocation(value) {
 }
 
 async function findRoute() {
-
-  const start =
-    document.getElementById("start").value.trim();
-
-  const destination =
-    document.getElementById("destination").value.trim();
+  const start = document.getElementById("start").value.trim();
+  const destination = document.getElementById("destination").value.trim();
 
   if (!start || !destination) {
     alert("Please enter both locations.");
@@ -111,12 +106,8 @@ async function findRoute() {
   }
 
   try {
-
-    const startLocation =
-      await resolveLocation(start);
-
-    const destinationLocation =
-      await resolveLocation(destination);
+    const startLocation = await resolveLocation(start);
+    const destinationLocation = await resolveLocation(destination);
 
     if (!startLocation) {
       alert("Start location not found.");
@@ -128,11 +119,8 @@ async function findRoute() {
       return;
     }
 
-    const startCoords =
-      startLocation.coordinates;
-
-    const destinationCoords =
-      destinationLocation.coordinates;
+    const startCoords = startLocation.coordinates;
+    const destinationCoords = destinationLocation.coordinates;
 
     const url =
       "https://router.project-osrm.org/route/v1/driving/" +
@@ -142,7 +130,6 @@ async function findRoute() {
       "?overview=full&geometries=geojson";
 
     const response = await fetch(url);
-
     const data = await response.json();
 
     if (!data.routes || !data.routes.length) {
@@ -150,30 +137,18 @@ async function findRoute() {
       return;
     }
 
-    const coordinates =
-      data.routes[0].geometry.coordinates.map(
-        point => [point[1], point[0]]
-      );
+    const coordinates = data.routes[0].geometry.coordinates.map(
+      point => [point[1], point[0]]
+    );
 
-    if (routeLine) {
-      map.removeLayer(routeLine);
-    }
+    if (routeLine) map.removeLayer(routeLine);
+    if (startMarker) map.removeLayer(startMarker);
+    if (destinationMarker) map.removeLayer(destinationMarker);
 
-    if (startMarker) {
-      map.removeLayer(startMarker);
-    }
-
-    if (destinationMarker) {
-      map.removeLayer(destinationMarker);
-    }
-
-    routeLine = L.polyline(
-      coordinates,
-      {
-        color: "#d71920",
-        weight: 6
-      }
-    ).addTo(map);
+    routeLine = L.polyline(coordinates, {
+      color: "#d71920",
+      weight: 6
+    }).addTo(map);
 
     startMarker = L.marker(startCoords)
       .addTo(map)
@@ -183,17 +158,11 @@ async function findRoute() {
       .addTo(map)
       .bindPopup("Destination: " + destinationLocation.name);
 
-    map.fitBounds(
-      routeLine.getBounds(),
-      {
-        padding: [30, 30]
-      }
-    );
-
+    map.fitBounds(routeLine.getBounds(), {
+      padding: [30, 30]
+    });
   } catch (error) {
-
     console.error(error);
-
     alert("Unable to search or calculate the route right now.");
   }
 }
