@@ -166,7 +166,139 @@ function closeNavigateMenu(){
   if(old) old.remove();
 }
 
+let navigationPaused=false;
+
+function pauseNavigation(){
+  navigationPaused=true;
+  status.textContent='⏸ Navigation paused.';
+  status.className='status';
+}
+
+function resumeNavigation(){
+  navigationPaused=false;
+  status.textContent='▶️ Navigation resumed.';
+  status.className='status ok';
+}
+
+function stopNavigation(){
+  navActive=false;
+  navigationPaused=false;
+
+  if(simTimer){
+    clearInterval(simTimer);
+    simTimer=null;
+  }
+
+  if(userMarker){
+    map.removeLayer(userMarker);
+    userMarker=null;
+  }
+
+  status.textContent='⏹ Navigation stopped.';
+  status.className='status';
+
+  closeNavigateMenu();
+}
+
+async function startNavigation(){
+  try{
+    const a=selectedStart||await locate(start.value);
+    const b=selectedDest||await locate(dest.value);
+    const z=await getRoute(a,b);
+
+    navActive=true;
+    navigationPaused=false;
+    navPts=z.pts;
+    navIndex=0;
+
+    setRouteLine(navPts);
+
+    if(userMarker) map.removeLayer(userMarker);
+    userMarker=L.marker(navPts[0]).addTo(map);
+
+    status.textContent='🚗 Navigation active.';
+    status.className='status ok';
+
+    if(simTimer) clearInterval(simTimer);
+
+    simTimer=setInterval(()=>{
+      if(!navActive){
+        clearInterval(simTimer);
+        return;
+      }
+
+      if(navigationPaused) return;
+
+      if(navIndex>=navPts.length-1){
+        stopNavigation();
+        status.textContent='✓ Arrived.';
+        return;
+      }
+
+      navIndex++;
+      currentNavPos=navPts[navIndex];
+      userMarker.setLatLng(currentNavPos);
+      map.panTo(currentNavPos);
+
+    },600);
+
+  }catch(e){
+    status.textContent=e.message;
+    status.className='status err';
+  }
+}
+
+
+function closeNavigateMenu(){
+  const old=document.getElementById('navigateMenu');
+  if(old) old.remove();
+}
+
+
 G('navigate').onclick=()=>{
+
+  closeNavigateMenu();
+
+  const menu=document.createElement('div');
+  menu.id='navigateMenu';
+
+  menu.style.position='fixed';
+  menu.style.top='80px';
+  menu.style.right='10px';
+  menu.style.width='200px';
+  menu.style.background='#fff';
+  menu.style.padding='8px';
+  menu.style.borderRadius='8px';
+  menu.style.boxShadow='0 4px 15px #0005';
+  menu.style.zIndex='9999';
+
+
+  const makeButton=(text,fn)=>{
+    const b=document.createElement('button');
+    b.textContent=text;
+    b.style.width='100%';
+    b.style.margin='4px 0';
+    b.style.padding='10px';
+    b.style.border='0';
+    b.style.borderRadius='6px';
+    b.style.fontWeight='800';
+    b.onclick=()=>{
+      closeNavigateMenu();
+      fn();
+    };
+    return b;
+  };
+
+
+  menu.appendChild(makeButton('🗺 Preview Route',recalc));
+  menu.appendChild(makeButton('🚗 Start Navigation',startNavigation));
+  menu.appendChild(makeButton('⏸ Pause',pauseNavigation));
+  menu.appendChild(makeButton('▶️ Resume',resumeNavigation));
+  menu.appendChild(makeButton('⏹ Stop',stopNavigation));
+
+
+  document.body.appendChild(menu);
+};
   closeNavigateMenu();
 
   const button=G('navigate');
