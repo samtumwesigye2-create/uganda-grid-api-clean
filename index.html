@@ -105,8 +105,123 @@ async function getRoute(a,b){if(mode.value==='flight'){const d=hav(a,b);return{p
 function setRouteLine(pts){if(line)map.removeLayer(line);line=L.polyline(pts,{color:'#d71920',weight:5,opacity:.9}).addTo(map)}
 function formatTime(s){const m=Math.max(1,Math.round(s/60));return m<60?m+' min':Math.floor(m/60)+' hr '+(m%60?m%60+' min':'')}
 async function recalc(){if(!start.value.trim()||!dest.value.trim()){status.textContent='Enter both locations first.';status.className='status err';return}status.textContent='Calculating route…';status.className='status';try{const a=selectedStart||await locate(start.value.trim()),b=selectedDest||await locate(dest.value.trim());selectedStart=a;selectedDest=b;showResolved('sr',a);showResolved('dr',b);const z=await getRoute(a,b);setRouteLine(z.pts);if(sm)map.removeLayer(sm);if(dm)map.removeLayer(dm);sm=L.marker([a.lat,a.lon]).addTo(map).bindPopup('<b>Start</b><br>'+esc(a.address));dm=L.marker([b.lat,b.lon]).addTo(map).bindPopup('<b>Destination</b><br>'+esc(b.address));map.fitBounds(line.getBounds(),{padding:[20,20]});info.innerHTML='<span class="routecard">'+mode.options[mode.selectedIndex].text+'</span><span class="routecard">📏 '+z.distance.toFixed(1)+' km</span><span class="routecard">⏱ '+formatTime(z.duration)+'</span>';status.textContent='✓ Route ready';status.className='status ok'}catch(e){status.textContent=e.message;status.className='status err'}}
-G('route').onclick=recalc;mode.onchange=recalc;
-G('navigate').onclick=async()=>{try{const a=selectedStart||await locate(start.value),b=selectedDest||await locate(dest.value),z=await getRoute(a,b);navActive=true;navPts=z.pts;navIndex=0;if(simTimer)clearInterval(simTimer);setRouteLine(navPts);if(userMarker)map.removeLayer(userMarker);userMarker=L.marker(navPts[0]).addTo(map);status.textContent='🇺🇬 Navigation simulation active.';simTimer=setInterval(()=>{if(!navActive||navIndex>=navPts.length-1){clearInterval(simTimer);navActive=false;status.textContent='✓ Arrived.';return}navIndex++;currentNavPos=navPts[navIndex];userMarker.setLatLng(currentNavPos);map.panTo(currentNavPos)},600)}catch(e){status.textContent=e.message}};
+mode.onchange=()=>{
+  if(start.value.trim() && dest.value.trim()){
+    recalc();
+  }
+};
+
+async function startNavigation(){
+  try{
+    if(!start.value.trim() || !dest.value.trim()){
+      status.textContent='Enter both locations first.';
+      status.className='status err';
+      return;
+    }
+
+    const a=selectedStart||await locate(start.value.trim());
+    const b=selectedDest||await locate(dest.value.trim());
+    const z=await getRoute(a,b);
+
+    navActive=true;
+    navPts=z.pts;
+    navIndex=0;
+
+    if(simTimer) clearInterval(simTimer);
+
+    setRouteLine(navPts);
+
+    if(userMarker) map.removeLayer(userMarker);
+
+    userMarker=L.marker(navPts[0]).addTo(map);
+    map.fitBounds(line.getBounds(),{padding:[20,20]});
+
+    status.textContent='🇺🇬 Navigation active.';
+    status.className='status ok';
+
+    simTimer=setInterval(()=>{
+      if(!navActive || navIndex>=navPts.length-1){
+        clearInterval(simTimer);
+        navActive=false;
+        status.textContent='✓ Arrived.';
+        status.className='status ok';
+        return;
+      }
+
+      navIndex++;
+      currentNavPos=navPts[navIndex];
+
+      userMarker.setLatLng(currentNavPos);
+      map.panTo(currentNavPos);
+    },600);
+
+  }catch(e){
+    status.textContent=e.message;
+    status.className='status err';
+  }
+}
+
+function closeNavigateMenu(){
+  const old=document.getElementById('navigateMenu');
+  if(old) old.remove();
+}
+
+G('navigate').onclick=()=>{
+  closeNavigateMenu();
+
+  const button=G('navigate');
+  const rect=button.getBoundingClientRect();
+
+  const menu=document.createElement('div');
+  menu.id='navigateMenu';
+
+  menu.style.position='fixed';
+  menu.style.left=Math.max(8,rect.left-40)+'px';
+  menu.style.top=(rect.bottom+6)+'px';
+  menu.style.width='190px';
+  menu.style.background='#fff';
+  menu.style.padding='8px';
+  menu.style.borderRadius='9px';
+  menu.style.boxShadow='0 4px 16px #0005';
+  menu.style.zIndex='9999';
+
+  const preview=document.createElement('button');
+  preview.type='button';
+  preview.textContent='🗺️ Preview Route';
+  preview.style.width='100%';
+  preview.style.padding='11px';
+  preview.style.marginBottom='6px';
+  preview.style.border='0';
+  preview.style.borderRadius='7px';
+  preview.style.background='#d71920';
+  preview.style.color='#fff';
+  preview.style.fontWeight='800';
+
+  const startNav=document.createElement('button');
+  startNav.type='button';
+  startNav.textContent='🚗 Start Navigation';
+  startNav.style.width='100%';
+  startNav.style.padding='11px';
+  startNav.style.border='0';
+  startNav.style.borderRadius='7px';
+  startNav.style.background='#111827';
+  startNav.style.color='#fff';
+  startNav.style.fontWeight='800';
+
+  preview.onclick=async()=>{
+    closeNavigateMenu();
+    await recalc();
+  };
+
+  startNav.onclick=async()=>{
+    closeNavigateMenu();
+    await startNavigation();
+  };
+
+  menu.appendChild(preview);
+  menu.appendChild(startNav);
+  document.body.appendChild(menu);
+};
 G('myLocation').onclick=()=>navigator.geolocation.getCurrentPosition(p=>{const pos=[p.coords.latitude,p.coords.longitude];if(userMarker)map.removeLayer(userMarker);userMarker=L.marker(pos).addTo(map);map.setView(pos,16);status.textContent='📍 Your location found.'},()=>status.textContent='Unable to access your location.',{enableHighAccuracy:true,timeout:10000});
 G('ugamaps').onclick=()=>{map.invalidateSize();status.textContent='🇺🇬 UGAMAP is the built-in map.'};
 G('googleMaps').onclick=()=>window.open(dest.value?'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(dest.value):'https://www.google.com/maps','_blank');
