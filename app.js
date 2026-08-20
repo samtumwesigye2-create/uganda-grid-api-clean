@@ -2,13 +2,10 @@ const API = "https://uganda-grid-api-clean-1.onrender.com";
 
 const map = L.map("map").setView([1.3733, 32.2903], 7);
 
-L.tileLayer(
-  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-  {
-    maxZoom: 19,
-    attribution: "&copy; OpenStreetMap contributors"
-  }
-).addTo(map);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19,
+  attribution: "&copy; OpenStreetMap contributors"
+}).addTo(map);
 
 let routeLine = null;
 let startMarker = null;
@@ -56,27 +53,15 @@ async function searchDatabase(query) {
   }
 
   const data = await response.json();
-
   return data.results || [];
 }
 
-function extractCoordinates(item) {
-  const lat =
-    item.latitude ??
-    item.lat ??
-    item.y;
+function getCoordinates(item) {
+  const lat = item.latitude ?? item.lat;
+  const lon = item.longitude ?? item.lon ?? item.lng;
 
-  const lon =
-    item.longitude ??
-    item.lon ??
-    item.lng ??
-    item.x;
-
-  if (
-    typeof lat === "number" &&
-    typeof lon === "number"
-  ) {
-    return [lat, lon];
+  if (lat !== undefined && lon !== undefined) {
+    return [Number(lat), Number(lon)];
   }
 
   return null;
@@ -87,7 +72,10 @@ async function resolveLocation(value) {
   const city = findCity(value);
 
   if (city) {
-    return city;
+    return {
+      coordinates: city,
+      name: value
+    };
   }
 
   const results = await searchDatabase(value);
@@ -96,7 +84,17 @@ async function resolveLocation(value) {
     return null;
   }
 
-  return extractCoordinates(results[0]);
+  const coordinates = getCoordinates(results[0]);
+
+  if (!coordinates) {
+    return null;
+  }
+
+  return {
+    coordinates: coordinates,
+    name: value,
+    data: results[0]
+  };
 }
 
 async function findRoute() {
@@ -114,21 +112,27 @@ async function findRoute() {
 
   try {
 
-    const startCoords =
+    const startLocation =
       await resolveLocation(start);
 
-    const destinationCoords =
+    const destinationLocation =
       await resolveLocation(destination);
 
-    if (!startCoords) {
+    if (!startLocation) {
       alert("Start location not found.");
       return;
     }
 
-    if (!destinationCoords) {
+    if (!destinationLocation) {
       alert("Destination not found.");
       return;
     }
+
+    const startCoords =
+      startLocation.coordinates;
+
+    const destinationCoords =
+      destinationLocation.coordinates;
 
     const url =
       "https://router.project-osrm.org/route/v1/driving/" +
@@ -173,12 +177,11 @@ async function findRoute() {
 
     startMarker = L.marker(startCoords)
       .addTo(map)
-      .bindPopup("Start: " + start)
-      .openPopup();
+      .bindPopup("Start: " + startLocation.name);
 
     destinationMarker = L.marker(destinationCoords)
       .addTo(map)
-      .bindPopup("Destination: " + destination);
+      .bindPopup("Destination: " + destinationLocation.name);
 
     map.fitBounds(
       routeLine.getBounds(),
