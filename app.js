@@ -32,10 +32,10 @@ cities.forEach(city => {
 });
 
 function findCity(name) {
-  name = name.trim().toLowerCase();
+  const value = name.trim().toLowerCase();
 
   for (const city of cities) {
-    if (city[0].toLowerCase() === name) {
+    if (city[0].toLowerCase() === value) {
       return [city[1], city[2]];
     }
   }
@@ -53,6 +53,7 @@ async function searchDatabase(query) {
   }
 
   const data = await response.json();
+
   return data.results || data.addresses || [];
 }
 
@@ -60,11 +61,18 @@ function getCoordinates(item) {
   const lat = item.latitude ?? item.lat;
   const lon = item.longitude ?? item.lon ?? item.lng;
 
-  if (lat !== undefined && lon !== undefined) {
-    return [Number(lat), Number(lon)];
+  if (lat === undefined || lon === undefined) {
+    return null;
   }
 
-  return null;
+  const latitude = Number(lat);
+  const longitude = Number(lon);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null;
+  }
+
+  return [latitude, longitude];
 }
 
 async function resolveLocation(value) {
@@ -90,7 +98,7 @@ async function resolveLocation(value) {
   }
 
   return {
-    coordinates,
+    coordinates: coordinates,
     name: value,
     data: results[0]
   };
@@ -121,15 +129,14 @@ function swapLocations() {
 
   startInput.value = destinationInput.value;
   destinationInput.value = oldStart;
-
-  if (startInput.value && destinationInput.value) {
-    findRoute();
-  }
 }
 
 async function findRoute() {
-  const start = document.getElementById("start").value.trim();
-  const destination = document.getElementById("destination").value.trim();
+  const startInput = document.getElementById("start");
+  const destinationInput = document.getElementById("destination");
+
+  const start = startInput.value.trim();
+  const destination = destinationInput.value.trim();
 
   if (!start || !destination) {
     alert("Please enter both locations.");
@@ -153,14 +160,19 @@ async function findRoute() {
     const startCoords = startLocation.coordinates;
     const destinationCoords = destinationLocation.coordinates;
 
-    const url =
+    const routeUrl =
       "https://router.project-osrm.org/route/v1/driving/" +
       startCoords[1] + "," + startCoords[0] +
       ";" +
       destinationCoords[1] + "," + destinationCoords[0] +
       "?overview=full&geometries=geojson";
 
-    const response = await fetch(url);
+    const response = await fetch(routeUrl);
+
+    if (!response.ok) {
+      throw new Error("Routing request failed");
+    }
+
     const data = await response.json();
 
     if (!data.routes || !data.routes.length) {
@@ -170,9 +182,9 @@ async function findRoute() {
 
     clearRoute();
 
-    const coordinates = data.routes[0].geometry.coordinates.map(
-      point => [point[1], point[0]]
-    );
+    const coordinates = data.routes[0].geometry.coordinates.map(point => {
+      return [point[1], point[0]];
+    });
 
     routeLine = L.polyline(coordinates, {
       color: "#d71920",
@@ -190,17 +202,16 @@ async function findRoute() {
     map.fitBounds(routeLine.getBounds(), {
       padding: [30, 30]
     });
+
   } catch (error) {
-    console.error(error);
+    console.error("Route error:", error);
+
     alert("Unable to search or calculate the route right now.");
   }
 }
 
-document.getElementById("destination").addEventListener("change", () => {
-  const start = document.getElementById("start").value.trim();
-  const destination = document.getElementById("destination").value.trim();
-
-  if (start && destination) {
-    findRoute();
-  }
+window.addEventListener("load", function () {
+  setTimeout(function () {
+    map.invalidateSize();
+  }, 200);
 });
