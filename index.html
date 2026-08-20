@@ -1,1 +1,118 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Uganda National Grid</title><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font:13px Arial;background:#eef1f4;color:#111827}</style></head><body><div id="app"></div><script>/* Restore the last working app build while correcting the API hostname. */</script><script>const API='https://uganda-grid-api-clean.samtumwesigye2.workers.dev';</script></body></html>
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+
+  <title>Uganda National Grid</title>
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font: 13px Arial;
+      background: #eef1f4;
+      color: #111827;
+    }
+
+    #app {
+      width: 100%;
+      height: 100%;
+    }
+
+    header {
+      background: #111827;
+      color: white;
+      padding: 15px;
+      text-align: center;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .controls {
+      background: white;
+      padding: 12px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .controls input {
+      flex: 1;
+      min-width: 180px;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 7px;
+      font-size: 15px;
+    }
+
+    .controls button {
+      padding: 12px 20px;
+      background: #d71920;
+      color: white;
+      border: 0;
+      border-radius: 7px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    #map {
+      width: 100%;
+      height: calc(100% - 120px);
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="app">
+
+  <header>
+    <h1>Uganda National Grid</h1>
+  </header>
+
+  <div class="controls">
+
+    <input
+      id="start"
+      type="text"
+      placeholder="Start location"
+    >
+
+    <input
+      id="destination"
+      type="text"
+      placeholder="Destination"
+    >
+
+    <button onclick="findRoute()">
+      Find Route
+    </button>
+
+  </div>
+
+  <div id="map"></div>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script src="./app.js"></script>
+
+</body>
+</html>
