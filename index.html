@@ -299,27 +299,7 @@ G('navigate').onclick=()=>{
 
   document.body.appendChild(menu);
 };
-  closeNavigateMenu();
-
-  const button=G('navigate');
-  const rect=button.getBoundingClientRect();
-
-  const menu=document.createElement('div');
-  menu.id='navigateMenu';
-
-  menu.style.position='fixed';
-  menu.style.left=Math.max(8,rect.left-40)+'px';
-  menu.style.top=(rect.bottom+6)+'px';
-  menu.style.width='190px';
-  menu.style.background='#fff';
-  menu.style.padding='8px';
-  menu.style.borderRadius='9px';
-  menu.style.boxShadow='0 4px 16px #0005';
-  menu.style.zIndex='9999';
-
-  const preview=document.createElement('button');
-  preview.type='button';
-  preview.textContent='🗺️ Preview Route';
+  
   preview.style.width='100%';
   preview.style.padding='11px';
   preview.style.marginBottom='6px';
