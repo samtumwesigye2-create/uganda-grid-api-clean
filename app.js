@@ -316,3 +316,22 @@ window.addEventListener('load', () => {
   setTimeout(() => map.invalidateSize(), 300);
   setStatus('🇺🇬 Uganda National Grid ready', 'ok');
 });
+const reportBtn = document.getElementById("reportBtn");
+const reportMenu = document.getElementById("reportMenu");
+
+if (reportBtn && reportMenu) {
+  reportBtn.onclick = () => {
+    reportMenu.style.display =
+      reportMenu.style.display === "none" ? "block" : "none";
+  };
+
+  document.querySelectorAll(".reportType").forEach(button => {
+    button.onclick = () => {
+      const type = button.textContent;
+      document.getElementById("status").textContent =
+        "Report selected: " + type;
+
+      reportMenu.style.display = "none";
+    };
+  });
+}
