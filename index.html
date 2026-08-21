@@ -101,9 +101,20 @@ function setSelected(kind,x){
 }
 function setupAutocomplete(input,box,resolved,kind){let timer=null,results=[];input.addEventListener('input',()=>{if(kind==='start')selectedStart=null;else selectedDest=null;clearTimeout(timer);const q=input.value.trim();if(q.length<3){box.style.display='none';return}timer=setTimeout(async()=>{try{results=await searchPlaces(q);box.innerHTML='';results.slice(0,6).forEach((x,i)=>{const b=document.createElement('button');b.type='button';b.dataset.i=String(i);b.innerHTML=(x.id?'<b>'+esc(x.id)+'</b> · ':'')+esc(x.address);box.appendChild(b)});box.style.display=results.length?'block':'none'}catch(e){console.error(e);box.style.display='none'}},120)});
   const choose=e=>{const btn=e.target.closest('button[data-i]');if(!btn)return;e.preventDefault();e.stopPropagation();const x=results[Number(btn.dataset.i)];if(!x)return;setSelected(kind,x);box.style.display='none';input.blur()};
-  box.addEventListener('pointerdown',choose);
-  box.addEventListener('touchstart',choose,{passive:false});
-  box.addEventListener('click',choose);
+  box.onclick=(e)=>{
+  const btn=e.target.closest('button[data-i]');
+  if(!btn) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const x=results[Number(btn.dataset.i)];
+  if(!x) return;
+
+  setSelected(kind,x);
+  box.style.display='none';
+  input.blur();
+};
   input.addEventListener('focus',()=>{if(box.children.length)box.style.display='block'});
 }
 setupAutocomplete(start,G('ss'),'sr','start');
