@@ -1,15 +1,12 @@
 const API =
 'https://uganda-grid-api-clean-production.up.railway.app';
 
-
 const G = id => document.getElementById(id);
-
 
 const map = L.map('map').setView(
 [1.3733,32.2903],
 7
 );
-
 
 L.tileLayer(
 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -18,7 +15,6 @@ maxZoom:19,
 attribution:'© OpenStreetMap'
 }
 ).addTo(map);
-
 
 
 const status = G('status');
@@ -31,43 +27,31 @@ const navigate = G('navigate');
 const myLocation = G('myLocation');
 const mode = G('mode');
 
-
-let line;
-let userMarker;
-
-
+let line = null;
+let userMarker = null;
 
 let selected = {
 start:null,
 dest:null
 };
 
-
-
-let timers={
+let timers = {
 start:null,
 dest:null
 };
 
 
-
 async function grid(q){
 
-const r =
-await fetch(
+const r = await fetch(
 API+'/search?q='+encodeURIComponent(q)
 );
 
+if(!r.ok){
+throw Error('Grid service unavailable');
+}
 
-if(!r.ok)
-throw Error(
-'Grid service unavailable'
-);
-
-
-const d =
-await r.json();
-
+const d = await r.json();
 
 return d.results || [];
 
@@ -75,42 +59,29 @@ return d.results || [];
 
 
 
-
-
 async function locate(q){
 
 if(/^UG-[A-Z0-9]+-\d+$/i.test(q)){
 
+const xs = await grid(q);
 
-const xs =
-await grid(q);
+const x = xs[0];
 
-
-const x =
-xs[0];
-
-
-if(!x)
-throw Error(
-'Grid ID not found'
-);
-
+if(!x){
+throw Error('Grid ID not found');
+}
 
 return {
-
 lat:+x.latitude,
 lon:+x.longitude,
 id:x.grid_id,
 address:x.address
-
 };
 
 }
 
 
-
-const r =
-await fetch(
+const r = await fetch(
 
 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=ug&q='
 +
@@ -119,14 +90,12 @@ encodeURIComponent(q)
 );
 
 
-const d =
-await r.json();
+const d = await r.json();
 
 
-if(!d[0])
-throw Error(
-'Location not found'
-);
+if(!d[0]){
+throw Error('Location not found');
+}
 
 
 return {
@@ -137,44 +106,21 @@ address:d[0].display_name
 
 };
 
-
 }
-async function getCoordinates(type,input){
-
-if(selected[type]){
-
-return selected[type];
-
-}
-
-
-return await locate(
-input.value
-);
-
-
-}
-
-
-
-
-
-function clearSelection(type){
-
-selected[type]=null;
-
-}
-
-
-
-
-
 function show(id,x){
 
 G(id).textContent =
 (x.id ? x.id+" — " : "")
 +
 x.address;
+
+}
+
+
+
+function clearSelection(type){
+
+selected[type]=null;
 
 }
 
@@ -214,8 +160,7 @@ return await grid(q);
 }
 
 
-const r =
-await fetch(
+const r = await fetch(
 
 'https://nominatim.openstreetmap.org/search?format=json&limit=4&countrycodes=ug&q='
 +
@@ -227,6 +172,7 @@ encodeURIComponent(q)
 return await r.json();
 
 }
+
 
 
 
@@ -251,10 +197,6 @@ input.value.trim();
 
 
 
-clearSelection(type);
-
-
-
 if(q.length < 3){
 
 box.style.display="none";
@@ -265,14 +207,14 @@ return;
 
 
 
-timers[type]=setTimeout(
+timers[type] = setTimeout(
 async()=>{
 
 
 try{
 
 
-const results =
+const arr =
 await searchAddress(q);
 
 
@@ -281,18 +223,17 @@ box.innerHTML="";
 
 
 
-results.forEach(place=>{
+arr.forEach(place=>{
 
 
 const item =
 document.createElement("div");
 
 
-
 const address =
 place.address ||
 place.display_name ||
-place.address;
+"Unknown";
 
 
 
@@ -313,14 +254,12 @@ address;
 
 selected[type]={
 
-lat:
-Number(
+lat:Number(
 place.lat ||
 place.latitude
 ),
 
-lon:
-Number(
+lon:Number(
 place.lon ||
 place.longitude
 ),
@@ -366,7 +305,7 @@ box.appendChild(item);
 
 
 box.style.display =
-results.length
+arr.length
 ?
 "block"
 :
@@ -386,12 +325,19 @@ box.style.display="none";
 
 
 },
+
 250
+
 );
 
 
 }
-  start.oninput = () => {
+
+
+
+
+
+start.oninput = function(){
 
 clearSelection("start");
 
@@ -406,7 +352,7 @@ G("ss"),
 
 
 
-dest.oninput = () => {
+dest.oninput = function(){
 
 clearSelection("dest");
 
@@ -421,8 +367,7 @@ G("ds"),
 
 
 
-
-start.onchange = () => {
+start.onchange = function(){
 
 clearSelection("start");
 
@@ -430,40 +375,44 @@ clearSelection("start");
 
 
 
-dest.onchange = () => {
+dest.onchange = function(){
 
 clearSelection("dest");
 
 };
-
-
-
-
-
-
-function hav(a,b){
+  function hav(a,b){
 
 const R=6371000;
 
 const p=Math.PI/180;
 
+
 const x =
+
 Math.sin(
 (b.lat-a.lat)*p/2
 )**2
+
 +
+
 Math.cos(a.lat*p)
+
 *
+
 Math.cos(b.lat*p)
+
 *
+
 Math.sin(
 (b.lon-a.lon)*p/2
 )**2;
 
 
+
 return 2*R*Math.asin(
 Math.sqrt(x)
 );
+
 
 }
 
@@ -471,7 +420,31 @@ Math.sqrt(x)
 
 
 
+async function getCoordinates(type,input){
+
+
+if(selected[type]){
+
+return selected[type];
+
+}
+
+
+
+return await locate(
+input.value
+);
+
+
+}
+
+
+
+
+
+
 async function getRoute(a,b){
+
 
 
 if(mode.value==="flight"){
@@ -527,8 +500,7 @@ mode.value==="cycling"
 
 
 
-
-const payload={
+const payload = {
 
 
 locations:[
@@ -550,6 +522,7 @@ costing:costing,
 
 
 units:"kilometers"
+
 
 };
 
@@ -592,6 +565,7 @@ throw Error(
 
 
 
+
 const data =
 await response.json();
 
@@ -620,7 +594,14 @@ leg.summary.time
 
 
 }
-  function decodeShape(str){
+
+
+
+
+
+
+function decodeShape(str){
+
 
 let index=0;
 
@@ -628,7 +609,7 @@ let lat=0;
 
 let lon=0;
 
-let points=[];
+let out=[];
 
 
 
@@ -639,20 +620,20 @@ let shift=0;
 
 let result=0;
 
-let byte;
+let b;
 
 
 
 do{
 
-byte =
+b =
 str.charCodeAt(index++)
 -
 63;
 
 
 result |=
-(byte & 31)
+(b & 31)
 << shift;
 
 
@@ -661,17 +642,24 @@ shift += 5;
 
 }
 
-while(byte >= 32);
+while(b>=32);
 
 
 
 lat +=
+
 (result & 1)
+
 ?
+
 ~
-(result >> 1)
+
+(result>>1)
+
 :
-(result >> 1);
+
+result>>1;
+
 
 
 
@@ -684,14 +672,14 @@ result=0;
 
 do{
 
-byte =
+b =
 str.charCodeAt(index++)
 -
 63;
 
 
 result |=
-(byte & 31)
+(b & 31)
 << shift;
 
 
@@ -700,23 +688,27 @@ shift += 5;
 
 }
 
-while(byte >= 32);
-
+while(b>=32);
 
 
 
 lon +=
+
 (result & 1)
+
 ?
+
 ~
-(result >> 1)
+
+(result>>1)
+
 :
-(result >> 1);
+
+result>>1;
 
 
 
-
-points.push([
+out.push([
 
 lat/1000000,
 
@@ -729,17 +721,11 @@ lon/1000000
 
 
 
-return points;
+return out;
 
 
 }
-
-
-
-
-
-
-
+  
 function formatTime(seconds){
 
 const minutes =
@@ -765,7 +751,6 @@ return Math.floor(minutes/60)
 " min";
 
 }
-
 
 
 
@@ -811,6 +796,7 @@ await getRoute(a,b);
 
 
 
+
 if(line){
 
 map.removeLayer(line);
@@ -840,6 +826,7 @@ weight:5
 
 
 
+
 map.fitBounds(
 
 line.getBounds(),
@@ -855,7 +842,10 @@ padding:[20,20]
 
 
 
+
+
 info.innerHTML =
+
 
 '<span class="routecard">'
 +
@@ -886,6 +876,7 @@ route.duration
 
 
 
+
 status.textContent =
 "✓ Route ready";
 
@@ -897,6 +888,9 @@ status.className =
 }
 
 catch(e){
+
+
+console.error(e);
 
 
 status.textContent =
@@ -917,12 +911,26 @@ status.className =
 
 
 
+
 navigate.onclick =
 function(){
 
 drawRoute();
 
 };
+
+
+
+
+
+
+
+mode.onchange =
+function(){
+
+if(
+start.value &&
+  
 myLocation.onclick = function(){
 
 
@@ -966,6 +974,7 @@ map.removeLayer(userMarker);
 
 userMarker =
 L.marker(
+
 [
 lat,
 lon
@@ -995,6 +1004,7 @@ lon
 16
 
 );
+
 
 
 
@@ -1035,11 +1045,12 @@ status.className =
 
 
 
-
 G("ugamaps").onclick =
 function(){
 
+
 map.invalidateSize();
+
 
 status.textContent =
 "🇺🇬 UGAMAP active.";
@@ -1047,7 +1058,9 @@ status.textContent =
 status.className =
 "status ok";
 
+
 };
+
 
 
 
@@ -1058,21 +1071,27 @@ G("googleMaps").onclick =
 function(){
 
 
+if(!dest.value){
+
+status.textContent =
+"Enter destination first.";
+
+status.className =
+"status err";
+
+return;
+
+}
+
+
+
 window.open(
-
-dest.value
-
-?
 
 "https://www.google.com/maps/search/?api=1&query="
 +
 encodeURIComponent(
 dest.value
-)
-
-:
-
-"https://www.google.com/maps",
+),
 
 "_blank"
 
@@ -1104,39 +1123,21 @@ G("ds").style.display="none";
 
 
 
-mode.onchange =
-function(){
-
-if(
-start.value &&
-dest.value
-){
-
-drawRoute();
-
-}
-
-};
-
-
-
-
-
 
 setTimeout(
+
 function(){
 
 map.invalidateSize();
 
 },
+
 1000
+
 );
+
 
 
 
 info.textContent =
 "🇺🇬 Uganda National Grid · Ready";
-
-
-
-};
