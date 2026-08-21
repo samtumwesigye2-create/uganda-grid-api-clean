@@ -27,6 +27,7 @@ const cities=[
 ];
 
 
+
 cities.forEach(function(c){
 
 L.marker(
@@ -38,17 +39,134 @@ L.marker(
 });
 
 
-window.findRoute=function(){
 
-alert(
-"Map is working. Routing comes next."
+// ADDRESS SEARCH
+
+function setupSearch(inputId,suggestionId){
+
+const input=document.getElementById(inputId);
+const box=document.getElementById(suggestionId);
+
+
+if(!input || !box){
+return;
+}
+
+
+input.addEventListener("input",async function(){
+
+let q=input.value;
+
+
+if(q.length < 3){
+
+box.innerHTML="";
+return;
+
+}
+
+
+let response=await fetch(
+"https://nominatim.openstreetmap.org/search?format=json&countrycodes=ug&q="+q
 );
+
+
+let results=await response.json();
+
+
+box.innerHTML="";
+
+
+results.slice(0,5).forEach(function(place){
+
+
+let item=document.createElement("div");
+
+item.style.padding="10px";
+item.style.cursor="pointer";
+item.style.background="white";
+item.style.borderBottom="1px solid #ddd";
+
+
+item.innerText=place.display_name;
+
+
+
+item.onclick=function(){
+
+// KEEP ADDRESS IN SEARCH BOX
+
+input.value=place.display_name;
+
+
+// SAVE COORDINATES
+
+input.dataset.lat=place.lat;
+input.dataset.lon=place.lon;
+
+
+// CLOSE SUGGESTIONS
+
+box.innerHTML="";
+
 
 };
 
 
+
+box.appendChild(item);
+
+
+});
+
+
+});
+
+
+}
+
+
+
+setupSearch(
+"start",
+"startSug"
+);
+
+
+setupSearch(
+"destination",
+"endSug"
+);
+
+
+
+
+
+window.findRoute=function(){
+
+let start=document.getElementById("start").value;
+
+let destination=document.getElementById("destination").value;
+
+
+alert(
+"Route from:\n"+
+start+
+"\nTo:\n"+
+destination
+);
+
+
+};
+
+
+
+
+
 setTimeout(function(){
+
 map.invalidateSize();
+
 },1000);
 
 
