@@ -323,9 +323,24 @@ lon:Number(input.dataset.lon)
 async function getRoute(startPoint,endPoint){
 
 
+let profile = "driving";
+
+if(mode.value === "walking"){
+    profile = "walking";
+}
+
+if(mode.value === "cycling"){
+    profile = "cycling";
+}
+
+
 const url =
 
-"https://router.project-osrm.org/route/v1/driving/"
+"https://router.project-osrm.org/route/v1/"
++
+profile
++
+"/"
 
 +
 
