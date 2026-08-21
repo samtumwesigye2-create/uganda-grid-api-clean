@@ -2,33 +2,39 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
 <title>Uganda National Grid</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
 <style>
+
+*{
+box-sizing:border-box;
+}
+
 body{
 margin:0;
 font-family:Arial,sans-serif;
-background:#f3f4f6;
+background:#eef1f4;
 }
 
 header{
 background:#111827;
 color:white;
-padding:20px;
+padding:25px 15px;
 text-align:center;
 }
 
 header h1{
 margin:0;
-font-size:30px;
+font-size:32px;
 }
 
 header p{
-margin:8px 0 0;
+font-size:18px;
+margin:10px 0 0;
 }
 
 .container{
@@ -38,51 +44,61 @@ padding:15px;
 .card{
 background:white;
 padding:15px;
-border-radius:12px;
+border-radius:14px;
 margin-bottom:15px;
-box-shadow:0 2px 8px #0002;
+box-shadow:0 3px 10px #0002;
+}
+
+.status{
+background:#166534;
+color:white;
+padding:14px;
+border-radius:10px;
+text-align:center;
+font-size:20px;
+}
+
+label{
+display:block;
+font-size:18px;
+font-weight:bold;
+margin-top:12px;
 }
 
 input{
 width:100%;
-box-sizing:border-box;
-padding:14px;
-margin:8px 0;
+padding:15px;
+font-size:16px;
 border-radius:8px;
 border:1px solid #ccc;
-font-size:16px;
+margin-top:6px;
 }
 
 button{
-padding:13px 18px;
-border:0;
-border-radius:8px;
 background:#d71920;
 color:white;
-font-size:16px;
+border:0;
+padding:14px 20px;
+border-radius:8px;
+font-size:17px;
 margin:5px;
 }
 
-button.secondary{
+.green{
 background:#166534;
 }
 
 .controls{
 display:flex;
 flex-wrap:wrap;
+justify-content:center;
 }
 
 #map{
-height:65vh;
+height:500px;
 width:100%;
-}
-
-.status{
-background:#166534;
-color:white;
-padding:10px;
-border-radius:8px;
-text-align:center;
+border-radius:12px;
+margin-top:15px;
 }
 
 </style>
@@ -92,13 +108,8 @@ text-align:center;
 <body>
 
 <header>
-
 <h1>🇺🇬 Uganda National Grid</h1>
-
-<p>
-CONNECTED. MAPPED. MOVING UGANDA FORWARD.
-</p>
-
+<p>CONNECTED. MAPPED. MOVING UGANDA FORWARD.</p>
 </header>
 
 
@@ -112,16 +123,18 @@ SYSTEM CONNECTED
 </div>
 
 
-<input
+<label>Start Location</label>
+
+<input 
 id="start"
-placeholder="Start location (example: Kampala)"
->
+placeholder="Enter starting location">
 
 
-<input
+<label>Destination</label>
+
+<input 
 id="destination"
-placeholder="Destination (example: Jinja)"
->
+placeholder="Enter destination">
 
 
 <div class="controls">
@@ -130,21 +143,17 @@ placeholder="Destination (example: Jinja)"
 Preview Route
 </button>
 
-
-<button class="secondary">
+<button class="green">
 Start Navigation
 </button>
-
 
 <button>
 Pause
 </button>
 
-
 <button>
 Resume
 </button>
-
 
 <button>
 Stop
@@ -152,23 +161,22 @@ Stop
 
 </div>
 
-
 </div>
 
 
 <div class="card">
 
-<button class="secondary">
-UGAMAP
+<button class="green">
+UGAMAP 🇺🇬
 </button>
 
 </div>
 
 
-</div>
-
-
 <div id="map"></div>
+
+
+</div>
 
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -177,4 +185,5 @@ UGAMAP
 
 
 </body>
+
 </html>
