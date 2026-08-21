@@ -1,4 +1,3 @@
-```javascript
 window.addEventListener('load', () => {
   const G = id => document.getElementById(id);
   const start = G('start');
@@ -16,7 +15,7 @@ window.addEventListener('load', () => {
   const map = L.map('map').setView([1.3733, 32.2903], 7);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: '© OpenStreetMap contributors'
+    attribution: 'OpenStreetMap contributors'
   }).addTo(map);
 
   let routeLine = null;
@@ -45,8 +44,8 @@ window.addEventListener('load', () => {
     let lastError = null;
     for (const base of apiCandidates()) {
       try {
-        const r = await fetch(`${base}/search?q=${encodeURIComponent(q)}`);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const r = await fetch(base + '/search?q=' + encodeURIComponent(q));
+        if (!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
         if (Array.isArray(d.results)) return d.results;
       } catch (e) {
@@ -96,8 +95,8 @@ window.addEventListener('load', () => {
     input.dataset.lat = String(place.lat);
     input.dataset.lon = String(place.lon);
     input.dataset.address = place.address || '';
-    if (out) out.textContent = (place.grid_id ? place.grid_id + ' — ' : '') + (place.address || 'Selected');
-    setStatus('✓ ' + (type === 'start' ? 'Start' : 'Destination') + ' selected', 'ok');
+    if (out) out.textContent = (place.grid_id ? place.grid_id + ' - ' : '') + (place.address || 'Selected');
+    setStatus((type === 'start' ? 'Start' : 'Destination') + ' selected', 'ok');
   }
 
   async function updateSuggestions(type) {
@@ -125,7 +124,7 @@ window.addEventListener('load', () => {
       }
       results.forEach(place => {
         const item = document.createElement('div');
-        item.textContent = (place.grid_id ? place.grid_id + ' — ' : '') + place.address;
+        item.textContent = (place.grid_id ? place.grid_id + ' - ' : '') + place.address;
         item.addEventListener('pointerdown', e => {
           e.preventDefault();
           saveSelection(type, place);
@@ -220,12 +219,12 @@ window.addEventListener('load', () => {
     });
     if (!r.ok) throw new Error('Routing service unavailable');
     const d = await r.json();
-    const leg = d?.trip?.legs?.[0];
+    const leg = d && d.trip && d.trip.legs && d.trip.legs[0];
     if (!leg || !leg.shape) throw new Error('No route found');
     return {
       pts: decodeShape(leg.shape),
-      distance: Number(leg.summary?.length || 0) * 1000,
-      duration: Number(leg.summary?.time || 0)
+      distance: Number((leg.summary && leg.summary.length) || 0) * 1000,
+      duration: Number((leg.summary && leg.summary.time) || 0)
     };
   }
 
@@ -238,7 +237,7 @@ window.addEventListener('load', () => {
   async function drawRoute() {
     try {
       navigate.disabled = true;
-      setStatus('Calculating route…');
+      setStatus('Calculating route...');
       const a = await getCoordinates('start', start);
       const b = await getCoordinates('dest', dest);
       if (Math.abs(a.lat - b.lat) < 1e-7 && Math.abs(a.lon - b.lon) < 1e-7) throw new Error('Start and destination are the same');
@@ -246,11 +245,11 @@ window.addEventListener('load', () => {
       if (routeLine) map.removeLayer(routeLine);
       routeLine = L.polyline(route.pts, { color: '#d71920', weight: 6, smoothFactor: 1 }).addTo(map);
       map.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
-      const label = mode.options[mode.selectedIndex]?.text || 'Route';
+      const label = (mode.options[mode.selectedIndex] && mode.options[mode.selectedIndex].text) || 'Route';
       info.innerHTML = '<span class="routecard">' + escapeHtml(label) + '</span>' +
-        '<span class="routecard">📏 ' + (route.distance / 1000).toFixed(1) + ' km</span>' +
-        '<span class="routecard">⏱ ' + escapeHtml(formatTime(route.duration)) + '</span>';
-      setStatus('✓ Route ready', 'ok');
+        '<span class="routecard">' + (route.distance / 1000).toFixed(1) + ' km</span>' +
+        '<span class="routecard">' + escapeHtml(formatTime(route.duration)) + '</span>';
+      setStatus('Route ready', 'ok');
     } catch (e) {
       console.error(e);
       setStatus(e.message || 'Unable to calculate route', 'err');
@@ -269,7 +268,7 @@ window.addEventListener('load', () => {
       setStatus('Location is not supported on this device', 'err');
       return;
     }
-    setStatus('Getting your location…');
+    setStatus('Getting your location...');
     navigator.geolocation.getCurrentPosition(position => {
       const p = { lat: position.coords.latitude, lon: position.coords.longitude, address: 'Current location', grid_id: '' };
       selected.start = p;
@@ -277,11 +276,11 @@ window.addEventListener('load', () => {
       start.dataset.lat = String(p.lat);
       start.dataset.lon = String(p.lon);
       start.dataset.address = p.address;
-      G('sr').textContent = '📍 Current location';
+      G('sr').textContent = 'Current location';
       if (userMarker) map.removeLayer(userMarker);
       userMarker = L.marker([p.lat, p.lon]).addTo(map).bindPopup('You are here').openPopup();
       map.setView([p.lat, p.lon], 16);
-      setStatus('📍 Current location set as start', 'ok');
+      setStatus('Current location set as start', 'ok');
     }, error => {
       console.error(error);
       setStatus('Unable to access your location. Check browser location permission.', 'err');
@@ -292,7 +291,7 @@ window.addEventListener('load', () => {
   if (ugamaps) ugamaps.addEventListener('click', () => {
     map.invalidateSize();
     map.setView([1.3733, 32.2903], 7);
-    setStatus('🇺🇬 UGAMAP active', 'ok');
+    setStatus('UGAMAP active', 'ok');
   });
 
   const googleMaps = G('googleMaps');
@@ -301,7 +300,7 @@ window.addEventListener('load', () => {
       setStatus('Enter a destination first', 'err');
       return;
     }
-    const q = selected.dest ? `${selected.dest.lat},${selected.dest.lon}` : dest.value.trim();
+    const q = selected.dest ? (selected.dest.lat + ',' + selected.dest.lon) : dest.value.trim();
     window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q), '_blank');
   });
 
@@ -315,7 +314,7 @@ window.addEventListener('load', () => {
   });
 
   setTimeout(() => map.invalidateSize(), 300);
-  setStatus('🇺🇬 Uganda National Grid ready', 'ok');
+  setStatus('Uganda National Grid ready', 'ok');
 });
 const reportBtn = document.getElementById("reportBtn");
 const reportMenu = document.getElementById("reportMenu");
@@ -336,6 +335,3 @@ if (reportBtn && reportMenu) {
     };
   });
 }
-```
-
-Only the `apiCandidates()` line changed — swapped the old Cloudflare Workers URL for your Railway URL. Everything else is untouched.
