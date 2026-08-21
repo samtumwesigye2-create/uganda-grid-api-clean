@@ -1,5 +1,4 @@
-window.onload = function () {
-
+window.onload = function(){
 
 const map = L.map("map").setView(
     [1.3733,32.2903],
@@ -7,16 +6,13 @@ const map = L.map("map").setView(
 );
 
 
-
 L.tileLayer(
-    "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {
-        maxZoom:19,
-        attribution:"© OpenStreetMap"
-    }
+"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+{
+maxZoom:19,
+attribution:"© OpenStreetMap"
+}
 ).addTo(map);
-
-
 
 
 
@@ -26,23 +22,18 @@ const cities = [
 ["Jinja",0.4479,33.2026],
 ["Entebbe",0.0512,32.4637],
 ["Mbarara",-0.6072,30.6545],
-["Mbale",1.0821,34.1750],
-["Gulu",2.7746,32.2990]
+["Mbale",1.0821,34.1750]
 
 ];
 
 
 
-
-
 cities.forEach(function(city){
 
-L.marker(
-[
+L.marker([
 city[1],
 city[2]
-]
-)
+])
 .addTo(map)
 .bindPopup(city[0]);
 
@@ -50,186 +41,15 @@ city[2]
 
 
 
-
-
-
-// ADDRESS SEARCH
-
-
-function setupSearch(inputId,suggestionId){
-
-
-const input =
-document.getElementById(inputId);
-
-
-const box =
-document.getElementById(suggestionId);
-
-
-
-if(!input || !box){
-
-return;
-
-}
-
-
-
-
-input.addEventListener(
-"input",
-async function(){
-
-
-
-let query=input.value;
-
-
-
-if(query.length < 3){
-
-box.innerHTML="";
-
-return;
-
-}
-
-
-
-
-let response =
-await fetch(
-
-"https://nominatim.openstreetmap.org/search?format=json&countrycodes=ug&q="
-+
-encodeURIComponent(query)
-
-);
-
-
-
-let places =
-await response.json();
-
-
-
-box.innerHTML="";
-
-
-
-
-places.slice(0,5).forEach(function(place){
-
-
-
-let item =
-document.createElement("div");
-
-
-
-item.innerText =
-place.display_name;
-
-
-
-item.style.padding="10px";
-
-item.style.background="white";
-
-item.style.borderBottom="1px solid #ddd";
-
-item.style.cursor="pointer";
-
-
-
-
-
-item.onclick=function(){
-
-
-
-// PUT ADDRESS IN SEARCH BOX
-
-input.value =
-place.display_name;
-
-
-
-// SAVE LOCATION
-
-input.dataset.lat =
-place.lat;
-
-
-input.dataset.lon =
-place.lon;
-
-
-
-// REMOVE SUGGESTIONS
-
-box.innerHTML="";
-
-
-
-};
-
-
-
-
-box.appendChild(item);
-
-
-
-});
-
-
-
-});
-
-
-
-}
-
-
-
-
-
-
-setupSearch(
-"start",
-"startSug"
-);
-
-
-
-setupSearch(
-"destination",
-"endSug"
-);
-
-
-
-
-
-
-
-
-// ROUTING + NAVIGATION
-
-
 let routeLine = null;
 
 
 
-window.startNavigation = function(){
-
+function drawRoute(){
 
 
 let start =
 document.getElementById("start");
-
 
 
 let destination =
@@ -237,21 +57,49 @@ document.getElementById("destination");
 
 
 
+if(!start || !destination){
 
-
-if(
-!start.dataset.lat ||
-!destination.dataset.lat
-){
-
-alert(
-"Please select both locations from the suggestions."
-);
+alert("Location fields missing");
 
 return;
 
 }
 
+
+
+if(!start.value || !destination.value){
+
+alert("Enter both locations");
+
+return;
+
+}
+
+
+
+let startCity =
+cities.find(
+c => c[0].toLowerCase() === start.value.toLowerCase()
+);
+
+
+
+let endCity =
+cities.find(
+c => c[0].toLowerCase() === destination.value.toLowerCase()
+);
+
+
+
+if(!startCity || !endCity){
+
+alert(
+"Use Uganda cities like Kampala and Jinja"
+);
+
+return;
+
+}
 
 
 
@@ -264,26 +112,15 @@ map.removeLayer(routeLine);
 
 
 
-
-
-
-routeLine =
-L.polyline(
+routeLine = L.polyline(
 
 [
-[
-Number(start.dataset.lat),
-Number(start.dataset.lon)
-],
-
-[
-Number(destination.dataset.lat),
-Number(destination.dataset.lon)
-]
+[startCity[1],startCity[2]],
+[endCity[1],endCity[2]]
 ],
 
 {
-color:"red",
+color:"#d71920",
 weight:6
 }
 
@@ -293,15 +130,9 @@ weight:6
 
 
 
-
-
-
-
 map.fitBounds(
 routeLine.getBounds()
 );
-
-
 
 
 
@@ -311,8 +142,28 @@ alert(
 
 
 
+}
+
+
+
+
+// OLD BUTTON SUPPORT
+
+window.findRoute = function(){
+
+drawRoute();
+
 };
 
+
+
+// NEW BUTTON SUPPORT
+
+window.startNavigation = function(){
+
+drawRoute();
+
+};
 
 
 
