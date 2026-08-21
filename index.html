@@ -2,71 +2,89 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>Uganda National Grid</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
 <style>
 body{
 margin:0;
 font-family:Arial,sans-serif;
-background:#eef1f4;
+background:#f3f4f6;
 }
 
 header{
 background:#111827;
 color:white;
-padding:25px;
+padding:20px;
 text-align:center;
 }
 
-h1{
+header h1{
 margin:0;
-font-size:32px;
+font-size:30px;
+}
+
+header p{
+margin:8px 0 0;
 }
 
 .container{
 padding:15px;
+}
+
+.card{
 background:white;
-margin:15px;
+padding:15px;
 border-radius:12px;
+margin-bottom:15px;
+box-shadow:0 2px 8px #0002;
 }
 
 input{
 width:100%;
+box-sizing:border-box;
 padding:14px;
 margin:8px 0;
-font-size:16px;
-border:1px solid #ccc;
 border-radius:8px;
-box-sizing:border-box;
+border:1px solid #ccc;
+font-size:16px;
 }
 
 button{
-background:#e11d22;
-color:white;
+padding:13px 18px;
 border:0;
-padding:14px 25px;
 border-radius:8px;
-font-size:18px;
+background:#d71920;
+color:white;
+font-size:16px;
+margin:5px;
+}
+
+button.secondary{
+background:#166534;
+}
+
+.controls{
+display:flex;
+flex-wrap:wrap;
 }
 
 #map{
-height:500px;
-margin-top:15px;
+height:65vh;
+width:100%;
 }
 
-.suggestions{
-background:white;
-border:1px solid #ccc;
-}
-
-.suggestions div{
+.status{
+background:#166534;
+color:white;
 padding:10px;
-border-bottom:1px solid #ddd;
+border-radius:8px;
+text-align:center;
 }
+
 </style>
 
 </head>
@@ -74,101 +92,89 @@ border-bottom:1px solid #ddd;
 <body>
 
 <header>
-<h1>Uganda National Grid</h1>
-<p>National transportation and infrastructure network</p>
+
+<h1>🇺🇬 Uganda National Grid</h1>
+
+<p>
+CONNECTED. MAPPED. MOVING UGANDA FORWARD.
+</p>
+
 </header>
+
 
 <div class="container">
 
-<label>Start Location</label>
-<input id="start" placeholder="Enter starting location">
-<div id="startSug" class="suggestions"></div>
 
-<label>Destination</label>
-<input id="end" placeholder="Enter destination">
-<div id="endSug" class="suggestions"></div>
+<div class="card">
 
-<button onclick="route()">Find Route</button>
+<div class="status">
+SYSTEM CONNECTED
+</div>
+
+
+<input
+id="start"
+placeholder="Start location (example: Kampala)"
+>
+
+
+<input
+id="destination"
+placeholder="Destination (example: Jinja)"
+>
+
+
+<div class="controls">
+
+<button onclick="findRoute()">
+Preview Route
+</button>
+
+
+<button class="secondary">
+Start Navigation
+</button>
+
+
+<button>
+Pause
+</button>
+
+
+<button>
+Resume
+</button>
+
+
+<button>
+Stop
+</button>
 
 </div>
 
+
+</div>
+
+
+<div class="card">
+
+<button class="secondary">
+UGAMAP
+</button>
+
+</div>
+
+
+</div>
+
+
 <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-<script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-let map=L.map('map').setView([1.3733,32.2903],7);
+<script src="app.js"></script>
 
-L.tileLayer(
-'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-).addTo(map);
-
-
-function searchBox(input,sug){
-
-input.addEventListener("input",async()=>{
-
-let q=input.value;
-
-if(q.length<3){
-sug.innerHTML="";
-return;
-}
-
-let r=await fetch(
-"https://nominatim.openstreetmap.org/search?format=json&countrycodes=ug&q="+q
-);
-
-let data=await r.json();
-
-sug.innerHTML="";
-
-data.slice(0,5).forEach(x=>{
-
-let d=document.createElement("div");
-
-d.innerText=x.display_name;
-
-d.onclick=()=>{
-
-input.value=x.display_name;
-sug.innerHTML="";
-
-};
-
-sug.appendChild(d);
-
-});
-
-});
-
-}
-
-
-searchBox(
-document.getElementById("start"),
-document.getElementById("startSug")
-);
-
-searchBox(
-document.getElementById("end"),
-document.getElementById("endSug")
-);
-
-
-function route(){
-
-alert(
-"Route requested from:\n"+
-document.getElementById("start").value+
-"\nTo:\n"+
-document.getElementById("end").value
-);
-
-}
-
-</script>
 
 </body>
 </html>
