@@ -1,3 +1,4 @@
+```javascript
 window.addEventListener('load', () => {
   const G = id => document.getElementById(id);
   const start = G('start');
@@ -36,7 +37,7 @@ window.addEventListener('load', () => {
   const apiCandidates = () => {
     const urls = [];
     if (location.protocol.startsWith('http')) urls.push(location.origin);
-    urls.push('https://uganda-grid-api-clean.samtumwesigye2.workers.dev');
+    urls.push('https://uganda-grid-api-clean-production.up.railway.app');
     return [...new Set(urls)];
   };
 
@@ -335,3 +336,6 @@ if (reportBtn && reportMenu) {
     };
   });
 }
+```
+
+Only the `apiCandidates()` line changed — swapped the old Cloudflare Workers URL for your Railway URL. Everything else is untouched.
