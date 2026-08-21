@@ -18,6 +18,9 @@
     .selected{font-size:12px;color:#4b5563;min-height:16px;margin-top:4px;word-break:break-word}.status{font-size:13px;margin:10px 0 0;padding:8px;border-radius:7px;background:#f3f4f6}.status.ok{background:#ecfdf5;color:#065f46}.status.err{background:#fef2f2;color:#991b1b}
     #info{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.routecard{background:#f3f4f6;border-radius:999px;padding:6px 9px;font-size:12px}
     #map{height:calc(100vh - 410px);min-height:390px;width:100%;max-width:1100px;margin:0 auto 16px;border-radius:12px;z-index:1}
+    #navigate{line-height:1.3}
+    #navigate .navMain{display:block;font-size:16px}
+    #navigate .navSub{display:block;font-size:12px;font-weight:400;opacity:.85}
     @media(max-width:600px){.panel{margin:8px;border-radius:10px}.row,.row.three{grid-template-columns:1fr 1fr}#map{height:calc(100vh - 470px);min-height:360px;border-radius:0}}
   </style>
 </head>
@@ -36,44 +39,16 @@
     </div>
     <div class="row">
       <select id="mode" aria-label="Travel mode"><option value="driving">🚗 Driving</option><option value="walking">🚶 Walking</option><option value="cycling">🚲 Cycling</option><option value="flight">✈️ Flight</option></select>
-      <button id="navigate">Route</button>
+      <button id="navigate"><span class="navMain">🇺🇬 UGAMAP</span><span class="navSub">Navigate</span></button>
     </div>
-    <div class="row three" style="margin-top:8px">
-      <button id="myLocation" class="secondary">📍 My location</button>
-      <button id="ugamaps" class="light">🇺🇬 UGAMAP</button>
+    <div class="row" style="margin-top:8px">
       <button id="googleMaps" class="light">Google Maps</button>
+      <button id="myLocation" class="secondary">📍 My location</button>
     </div>
     <div id="status" class="status">Loading…</div><div id="info"></div>
   </main>
   <div id="map"></div>
-  No problem — we can work around that. Let's add a temporary error catcher directly into the page so any JavaScript error shows up right on the screen, no dev tools needed.
-
-Add this snippet **right before** the `<script src="/app.js"></script>` line in `index.html`:
-
-```html
-<script>
-  window.onerror = function(message, source, lineno, colno, error) {
-    document.getElementById('status').textContent = '⚠️ JS ERROR: ' + message + ' (line ' + lineno + ')';
-    document.getElementById('status').style.background = '#fee2e2';
-    document.getElementById('status').style.color = '#991b1b';
-  };
-</script>
-```
-
-So the bottom of `index.html` would look like:
-
-```html
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    window.onerror = function(message, source, lineno, colno, error) {
-      document.getElementById('status').textContent = '⚠️ JS ERROR: ' + message + ' (line ' + lineno + ')';
-      document.getElementById('status').style.background = '#fee2e2';
-      document.getElementById('status').style.color = '#991b1b';
-    };
-  </script>
   <script src="/app.js"></script>
 </body>
 </html>
-```
-
-Push that change, wait for Render to redeploy, then reload the Render URL on your phone. If there's an error breaking things, it'll now show up right in that status box at the bottom of the page instead of just silently failing — and you can just screenshot it and send it to me.
