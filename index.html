@@ -55,7 +55,7 @@
 </main>
 <div id="info">🇺🇬 Uganda National Grid · Ready</div>
 <div id="map">
-  <div class="reportbar"><button onclick="openReport('accident')">🚨 Accident</button><button onclick="openReport('police')">👮 Police</button><button onclick="openReport('closure')">🚧 Closure</button><button onclick="openReport('infrastructure')">🌉 Road Info</button></div>
+<div class="reportbar"></div>
   <div id="reportpanel" class="reportpanel"><h3>🇺🇬 Report on road</h3><select id="reportType"><option value="accident">🚨 Accident</option><option value="police">👮 Police / checkpoint</option><option value="closure">🚧 Road closure</option><option value="bridge">🌉 Bridge</option><option value="roundabout">🔄 Roundabout</option><option value="highway">🛣️ Controlled highway</option></select><textarea id="reportNote" placeholder="Optional details"></textarea><button onclick="submitReport()">Submit at map location</button><button onclick="closeReport()" style="background:#64748b">Cancel</button></div>
 </div>
 <section class="inspiration"><span class="flag">🇺🇬</span><h2>One Grid. One Nation. One Future.</h2><p>Building a connected Uganda, one community at a time.</p></section>
