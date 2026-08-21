@@ -46,7 +46,34 @@
     <div id="status" class="status">Loading…</div><div id="info"></div>
   </main>
   <div id="map"></div>
+  No problem — we can work around that. Let's add a temporary error catcher directly into the page so any JavaScript error shows up right on the screen, no dev tools needed.
+
+Add this snippet **right before** the `<script src="/app.js"></script>` line in `index.html`:
+
+```html
+<script>
+  window.onerror = function(message, source, lineno, colno, error) {
+    document.getElementById('status').textContent = '⚠️ JS ERROR: ' + message + ' (line ' + lineno + ')';
+    document.getElementById('status').style.background = '#fee2e2';
+    document.getElementById('status').style.color = '#991b1b';
+  };
+</script>
+```
+
+So the bottom of `index.html` would look like:
+
+```html
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    window.onerror = function(message, source, lineno, colno, error) {
+      document.getElementById('status').textContent = '⚠️ JS ERROR: ' + message + ' (line ' + lineno + ')';
+      document.getElementById('status').style.background = '#fee2e2';
+      document.getElementById('status').style.color = '#991b1b';
+    };
+  </script>
   <script src="/app.js"></script>
 </body>
 </html>
+```
+
+Push that change, wait for Render to redeploy, then reload the Render URL on your phone. If there's an error breaking things, it'll now show up right in that status box at the bottom of the page instead of just silently failing — and you can just screenshot it and send it to me.
