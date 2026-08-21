@@ -25,15 +25,17 @@ document.getElementById("destination");
 const navigate =
 document.getElementById("navigate");
 
-const myLocation =
-document.getElementById("myLocation");
-
+const mode =
+document.getElementById("mode");
 
 const status =
 document.getElementById("status");
 
 const info =
 document.getElementById("info");
+
+const myLocation =
+document.getElementById("myLocation");
 
 
 
@@ -44,90 +46,24 @@ let userMarker = null;
 
 
 
+function setStatus(text,type=""){
 
-const cities = [
+status.textContent = text;
 
-["Kampala",0.3476,32.5825],
-["Entebbe",0.0512,32.4637],
-["Jinja",0.4479,33.2026],
-["Mbarara",-0.6072,30.6545],
-["Mbale",1.0821,34.1750],
-["Gulu",2.7746,32.2990]
-
-];
-
-
-
-cities.forEach(city=>{
-
-
-L.marker(
-[
-city[1],
-city[2]
-]
-)
-
-.addTo(map)
-
-.bindPopup(city[0]);
-
-
-});
-
-
-
-
-
-function setStatus(text,type){
-
-status.textContent=text;
-
-status.className="status "+(type||"");
-
+status.className =
+"status " + type;
 
 }
 
 
 
-async function searchAddress(query){
 
-const response =
-await fetch(
-
-"https://nominatim.openstreetmap.org/search?format=json&countrycodes=ug&q="
-+
-encodeURIComponent(query)
-
-);
+// -------------------------
+// ADDRESS SEARCH
+// -------------------------
 
 
-const data =
-await response.json();
-
-
-if(!data.length){
-
-throw Error(
-"Location not found"
-);
-
-}
-
-
-return {
-
-lat:Number(data[0].lat),
-
-lon:Number(data[0].lon),
-
-name:data[0].display_name
-
-};
-
-
-}
-    function setupSearch(input){
+function createSuggestionBox(input){
 
 let box =
 document.createElement("div");
@@ -141,18 +77,54 @@ input.nextSibling
 );
 
 
+return box;
 
-input.addEventListener(
-"input",
-async function(){
-
-
-let q =
-input.value.trim();
+}
 
 
 
-if(q.length < 3){
+const startBox =
+createSuggestionBox(start);
+
+
+const destinationBox =
+createSuggestionBox(destination);
+
+
+
+
+
+async function searchAddress(query){
+
+const response =
+await fetch(
+
+"https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=ug&q="
++
+encodeURIComponent(query)
+
+);
+
+
+
+const data =
+await response.json();
+
+
+
+return data;
+
+}
+    function showSuggestions(
+input,
+box,
+results
+){
+
+box.innerHTML="";
+
+
+if(!results.length){
 
 box.style.display="none";
 
@@ -162,50 +134,25 @@ return;
 
 
 
-try{
-
-
-const response =
-await fetch(
-
-"https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=ug&q="
-+
-encodeURIComponent(q)
-
-);
-
-
-
-const results =
-await response.json();
-
-
-
-box.innerHTML="";
-
-
-
 results.forEach(place=>{
 
 
-let item =
+const item =
 document.createElement("div");
-
 
 
 item.textContent =
 place.display_name;
 
 
-
 item.style.padding="8px";
+
+item.style.background="white";
 
 item.style.borderBottom=
 "1px solid #ddd";
 
-item.style.cursor=
-"pointer";
-
+item.style.cursor="pointer";
 
 
 
@@ -213,14 +160,17 @@ item.onclick=function(){
 
 
 
+// KEEP FULL ADDRESS
+
 input.value =
 place.display_name;
 
 
 
+// SAVE EXACT COORDINATES
+
 input.dataset.lat =
 place.lat;
-
 
 
 input.dataset.lon =
@@ -228,13 +178,17 @@ place.lon;
 
 
 
-box.style.display=
-"none";
+input.dataset.address =
+place.display_name;
+
+
+
+box.style.display="none";
 
 
 
 setStatus(
-"✓ Location selected",
+"✓ Address selected",
 "ok"
 );
 
@@ -252,12 +206,53 @@ box.appendChild(item);
 
 
 
-box.style.display =
-results.length
-?
-"block"
-:
-"none";
+box.style.display="block";
+
+
+
+}
+
+
+
+
+
+function activateSearch(input,box){
+
+
+input.addEventListener(
+"input",
+async function(){
+
+
+
+const q =
+input.value.trim();
+
+
+
+if(q.length < 3){
+
+box.style.display="none";
+
+return;
+
+}
+
+
+
+try{
+
+
+const results =
+await searchAddress(q);
+
+
+
+showSuggestions(
+input,
+box,
+results
+);
 
 
 
@@ -265,12 +260,14 @@ results.length
 
 catch(error){
 
+
 console.error(error);
+
 
 box.style.display="none";
 
-}
 
+}
 
 
 });
@@ -281,9 +278,18 @@ box.style.display="none";
 
 
 
-setupSearch(start);
 
-setupSearch(destination);
+activateSearch(
+start,
+startBox
+);
+
+
+
+activateSearch(
+destination,
+destinationBox
+);
 
 
 
@@ -294,16 +300,9 @@ async function getCoordinates(input){
 
 
 if(
-!input.dataset.lat ||
-!input.dataset.lon
+input.dataset.lat &&
+input.dataset.lon
 ){
-
-throw Error(
-"Select a location from suggestions"
-);
-
-}
-
 
 
 return {
@@ -319,19 +318,34 @@ lon:Number(input.dataset.lon)
 
 
 
+throw Error(
+"Select an address from the suggestions"
+);
 
-async function getRoute(startPoint,endPoint){
+
+
+}
+    async function getRoute(startPoint,endPoint){
 
 
 let profile = "driving";
 
+
 if(mode.value === "walking"){
-    profile = "walking";
+
+profile = "foot";
+
 }
 
+
 if(mode.value === "cycling"){
-    profile = "cycling";
+
+profile = "bike";
+
 }
+
+
+
 
 
 const url =
@@ -341,38 +355,24 @@ const url =
 profile
 +
 "/"
-
 +
-
 startPoint.lon
-
 +
-
 ","
-
 +
-
 startPoint.lat
-
 +
-
 ";"
-
 +
-
 endPoint.lon
-
 +
-
 ","
-
 +
-
 endPoint.lat
-
 +
-
 "?overview=full&geometries=geojson";
+
+
 
 
 
@@ -383,6 +383,8 @@ await fetch(url);
 
 const data =
 await response.json();
+
+
 
 
 
@@ -401,20 +403,23 @@ throw Error(
 
 return data.routes[0];
 
-
 }
-    async function drawRoute(){
+
+
+
+
+async function drawRoute(){
 
 
 try{
 
 
-const startPoint =
+const a =
 await getCoordinates(start);
 
 
 
-const endPoint =
+const b =
 await getCoordinates(destination);
 
 
@@ -427,20 +432,19 @@ setStatus(
 
 
 const route =
-await getRoute(
-startPoint,
-endPoint
-);
+await getRoute(a,b);
 
 
 
-const coordinates =
+
+const points =
 route.geometry.coordinates.map(
-point=>[
-point[1],
-point[0]
+p=>[
+p[1],
+p[0]
 ]
 );
+
 
 
 
@@ -452,10 +456,11 @@ map.removeLayer(routeLine);
 
 
 
+
 routeLine =
 L.polyline(
 
-coordinates,
+points,
 
 {
 
@@ -474,47 +479,35 @@ smoothFactor:1
 
 
 
+
 map.fitBounds(
+
 routeLine.getBounds(),
+
 {
+
 padding:[30,30]
+
 }
+
 );
 
 
-
-const km =
-(route.distance / 1000)
-.toFixed(1);
-
-
-
-const minutes =
-Math.round(
-route.duration / 60
-);
 
 
 
 info.innerHTML =
 
-"📍 Route: "
-
+"📏 "
 +
-
-km
-
+(route.distance/1000).toFixed(1)
 +
-
-" km · "
-
+" km · ⏱ "
 +
-
-minutes
-
+Math.round(route.duration/60)
 +
-
 " min";
+
 
 
 
@@ -540,18 +533,12 @@ error.message,
 );
 
 
-}
-
 
 }
 
 
-
-
-
-
-navigate.onclick =
-function(){
+}
+    navigate.onclick = function(){
 
 drawRoute();
 
@@ -561,20 +548,20 @@ drawRoute();
 
 
 
-
-myLocation.onclick =
-function(){
-
+myLocation.onclick = function(){
 
 
 if(!navigator.geolocation){
 
+
 setStatus(
-"Location unavailable",
+"Location not supported",
 "err"
 );
 
+
 return;
+
 
 }
 
@@ -585,10 +572,8 @@ navigator.geolocation.getCurrentPosition(
 function(position){
 
 
-
 const lat =
 position.coords.latitude;
-
 
 
 const lon =
@@ -604,12 +589,14 @@ map.removeLayer(userMarker);
 
 
 
+
 userMarker =
 L.marker(
 [
 lat,
 lon
 ]
+
 )
 
 .addTo(map)
@@ -619,6 +606,7 @@ lon
 )
 
 .openPopup();
+
 
 
 
@@ -633,7 +621,7 @@ lon
 
 
 setStatus(
-"📍 Location found",
+"📍 Current location found",
 "ok"
 );
 
@@ -641,7 +629,10 @@ setStatus(
 
 },
 
+
+
 function(){
+
 
 setStatus(
 "Unable to get location",
@@ -649,15 +640,44 @@ setStatus(
 );
 
 
+
+}
+
+
+
+);
+
+
+
+};
+
+
+
+
+
+
+// CLOSE SUGGESTIONS WHEN CLICKING MAP
+
+
+map.on(
+"click",
+function(){
+
+
+startBox.style.display="none";
+
+destinationBox.style.display="none";
+
+
 }
 
 );
 
 
-}
 
 
 
+// REFRESH MAP SIZE
 
 
 setTimeout(
@@ -669,30 +689,26 @@ map.invalidateSize();
 },
 
 1000
+
 );
 
 
 
 };
 
-// Optional: Google Maps handoff
+// OPTIONAL GOOGLE MAPS BUTTON
 
-const googleButton =
+const googleMaps =
 document.getElementById("googleMaps");
 
 
-if(googleButton){
+if(googleMaps){
 
 
-googleButton.onclick=function(){
+googleMaps.onclick=function(){
 
 
-let destinationText =
-destination.value;
-
-
-
-if(!destinationText){
+if(!destination.value){
 
 setStatus(
 "Enter a destination first",
@@ -709,7 +725,9 @@ window.open(
 
 "https://www.google.com/maps/search/?api=1&query="
 +
-encodeURIComponent(destinationText),
+encodeURIComponent(
+destination.value
+),
 
 "_blank"
 
@@ -720,26 +738,28 @@ encodeURIComponent(destinationText),
 };
 
 
+
 }
 
 
 
 
 
-// UGAMAP button
+// OPTIONAL UGAMAP BUTTON
 
-const ugamapButton =
+const ugamaps =
 document.getElementById("ugamaps");
 
 
-if(ugamapButton){
+
+if(ugamaps){
 
 
-ugamapButton.onclick=function(){
+ugamaps.onclick=function(){
 
 
 setStatus(
-"🇺🇬 Uganda map mode active",
+"🇺🇬 Uganda map active",
 "ok"
 );
 
@@ -758,42 +778,9 @@ map.invalidateSize();
 
 
 
-
-
-// Keep map responsive after loading
-
-
-window.addEventListener(
-"resize",
-function(){
-
-map.invalidateSize();
-
-}
-
-);
-
-
-
-
-
-};
-
-// Final map refresh
-
-setTimeout(function(){
-
-    map.invalidateSize();
-
-},1500);
-
-
-
-// Confirm app loaded
-
 setStatus(
-    "🇺🇬 Uganda National Grid ready",
-    "ok"
+"🇺🇬 Uganda National Grid ready",
+"ok"
 );
 
 
