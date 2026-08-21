@@ -2,11 +2,11 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 
 <title>Uganda National Grid</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
 <style>
 body{
@@ -19,7 +19,12 @@ header{
 background:#111827;
 color:white;
 text-align:center;
-padding:20px;
+padding:25px;
+}
+
+#map{
+height:500px;
+width:100%;
 }
 
 .container{
@@ -43,20 +48,13 @@ border:1px solid #ccc;
 }
 
 button{
-padding:14px 20px;
 background:#d71920;
 color:white;
 border:0;
+padding:14px 20px;
 border-radius:8px;
 font-size:16px;
 }
-
-#map{
-height:500px;
-width:100%;
-border-radius:12px;
-}
-
 </style>
 
 </head>
@@ -68,14 +66,13 @@ border-radius:12px;
 <p>CONNECTED. MAPPED. MOVING UGANDA FORWARD.</p>
 </header>
 
-
 <div class="container">
 
 <div class="card">
 
-<input id="start" placeholder="Start city">
+<input id="start" placeholder="Start location">
 
-<input id="destination" placeholder="Destination city">
+<input id="destination" placeholder="Destination">
 
 <button onclick="findRoute()">
 Preview Route
@@ -83,17 +80,14 @@ Preview Route
 
 </div>
 
-
 <div id="map"></div>
-
 
 </div>
 
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<script src="app.js"></script>
-
+<script src="./app.js"></script>
 
 </body>
 </html>
