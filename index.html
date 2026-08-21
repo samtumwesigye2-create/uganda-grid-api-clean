@@ -2,27 +2,20 @@
 <html>
 <head>
 
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>Uganda National Grid</title>
 
-<link 
-rel="stylesheet" 
-href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
 <style>
 
-*{
-box-sizing:border-box;
-}
-
 body{
 margin:0;
-font-family:Arial,sans-serif;
+font-family:Arial;
 background:#eef1f4;
 }
-
 
 header{
 background:#111827;
@@ -31,90 +24,43 @@ padding:25px;
 text-align:center;
 }
 
-header h1{
+h1{
 margin:0;
-font-size:32px;
 }
-
-header p{
-font-size:18px;
-}
-
 
 .container{
 padding:15px;
 }
-
 
 .card{
 background:white;
 padding:15px;
 border-radius:12px;
 margin-bottom:15px;
-box-shadow:0 3px 10px #0002;
 }
-
-
-.status{
-background:#166534;
-color:white;
-padding:15px;
-border-radius:10px;
-text-align:center;
-font-size:20px;
-}
-
-
-label{
-font-size:18px;
-font-weight:bold;
-display:block;
-margin-top:12px;
-}
-
 
 input{
 width:100%;
 padding:14px;
+margin:8px 0;
 font-size:16px;
 border-radius:8px;
 border:1px solid #ccc;
-margin-top:6px;
 }
-
 
 button{
 background:#d71920;
 color:white;
 border:0;
+padding:14px 20px;
 border-radius:8px;
-padding:14px 18px;
 font-size:16px;
-margin:5px;
 }
-
-
-.green{
-background:#166534;
-}
-
 
 #map{
-
 height:500px;
 width:100%;
-background:#ddd;
 border-radius:12px;
-margin-top:20px;
-
-}
-
-
-.controls{
-
-display:flex;
-flex-wrap:wrap;
-
 }
 
 </style>
@@ -129,9 +75,7 @@ flex-wrap:wrap;
 
 <h1>🇺🇬 Uganda National Grid</h1>
 
-<p>
-CONNECTED. MAPPED. MOVING UGANDA FORWARD.
-</p>
+<p>CONNECTED. MAPPED. MOVING UGANDA FORWARD.</p>
 
 </header>
 
@@ -142,82 +86,25 @@ CONNECTED. MAPPED. MOVING UGANDA FORWARD.
 
 <div class="card">
 
+<input id="start" placeholder="Start city (Kampala)">
 
-<div class="status">
-SYSTEM CONNECTED
-</div>
-
-
-<label>
-Start Location
-</label>
-
-<input id="start" placeholder="Kampala">
-
-
-<label>
-Destination
-</label>
-
-<input id="destination" placeholder="Jinja">
-
-
-<div class="controls">
-
+<input id="destination" placeholder="Destination (Jinja)">
 
 <button onclick="findRoute()">
-Preview Route
-</button>
-
-
-<button class="green">
-Start Navigation
-</button>
-
-
-<button>
-Pause
-</button>
-
-
-<button>
-Resume
-</button>
-
-
-<button>
-Stop
-</button>
-
-
-</div>
-
-
-</div>
-
-
-
-<div class="card">
-
-<button class="green">
-UGAMAP 🇺🇬
+Find Route
 </button>
 
 </div>
 
 
-
-<div id="map">
-</div>
+<div id="map"></div>
 
 
 </div>
-
 
 
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 
 <script src="./app.js"></script>
 
