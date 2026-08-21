@@ -1,180 +1,123 @@
-window.onload = function(){
+async function selectLocation(input, box, out, kind){
 
-const map = L.map("map").setView(
-    [1.3733,32.2903],
-    7
-);
+    const selected = input.dataset.selected;
 
-
-L.tileLayer(
-"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-{
-maxZoom:19,
-attribution:"© OpenStreetMap"
-}
-).addTo(map);
+    if(!selected){
+        status.textContent =
+        "Please select a real address from the suggestions.";
+        
+        status.className="status err";
+        return;
+    }
 
 
-
-const cities = [
-
-["Kampala",0.3476,32.5825],
-["Jinja",0.4479,33.2026],
-["Entebbe",0.0512,32.4637],
-["Mbarara",-0.6072,30.6545],
-["Mbale",1.0821,34.1750]
-
-];
+    const place = JSON.parse(selected);
 
 
-
-cities.forEach(function(city){
-
-L.marker([
-city[1],
-city[2]
-])
-.addTo(map)
-.bindPopup(city[0]);
-
-});
+    input.value = place.display_name;
 
 
-
-let routeLine = null;
-
-
-
-function drawRoute(){
+    input.dataset.lat = place.lat;
+    input.dataset.lon = place.lon;
 
 
-let start =
-document.getElementById("start");
+    G(out).textContent =
+    "✓ " + place.display_name;
 
 
-let destination =
-document.getElementById("destination");
+    box.style.display="none";
 
 
+    status.textContent =
+    "✓ " + kind + " selected";
 
-if(!start || !destination){
-
-alert("Location fields missing");
-
-return;
-
-}
-
-
-
-if(!start.value || !destination.value){
-
-alert("Enter both locations");
-
-return;
-
-}
-
-
-
-let startCity =
-cities.find(
-c => c[0].toLowerCase() === start.value.toLowerCase()
-);
-
-
-
-let endCity =
-cities.find(
-c => c[0].toLowerCase() === destination.value.toLowerCase()
-);
-
-
-
-if(!startCity || !endCity){
-
-alert(
-"Use Uganda cities like Kampala and Jinja"
-);
-
-return;
+    status.className="status ok";
 
 }
 
 
 
 
-if(routeLine){
+async function suggest(input,box,kind,out){
 
-map.removeLayer(routeLine);
+    const q=input.value.trim();
+
+
+    if(q.length < 3){
+
+        box.style.display="none";
+        return;
+
+    }
+
+
+
+    const r = await fetch(
+
+    "https://nominatim.openstreetmap.org/search?format=json&limit=5&countrycodes=ug&q="
+    +
+    encodeURIComponent(q)
+
+    );
+
+
+    const places = await r.json();
+
+
+
+    box.innerHTML="";
+
+
+
+    places.forEach(place=>{
+
+
+        const div=document.createElement("div");
+
+
+        div.textContent =
+        place.display_name;
+
+
+
+        div.onclick=function(){
+
+
+            input.dataset.selected =
+            JSON.stringify(place);
+
+
+            input.value =
+            place.display_name;
+
+
+            input.dataset.lat =
+            place.lat;
+
+
+            input.dataset.lon =
+            place.lon;
+
+
+            box.style.display="none";
+
+
+            G(out).textContent =
+            "✓ "+place.display_name;
+
+
+
+        };
+
+
+        box.appendChild(div);
+
+
+    });
+
+
+
+    box.style.display =
+    places.length ? "block":"none";
 
 }
-
-
-
-routeLine = L.polyline(
-
-[
-[startCity[1],startCity[2]],
-[endCity[1],endCity[2]]
-],
-
-{
-color:"#d71920",
-weight:6
-}
-
-)
-
-.addTo(map);
-
-
-
-map.fitBounds(
-routeLine.getBounds()
-);
-
-
-
-alert(
-"Navigation started"
-);
-
-
-
-}
-
-
-
-
-// OLD BUTTON SUPPORT
-
-window.findRoute = function(){
-
-drawRoute();
-
-};
-
-
-
-// NEW BUTTON SUPPORT
-
-window.startNavigation = function(){
-
-drawRoute();
-
-};
-
-
-
-
-
-setTimeout(function(){
-
-map.invalidateSize();
-
-},1000);
-
-
-
-};
