@@ -1,9 +1,11 @@
 window.onload = function () {
 
+
 const map = L.map("map").setView(
-    [1.3733, 32.2903],
+    [1.3733,32.2903],
     7
 );
+
 
 
 L.tileLayer(
@@ -16,68 +18,99 @@ L.tileLayer(
 
 
 
+
+
 const cities = [
 
-    ["Kampala",0.3476,32.5825],
-    ["Jinja",0.4479,33.2026],
-    ["Entebbe",0.0512,32.4637],
-    ["Mbarara",-0.6072,30.6545],
-    ["Mbale",1.0821,34.1750],
-    ["Gulu",2.7746,32.2990]
+["Kampala",0.3476,32.5825],
+["Jinja",0.4479,33.2026],
+["Entebbe",0.0512,32.4637],
+["Mbarara",-0.6072,30.6545],
+["Mbale",1.0821,34.1750],
+["Gulu",2.7746,32.2990]
 
 ];
 
 
 
+
+
 cities.forEach(function(city){
 
-    L.marker([
-        city[1],
-        city[2]
-    ])
-    .addTo(map)
-    .bindPopup(city[0]);
+L.marker(
+[
+city[1],
+city[2]
+]
+)
+.addTo(map)
+.bindPopup(city[0]);
 
 });
 
 
 
+
+
+
 // ADDRESS SEARCH
 
-function setupSearch(inputId, suggestionId){
 
-const input = document.getElementById(inputId);
-const box = document.getElementById(suggestionId);
+function setupSearch(inputId,suggestionId){
+
+
+const input =
+document.getElementById(inputId);
+
+
+const box =
+document.getElementById(suggestionId);
+
 
 
 if(!input || !box){
-    return;
+
+return;
+
 }
 
 
 
-input.addEventListener("input", async function(){
 
-let query = input.value;
+input.addEventListener(
+"input",
+async function(){
+
+
+
+let query=input.value;
+
 
 
 if(query.length < 3){
 
-    box.innerHTML="";
-    return;
+box.innerHTML="";
+
+return;
 
 }
 
 
 
-let response = await fetch(
+
+let response =
+await fetch(
+
 "https://nominatim.openstreetmap.org/search?format=json&countrycodes=ug&q="
-+ encodeURIComponent(query)
++
+encodeURIComponent(query)
+
 );
 
 
 
-let results = await response.json();
+let places =
+await response.json();
 
 
 
@@ -85,42 +118,63 @@ box.innerHTML="";
 
 
 
-results.slice(0,5).forEach(function(place){
+
+places.slice(0,5).forEach(function(place){
 
 
-let item=document.createElement("div");
 
-item.innerText=place.display_name;
+let item =
+document.createElement("div");
+
+
+
+item.innerText =
+place.display_name;
+
+
 
 item.style.padding="10px";
+
 item.style.background="white";
+
 item.style.borderBottom="1px solid #ddd";
+
 item.style.cursor="pointer";
+
+
 
 
 
 item.onclick=function(){
 
 
-    // KEEP SELECTED ADDRESS IN SEARCH BOX
 
-    input.value = place.display_name;
+// PUT ADDRESS IN SEARCH BOX
 
-
-    // STORE COORDINATES
-
-    input.dataset.lat = place.lat;
-
-    input.dataset.lon = place.lon;
+input.value =
+place.display_name;
 
 
 
-    // CLOSE SUGGESTIONS
+// SAVE LOCATION
 
-    box.innerHTML="";
+input.dataset.lat =
+place.lat;
+
+
+input.dataset.lon =
+place.lon;
+
+
+
+// REMOVE SUGGESTIONS
+
+box.innerHTML="";
+
 
 
 };
+
 
 
 
@@ -131,10 +185,15 @@ box.appendChild(item);
 });
 
 
+
 });
 
 
+
 }
+
+
+
 
 
 
@@ -142,6 +201,7 @@ setupSearch(
 "start",
 "startSug"
 );
+
 
 
 setupSearch(
@@ -153,16 +213,23 @@ setupSearch(
 
 
 
-// ROUTE TEST
+
+
+
+// ROUTING + NAVIGATION
+
 
 let routeLine = null;
 
 
-window.findRoute=function(){
+
+window.startNavigation = function(){
+
 
 
 let start =
 document.getElementById("start");
+
 
 
 let destination =
@@ -170,13 +237,22 @@ document.getElementById("destination");
 
 
 
-if(!start.dataset.lat || !destination.dataset.lat){
 
-alert("Please select both addresses from the suggestions.");
+
+if(
+!start.dataset.lat ||
+!destination.dataset.lat
+){
+
+alert(
+"Please select both locations from the suggestions."
+);
 
 return;
 
 }
+
+
 
 
 
@@ -188,17 +264,21 @@ map.removeLayer(routeLine);
 
 
 
-routeLine = L.polyline(
+
+
+
+routeLine =
+L.polyline(
 
 [
 [
-start.dataset.lat,
-start.dataset.lon
+Number(start.dataset.lat),
+Number(start.dataset.lon)
 ],
 
 [
-destination.dataset.lat,
-destination.dataset.lon
+Number(destination.dataset.lat),
+Number(destination.dataset.lon)
 ]
 ],
 
@@ -208,7 +288,12 @@ weight:6
 }
 
 )
+
 .addTo(map);
+
+
+
+
 
 
 
@@ -218,7 +303,16 @@ routeLine.getBounds()
 
 
 
+
+
+alert(
+"Navigation started"
+);
+
+
+
 };
+
 
 
 
