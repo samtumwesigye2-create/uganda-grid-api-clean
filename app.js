@@ -1,39 +1,55 @@
-window.addEventListener("load", function () {
+window.onload=function(){
 
-    const map = L.map("map").setView([1.3733, 32.2903], 7);
-
-    L.tileLayer(
-        "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-            maxZoom: 19,
-            attribution: "© OpenStreetMap"
-        }
-    ).addTo(map);
+const map=L.map("map").setView(
+[1.3733,32.2903],
+7
+);
 
 
-    const cities = [
-        ["Kampala",0.3476,32.5825],
-        ["Jinja",0.4479,33.2026],
-        ["Entebbe",0.0512,32.4637],
-        ["Mbarara",-0.6072,30.6545],
-        ["Mbale",1.0821,34.175]
-    ];
+L.tileLayer(
+"https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+{
+maxZoom:19,
+attribution:"© OpenStreetMap"
+}
+).addTo(map);
 
 
-    cities.forEach(function(city){
 
-        L.marker([
-            city[1],
-            city[2]
-        ])
-        .addTo(map)
-        .bindPopup(city[0]);
+const cities=[
 
-    });
+["Kampala",0.3476,32.5825],
+["Jinja",0.4479,33.2026],
+["Entebbe",0.0512,32.4637],
+["Mbarara",-0.6072,30.6545],
+["Mbale",1.0821,34.1750]
+
+];
 
 
-    setTimeout(function(){
-        map.invalidateSize();
-    },500);
+cities.forEach(function(c){
+
+L.marker(
+[c[1],c[2]]
+)
+.addTo(map)
+.bindPopup(c[0]);
 
 });
+
+
+window.findRoute=function(){
+
+alert(
+"Map is working. Routing comes next."
+);
+
+};
+
+
+setTimeout(function(){
+map.invalidateSize();
+},1000);
+
+
+};
