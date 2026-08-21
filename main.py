@@ -1,13 +1,10 @@
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import FileResponse
 import json
 import os
 
-app = FastAPI(
-    title="Uganda National Grid API",
-    version="1.0"
-)
+app = FastAPI(title="Uganda National Grid API", version="1.1")
 
 app.add_middleware(
     CORSMiddleware,
@@ -18,6 +15,8 @@ app.add_middleware(
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "entebbe_database.json")
+INDEX_FILE = os.path.join(BASE_DIR, "index.html")
+APP_JS_FILE = os.path.join(BASE_DIR, "app.js")
 
 try:
     with open(DATABASE, "r", encoding="utf-8") as file:
@@ -28,265 +27,58 @@ except Exception:
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "records": len(addresses)}
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 def home():
-    return """
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Uganda National Grid</title>
-
-<link
-rel="stylesheet"
-href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
-
-<style>
-* {
-    box-sizing: border-box;
-}
-
-body {
-    margin: 0;
-    font-family: Arial, sans-serif;
-    background: #f4f6f8;
-}
-
-header {
-    background: #111827;
-    color: white;
-    padding: 20px;
-    text-align: center;
-}
-
-header h1 {
-    margin: 0;
-}
-
-.search {
-    background: white;
-    max-width: 1000px;
-    margin: 20px auto;
-    padding: 20px;
-    border-radius: 12px;
-}
-
-input {
-    width: 100%;
-    padding: 13px;
-    margin: 7px 0 14px;
-    border: 1px solid #ccc;
-    border-radius: 7px;
-    font-size: 16px;
-}
-
-button {
-    padding: 13px 22px;
-    background: #d71920;
-    color: white;
-    border: none;
-    border-radius: 7px;
-    font-size: 16px;
-}
-
-#map {
-    height: 600px;
-    width: 100%;
-    max-width: 1100px;
-    margin: 20px auto;
-    border-radius: 12px;
-}
-</style>
-</head>
-
-<body>
-
-<header>
-<h1>Uganda National Grid</h1>
-<p>National transportation and infrastructure network</p>
-</header>
-
-<div class="search">
-
-<label>Start Location</label>
-
-<input
-id="start"
-placeholder="Enter starting location"
-/>
-
-<label>Destination</label>
-
-<input
-id="destination"
-placeholder="Enter destination"
-/>
-
-<button onclick="findRoute()">
-Find Route
-</button>
-
-</div>
-
-<div id="map"></div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<script>
-
-const map = L.map("map").setView(
-    [1.3733, 32.2903],
-    7
-);
-
-L.tileLayer(
-    "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors"
-    }
-).addTo(map);
+    if not os.path.exists(INDEX_FILE):
+        raise HTTPException(status_code=404, detail="index.html not found")
+    return FileResponse(INDEX_FILE, media_type="text/html")
 
 
-/* Major Ugandan cities */
-
-const cities = [
-    ["Kampala", 0.3476, 32.5825],
-    ["Jinja", 0.4479, 33.2026],
-    ["Mbarara", -0.6072, 30.6545],
-    ["Mbale", 1.0821, 34.1750],
-    ["Gulu", 2.7746, 32.2990],
-    ["Arua", 3.0303, 30.9111],
-    ["Soroti", 1.7146, 33.6111],
-    ["Moroto", 2.5345, 34.6666],
-    ["Hoima", 1.4331, 31.3524],
-    ["Masaka", -0.3476, 31.7330]
-];
-
-cities.forEach(city => {
-    L.marker([city[1], city[2]])
-        .addTo(map)
-        .bindPopup("<strong>" + city[0] + "</strong>");
-});
-
-
-/* Initial national grid */
-
-const routes = [
-
-    [
-        [0.3476, 32.5825],
-        [0.4479, 33.2026],
-        [1.0821, 34.1750]
-    ],
-
-    [
-        [0.3476, 32.5825],
-        [-0.3476, 31.7330],
-        [-0.6072, 30.6545]
-    ],
-
-    [
-        [0.3476, 32.5825],
-        [1.4331, 31.3524],
-        [2.7746, 32.2990],
-        [3.0303, 30.9111]
-    ],
-
-    [
-        [1.0821, 34.1750],
-        [1.7146, 33.6111],
-        [2.5345, 34.6666]
-    ]
-
-];
-
-routes.forEach(route => {
-    L.polyline(route, {
-        color: "#d71920",
-        weight: 4
-    }).addTo(map);
-});
-
-
-function findRoute() {
-
-    const start =
-        document.getElementById("start").value.trim();
-
-    const destination =
-        document.getElementById("destination").value.trim();
-
-    if (!start || !destination) {
-        alert("Please enter both locations.");
-        return;
-    }
-
-    alert(
-        "Route requested from " +
-        start +
-        " to " +
-        destination
-    );
-}
-
-</script>
-
-</body>
-</html>
-"""
+@app.get("/app.js")
+def app_js():
+    if not os.path.exists(APP_JS_FILE):
+        raise HTTPException(status_code=404, detail="app.js not found")
+    return FileResponse(APP_JS_FILE, media_type="application/javascript")
 
 
 @app.get("/search")
-def search(q: str = Query(...)):
-
-    q = q.strip().lower()
+def search(q: str = Query(..., min_length=1)):
+    query = q.strip().lower()
+    if not query:
+        return {"count": 0, "results": []}
 
     results = []
-
     for item in addresses:
+        grid_id = str(item.get("grid_id", "")).strip().lower()
+        address = str(item.get("address", "")).strip().lower()
 
-        text = json.dumps(item).lower()
-
-        if q in text:
+        if query in grid_id or query in address:
             results.append(item)
+            if len(results) >= 50:
+                break
 
-    return {
-        "count": len(results),
-        "results": results[:50]
-    }
+    return {"count": len(results), "results": results}
 
 
 @app.get("/address/{grid_id}")
 def get_address(grid_id: str):
-
-    search_id = grid_id.strip()
+    search_id = grid_id.strip().lower()
 
     for item in addresses:
-
-        stored_id = str(
-            item.get("grid_id", "")
-        ).strip()
-
+        stored_id = str(item.get("grid_id", "")).strip().lower()
         if stored_id == search_id:
             return item
 
-    return {
-        "error": "Address not found",
-        "searched": search_id
-    }
+    raise HTTPException(status_code=404, detail="Address not found")
 
 
 @app.get("/stats")
 def stats():
-
     return {
         "total_records": len(addresses),
-        "database": "entebbe_database.json"
+        "database": "entebbe_database.json",
+        "frontend": "index.html + app.js",
     }
