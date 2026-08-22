@@ -12,7 +12,7 @@ window.addEventListener('load', () => {
 
   if (!window.L || !G('map')) return;
 
-  const map = L.map('map').setView([1.3733, 32.2903], 7);
+  const map = L.map('map', { zoomControl: true }).setView([1.3733, 32.2903], 7);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '\u00A9 OpenStreetMap contributors'
@@ -212,9 +212,162 @@ window.addEventListener('load', () => {
     });
   }
 
+  // -----------------------------------------------------------------
+  // Full-screen navigation mode, heading-up map rotation, auto-zoom
+  // -----------------------------------------------------------------
+
+  let followMode = false;
+  let navFollowInitialized = false;
+  let currentRotation = 0;
+  let idleResumeTimer = null;
+  const mapEl = G('map');
+  const recenterFab = G('recenterFab');
+  const navSummaryBar = G('navSummaryBar');
+  const navEta = G('navEta');
+  const navSpeedPill = G('navSpeedPill');
+  const followBadge = G('followBadge');
+  const turnProgressFill = G('turnProgressFill');
+  const turnArrowGlyph = G('turnArrowGlyph');
+
+  function setBodyNavigating(active) {
+    document.body.classList.toggle('navigating', !!active);
+    setTimeout(() => map.invalidateSize(), 60);
+  }
+
+  function zoomForMode() {
+    if (mode.value === 'walking') return 18;
+    if (mode.value === 'cycling') return 17;
+    if (mode.value === 'flight') return map.getZoom();
+    return 17;
+  }
+
+  function setMapRotation(headingDeg) {
+    let target = -headingDeg;
+    let diff = target - currentRotation;
+    diff = ((diff + 180) % 360 + 360) % 360 - 180;
+    target = currentRotation + diff;
+    currentRotation = target;
+    if (mapEl) mapEl.style.transform = 'translate(-50%,-50%) rotate(' + target + 'deg)';
+  }
+
+  function applyFollowView(lat, lon, headingDeg) {
+    if (!followMode) return;
+    if (!navFollowInitialized) {
+      map.setView([lat, lon], zoomForMode(), { animate: true });
+      navFollowInitialized = true;
+    } else {
+      map.panTo([lat, lon], { animate: true, duration: 0.5 });
+    }
+    if (mode.value !== 'flight') setMapRotation(headingDeg || 0);
+  }
+
+  function engageFollow() {
+    followMode = true;
+    navFollowInitialized = false;
+    if (recenterFab) recenterFab.classList.remove('show');
+    if (followBadge) followBadge.classList.add('show');
+    const navRecenterBtn = G('navRecenter');
+    if (navRecenterBtn) navRecenterBtn.classList.remove('due');
+    clearTimeout(idleResumeTimer);
+  }
+
+  function disengageFollow() {
+    followMode = false;
+    if (recenterFab) recenterFab.classList.add('show');
+    if (followBadge) followBadge.classList.remove('show');
+    const navRecenterBtn = G('navRecenter');
+    if (navRecenterBtn) navRecenterBtn.classList.add('due');
+    setMapRotation(0);
+  }
+
+  function isActivelyNavigating() {
+    return !!liveNav || !!navState;
+  }
+
+  map.on('dragstart', () => {
+    if (!isActivelyNavigating() || !followMode) return;
+    disengageFollow();
+  });
+  map.on('dragend', () => {
+    if (!isActivelyNavigating() || followMode) return;
+    clearTimeout(idleResumeTimer);
+    idleResumeTimer = setTimeout(() => {
+      if (isActivelyNavigating()) engageFollow();
+    }, 8000);
+  });
+
+  function recenterNav() {
+    clearTimeout(idleResumeTimer);
+    engageFollow();
+    const target = navMarker ? navMarker.getLatLng() : null;
+    if (target) map.setView(target, zoomForMode(), { animate: true });
+  }
+  if (recenterFab) recenterFab.addEventListener('click', recenterNav);
+
+  // ---- Night / dark map mode ----
+  let nightManual = null; // null = auto by time, true/false = user override
+  function isNightNow() {
+    const h = new Date().getHours();
+    return h >= 19 || h < 6;
+  }
+  function refreshNightMode() {
+    const on = nightManual === null ? isNightNow() : nightManual;
+    if (mapEl) mapEl.classList.toggle('map-dark', on);
+    const btn = G('nightToggle');
+    if (btn) btn.classList.toggle('on', on);
+  }
+  const nightToggleBtn = G('nightToggle');
+  if (nightToggleBtn) nightToggleBtn.addEventListener('click', () => {
+    const currentlyOn = nightManual === null ? isNightNow() : nightManual;
+    nightManual = !currentlyOn;
+    refreshNightMode();
+  });
+  refreshNightMode();
+  setInterval(() => { if (nightManual === null) refreshNightMode(); }, 5 * 60 * 1000);
+
+  // ---- ETA / speed / progress helpers ----
+  function formatClock(date) {
+    try {
+      return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    } catch (e) {
+      return '--:--';
+    }
+  }
+
+  function updateEta(remainingSeconds) {
+    if (!navEta) return;
+    if (!Number.isFinite(remainingSeconds) || remainingSeconds < 0) {
+      navEta.innerHTML = 'ETA <span class="etaVal">--:--</span>';
+      return;
+    }
+    const arrival = new Date(Date.now() + remainingSeconds * 1000);
+    navEta.innerHTML = 'ETA <span class="etaVal">' + formatClock(arrival) + '</span>';
+  }
+
+  function updateSpeedPill(kmh) {
+    if (!navSpeedPill) return;
+    navSpeedPill.textContent = Number.isFinite(kmh) && kmh >= 0 ? Math.round(kmh) + ' km/h' : '-- km/h';
+  }
+
+  function updateProgressBar(pct) {
+    if (!turnProgressFill) return;
+    const clamped = Math.max(0, Math.min(100, pct || 0));
+    turnProgressFill.style.width = clamped + '%';
+  }
+
+  function glyphForInstruction(text) {
+    const t = (text || '').toLowerCase();
+    if (t.indexOf('left') !== -1) return '\u2B05';
+    if (t.indexOf('right') !== -1) return '\u27A1';
+    if (t.indexOf('arrive') !== -1 || t.indexOf('destination') !== -1) return '\u{1F3C1}';
+    if (t.indexOf('roundabout') !== -1) return '\u21BB';
+    return '\u2B06';
+  }
+
   function showNavControls() {
     const nc = G('navControls');
     if (nc) nc.classList.add('active');
+    if (navSummaryBar) navSummaryBar.classList.add('active');
     const pauseBtn = G('navPause');
     if (pauseBtn) pauseBtn.textContent = 'Pause';
   }
@@ -222,7 +375,103 @@ window.addEventListener('load', () => {
   function hideNavControls() {
     const nc = G('navControls');
     if (nc) nc.classList.remove('active');
+    if (navSummaryBar) navSummaryBar.classList.remove('active');
+    if (recenterFab) recenterFab.classList.remove('show');
+    if (followBadge) followBadge.classList.remove('show');
   }
+
+  // -----------------------------------------------------------------
+  // Trip history (localStorage)
+  // -----------------------------------------------------------------
+
+  const TRIPS_KEY = 'ugamap_trips';
+  function loadTrips() {
+    try {
+      const raw = localStorage.getItem(TRIPS_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) {
+      return [];
+    }
+  }
+  function saveTripRecord(destAddress, distanceMeters, durationSeconds, travelMode) {
+    try {
+      const trips = loadTrips();
+      trips.unshift({
+        dest: destAddress || 'Destination',
+        distanceKm: Math.round((distanceMeters / 1000) * 10) / 10,
+        durationMin: Math.max(1, Math.round(durationSeconds / 60)),
+        mode: travelMode,
+        completedAt: Date.now()
+      });
+      localStorage.setItem(TRIPS_KEY, JSON.stringify(trips.slice(0, 20)));
+    } catch (e) {
+      console.error('saveTripRecord failed', e);
+    }
+  }
+  function renderTrips() {
+    const list = G('tripsList');
+    if (!list) return;
+    const trips = loadTrips();
+    if (!trips.length) {
+      list.innerHTML = '<div class="emptyState">No trips yet \u2014 completed navigations will show up here.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    trips.forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'tripItem';
+      const when = new Date(t.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      row.innerHTML = '<div class="tripDest">' + escapeHtml(t.dest) + '</div>' +
+        '<div class="tripMeta"><span>' + t.distanceKm + ' km</span><span>' + t.durationMin + ' min</span><span>' + escapeHtml(when) + '</span></div>';
+      list.appendChild(row);
+    });
+  }
+  function openTrips() {
+    renderTrips();
+    const overlay = G('tripsOverlay');
+    if (overlay) overlay.classList.add('active');
+  }
+  const tripsCloseBtn = G('tripsClose');
+  if (tripsCloseBtn) tripsCloseBtn.addEventListener('click', () => {
+    const overlay = G('tripsOverlay');
+    if (overlay) overlay.classList.remove('active');
+  });
+  const tripsOverlayEl = G('tripsOverlay');
+  if (tripsOverlayEl) tripsOverlayEl.addEventListener('click', e => {
+    if (e.target === tripsOverlayEl) tripsOverlayEl.classList.remove('active');
+  });
+
+  // -----------------------------------------------------------------
+  // Share ETA
+  // -----------------------------------------------------------------
+
+  async function shareTrip() {
+    const destAddr = (liveNav && liveNav.destination && liveNav.destination.address) ||
+      (dest && dest.value) || 'my destination';
+    const remainingSeconds = window.__ugamapRemainingSeconds;
+    let etaText = '';
+    if (Number.isFinite(remainingSeconds)) {
+      etaText = ' ETA ' + formatClock(new Date(Date.now() + remainingSeconds * 1000)) + '.';
+    }
+    const text = 'Heading to ' + destAddr + ' via Uganda National Grid.' + etaText;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'My trip', text });
+        return;
+      } catch (e) {
+        // user cancelled or share failed; fall through to clipboard
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus('Trip details copied to clipboard', 'ok');
+    } catch (e) {
+      setStatus(text, '');
+    }
+  }
+  const navShareBtn = G('navShare');
+  if (navShareBtn) navShareBtn.addEventListener('click', shareTrip);
 
   function stopSimulation() {
     if (navState && navState.rafId) cancelAnimationFrame(navState.rafId);
@@ -258,18 +507,29 @@ window.addEventListener('load', () => {
 
     navMarker.setLatLng([lat, lon]);
     navMarker.setIcon(makeArrowIcon(deg));
-    map.panTo([lat, lon], { animate: false });
+    applyFollowView(lat, lon, deg);
+
+    updateProgressBar((targetDist / navState.total) * 100);
+    const remM = Math.max(0, navState.total - targetDist);
+    const remSec = navState.totalDurationSec ? (1 - t) * navState.totalDurationSec : null;
+    window.__ugamapRemainingSeconds = remSec;
+    if (remSec != null) updateEta(remSec);
+    const remLabel = remM >= 1000 ? (remM / 1000).toFixed(1) + ' km remaining' : Math.round(remM) + ' m remaining';
+    info.innerHTML = '<span class="routecard">' + escapeHtml(remLabel) + '</span>';
 
     if (t < 1) {
       navState.rafId = requestAnimationFrame(navFrame);
     } else {
       setStatus('Arrived at destination', 'ok');
+      saveTripRecord(navState.destAddress, navState.total, navState.realElapsedMs / 1000, mode.value);
       hideNavControls();
+      hideTurnBanner();
+      setBodyNavigating(false);
       navState = null;
     }
   }
 
-  function simulateNavigation(pts) {
+  function simulateNavigation(pts, opts) {
     stopSimulation();
     if (!pts || pts.length < 2) return;
     if (navMarker) { map.removeLayer(navMarker); navMarker = null; }
@@ -288,16 +548,30 @@ window.addEventListener('load', () => {
 
     const totalAnimMs = Math.min(45000, Math.max(12000, total / 3));
 
+    setBodyNavigating(true);
+    engageFollow();
+
     navState = {
       pts, segDist, total, totalAnimMs,
       elapsed: 0,
       lastTime: performance.now(),
       paused: false,
-      rafId: null
+      rafId: null,
+      totalDurationSec: (opts && opts.durationSec) || null,
+      destAddress: (opts && opts.destAddress) || (dest && dest.value) || 'Destination',
+      realElapsedMs: 0
     };
+    const realStart = Date.now();
+    const trackReal = () => { if (navState) navState.realElapsedMs = Date.now() - realStart; };
+    navState.realTracker = setInterval(trackReal, 1000);
 
     showNavControls();
-    setStatus('Navigating...', 'ok');
+    if (opts && opts.maneuvers && opts.maneuvers.length) {
+      showTurnBanner(opts.maneuvers[0].instruction, 'Route preview \u2014 GPS unavailable');
+    } else {
+      showTurnBanner('Route preview', 'Live GPS unavailable on this device');
+    }
+    setStatus('Navigating (preview mode)...', 'ok');
     navState.rafId = requestAnimationFrame(navFrame);
   }
 
@@ -344,11 +618,13 @@ window.addEventListener('load', () => {
     if (!turnBanner) return;
     if (turnMain) turnMain.textContent = main || '';
     if (turnSub) turnSub.textContent = sub || '';
+    if (turnArrowGlyph) turnArrowGlyph.textContent = glyphForInstruction(main);
     turnBanner.classList.add('active');
   }
 
   function hideTurnBanner() {
     if (turnBanner) turnBanner.classList.remove('active');
+    updateProgressBar(0);
   }
 
   function computeCumDist(pts) {
@@ -457,6 +733,9 @@ window.addEventListener('load', () => {
     liveNav = null;
     hideNavControls();
     hideTurnBanner();
+    setBodyNavigating(false);
+    setMapRotation(0);
+    followMode = false;
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     if (navMarker) { map.removeLayer(navMarker); navMarker = null; }
     if (finalStatus) setStatus(finalStatus.text, finalStatus.type);
@@ -477,10 +756,11 @@ window.addEventListener('load', () => {
       liveNav.offRouteStrikes = 0;
       if (routeLine) map.removeLayer(routeLine);
       routeLine = L.polyline(newRoute.pts, { color: '#d71920', weight: 6, smoothFactor: 1 }).addTo(map);
+      try { localStorage.setItem('ugamap_last_route', JSON.stringify({ route: newRoute, destination: liveNav.destination, savedAt: Date.now() })); } catch (e) {}
       setStatus('Route updated', 'ok');
     } catch (e) {
       console.error('reroute failed', e);
-      setStatus('Unable to reroute', 'err');
+      setStatus('Unable to reroute \u2014 continuing with last known route', 'err');
     }
   }
 
@@ -489,31 +769,54 @@ window.addEventListener('load', () => {
     const pos = { lat: position.coords.latitude, lon: position.coords.longitude };
     const heading = Number.isFinite(position.coords.heading) ? position.coords.heading : null;
     const route = liveNav.route;
+    const now = Date.now();
+
+    // Speed: prefer GPS-reported speed, fall back to distance/time between fixes
+    let speedKmh = null;
+    if (Number.isFinite(position.coords.speed) && position.coords.speed >= 0) {
+      speedKmh = position.coords.speed * 3.6;
+    } else if (liveNav.lastPos && liveNav.lastFixTime) {
+      const dtSec = (now - liveNav.lastFixTime) / 1000;
+      if (dtSec > 0.5) {
+        const dM = haversine(liveNav.lastPos, pos);
+        speedKmh = (dM / dtSec) * 3.6;
+      }
+    }
+    if (speedKmh != null) updateSpeedPill(speedKmh);
 
     if (!navMarker) {
       navMarker = L.marker([pos.lat, pos.lon], { icon: makeArrowIcon(heading || 0), zIndexOffset: 1000 }).addTo(map);
     } else {
       navMarker.setLatLng([pos.lat, pos.lon]);
     }
-    map.panTo([pos.lat, pos.lon], { animate: true });
 
     const distToDest = haversine(pos, liveNav.destination);
     if (distToDest < 25) {
       speak('You have arrived at your destination');
+      saveTripRecord(liveNav.destination.address, liveNav.route.distance, (now - liveNav.startTime) / 1000, mode.value);
       stopLiveNav({ text: 'Arrived at destination', type: 'ok' });
       return;
     }
 
+    const { progress, perp } = projectToRoute(pos, route.pts, route.cumDist);
+    const headingForRotation = heading != null ? heading : (liveNav.lastPos ? bearing(liveNav.lastPos, pos) : 0);
+    applyFollowView(pos.lat, pos.lon, headingForRotation);
+
+    updateProgressBar(route.distance ? (progress / route.distance) * 100 : 0);
+    const remainingM = Math.max(0, route.distance - progress);
+    const remainingFrac = route.distance ? remainingM / route.distance : 0;
+    const remainingSec = route.duration ? remainingFrac * route.duration : null;
+    window.__ugamapRemainingSeconds = remainingSec;
+    updateEta(remainingSec);
+
     if (!route.maneuvers || !route.maneuvers.length) {
-      const brg = liveNav.lastPos ? bearing(liveNav.lastPos, pos) : 0;
-      navMarker.setIcon(makeArrowIcon(heading != null ? heading : brg));
+      navMarker.setIcon(makeArrowIcon(headingForRotation));
       liveNav.lastPos = pos;
+      liveNav.lastFixTime = now;
       const remainingLabel = distToDest >= 1000 ? (distToDest / 1000).toFixed(1) + ' km remaining' : Math.round(distToDest) + ' m remaining';
       info.innerHTML = '<span class="routecard">' + escapeHtml(remainingLabel) + '</span>';
       return;
     }
-
-    const { progress, perp } = projectToRoute(pos, route.pts, route.cumDist);
 
     if (perp > offRouteThreshold()) {
       liveNav.offRouteStrikes = (liveNav.offRouteStrikes || 0) + 1;
@@ -536,6 +839,8 @@ window.addEventListener('load', () => {
 
     const brg = bearing(pos, { lat: man.lat, lon: man.lon });
     navMarker.setIcon(makeArrowIcon(heading != null ? heading : brg));
+    liveNav.lastPos = pos;
+    liveNav.lastFixTime = now;
 
     const distLabel = distToManeuver >= 1000 ? (distToManeuver / 1000).toFixed(1) + ' km' : Math.round(distToManeuver) + ' m';
     showTurnBanner(man.instruction, 'In ' + distLabel);
@@ -550,7 +855,6 @@ window.addEventListener('load', () => {
       speak(man.verbalPre);
     }
 
-    const remainingM = Math.max(0, route.distance - progress);
     const remainingLabel = remainingM >= 1000 ? (remainingM / 1000).toFixed(1) + ' km remaining' : Math.round(remainingM) + ' m remaining';
     info.innerHTML = '<span class="routecard">' + escapeHtml(remainingLabel) + '</span>';
   }
@@ -558,10 +862,12 @@ window.addEventListener('load', () => {
   function startNavigation(route, destination) {
     stopSimulation();
     stopLiveNav();
+    setBodyNavigating(true);
+    engageFollow();
 
     if (!navigator.geolocation) {
       setStatus('Live GPS not available \u2014 showing route preview', 'err');
-      simulateNavigation(route.pts);
+      simulateNavigation(route.pts, { durationSec: route.duration, destAddress: destination.address, maneuvers: route.maneuvers });
       return;
     }
 
@@ -574,8 +880,12 @@ window.addEventListener('load', () => {
       paused: false,
       watchId: null,
       lastRerouteAt: 0,
-      lastPos: null
+      lastPos: null,
+      lastFixTime: null,
+      startTime: Date.now()
     };
+
+    try { localStorage.setItem('ugamap_last_route', JSON.stringify({ route, destination, savedAt: Date.now() })); } catch (e) {}
 
     showNavControls();
     const pauseBtn = G('navPause');
@@ -626,14 +936,11 @@ window.addEventListener('load', () => {
       return;
     }
     stopSimulation();
+    hideTurnBanner();
+    setBodyNavigating(false);
+    if (navState && navState.realTracker) clearInterval(navState.realTracker);
     if (navMarker) { map.removeLayer(navMarker); navMarker = null; }
     setStatus('Navigation cancelled', 'err');
-  }
-
-  function recenterNav() {
-    if (navMarker) {
-      map.setView(navMarker.getLatLng(), map.getZoom());
-    }
   }
 
   function formatTime(seconds) {
@@ -1250,6 +1557,11 @@ window.addEventListener('load', () => {
   if (moreOverlay) moreOverlay.addEventListener('click', e => {
     if (e.target === moreOverlay) closeOverlay('moreOverlay');
   });
+
+  // Expose a small hook so the inline bottom-nav script in index.html can
+  // open the trip history overlay from the "Saved" tab.
+  window.UGAMAP = window.UGAMAP || {};
+  window.UGAMAP.openTrips = openTrips;
 
   fetchReports();
   setInterval(fetchReports, 30000);
