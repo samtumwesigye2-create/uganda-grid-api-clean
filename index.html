@@ -9,11 +9,12 @@
   :root{
     --bg-page:#0b1220;
     --bg-header:#0f1830;
-    --bg-card:#141b2e;
+    --bg-card:#1c2540;
     --bg-input:#1b2338;
     --text-primary:#f5f7fb;
     --text-secondary:#9aa4bd;
     --border-subtle:rgba(255,255,255,0.08);
+    --border-strong:rgba(255,255,255,0.22);
     --accent-red:#e0332f;
     --accent-blue:#3b5bfd;
     --accent-amber:#f5a623;
@@ -45,9 +46,10 @@
   #navigate .navSub{display:block;font-size:10px;font-weight:400;opacity:.85}
   .secondaryBtn{background:var(--bg-input);border:1px solid var(--border-subtle)}
   #googleMaps{background:#ffffff;color:#1a73e8;border:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:center;gap:6px}
-  .suggest{position:absolute;left:0;right:0;top:100%;display:none;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:10px;max-height:200px;overflow:auto;z-index:3000}
-  .suggest div{padding:9px;border-bottom:1px solid var(--border-subtle);cursor:pointer;font-size:13px}
+  .suggest{position:absolute;left:0;right:0;top:100%;display:none;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:10px;max-height:220px;overflow:auto;z-index:3000;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+  .suggest div{padding:12px;border-bottom:1px solid var(--border-subtle);cursor:pointer;font-size:14px;color:var(--text-primary)}
   .suggest div:last-child{border-bottom:0}
+  .suggest div:active,.suggest div:hover{background:var(--bg-input)}
   .selected{font-size:11px;color:var(--text-secondary);min-height:14px;margin-top:3px}
   .status{font-size:12px;margin:6px 0 0;padding:8px 10px;border-radius:8px;background:var(--bg-input)}
   .status.ok{background:var(--success-bg);color:var(--success-text)}
@@ -76,7 +78,7 @@
   .navTab{background:none;border:0;color:var(--text-secondary);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;width:auto;padding:4px 8px}
   .navTab.active{color:var(--text-primary)}
   .navTab .tabIcon{font-size:17px}
-  .reportMenu{position:absolute;left:10px;right:10px;bottom:100%;margin-bottom:8px;display:none;grid-template-columns:1fr 1fr 1fr;gap:6px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  .reportMenu{position:absolute;left:10px;right:10px;bottom:100%;margin-bottom:8px;display:none;grid-template-columns:1fr 1fr 1fr;gap:6px;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:12px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.6)}
   .reportMenu button{background:var(--bg-input);border:1px solid var(--border-subtle);font-weight:600;font-size:11px;padding:9px 4px}
 </style>
 </head>
