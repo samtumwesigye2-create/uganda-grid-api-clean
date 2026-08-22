@@ -20,6 +20,8 @@ window.addEventListener('load', () => {
 
   let routeLine = null;
   let userMarker = null;
+  let navMarker = null;
+  let navAnimId = null;
   const selected = { start: null, dest: null };
   const requestSeq = { start: 0, dest: 0 };
 
@@ -191,6 +193,89 @@ window.addEventListener('load', () => {
     return 2 * R * Math.asin(Math.sqrt(x));
   }
 
+  function bearing(a, b) {
+    const toRad = d => d * Math.PI / 180;
+    const toDeg = r => r * 180 / Math.PI;
+    const y = Math.sin(toRad(b.lon - a.lon)) * Math.cos(toRad(b.lat));
+    const x = Math.cos(toRad(a.lat)) * Math.sin(toRad(b.lat)) -
+              Math.sin(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.cos(toRad(b.lon - a.lon));
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+  }
+
+  function makeArrowIcon(deg) {
+    return L.divIcon({
+      className: 'nav-arrow-icon',
+      html: '<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;transform:rotate(' + deg + 'deg);">' +
+            '<svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 2 L19 21 L12 17 L5 21 Z" fill="#1d4ed8" stroke="#ffffff" stroke-width="1.5"/></svg>' +
+            '</div>',
+      iconSize: [34, 34],
+      iconAnchor: [17, 17]
+    });
+  }
+
+  function stopSimulation() {
+    if (navAnimId) {
+      cancelAnimationFrame(navAnimId);
+      navAnimId = null;
+    }
+  }
+
+  function simulateNavigation(pts) {
+    stopSimulation();
+    if (!pts || pts.length < 2) return;
+    if (navMarker) { map.removeLayer(navMarker); navMarker = null; }
+
+    const segDist = [];
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const d = haversine({ lat: pts[i][0], lon: pts[i][1] }, { lat: pts[i + 1][0], lon: pts[i + 1][1] });
+      segDist.push(d);
+      total += d;
+    }
+    if (total === 0) return;
+
+    const initialDeg = bearing({ lat: pts[0][0], lon: pts[0][1] }, { lat: pts[1][0], lon: pts[1][1] });
+    navMarker = L.marker(pts[0], { icon: makeArrowIcon(initialDeg), zIndexOffset: 1000 }).addTo(map);
+
+    const totalAnimMs = Math.min(45000, Math.max(12000, total / 3));
+    const startTime = performance.now();
+    setStatus('Navigating...', 'ok');
+
+    function frame(now) {
+      const elapsed = now - startTime;
+      let t = elapsed / totalAnimMs;
+      if (t >= 1) t = 1;
+      const targetDist = t * total;
+
+      let acc = 0, segIndex = 0;
+      for (; segIndex < segDist.length; segIndex++) {
+        if (acc + segDist[segIndex] >= targetDist) break;
+        acc += segDist[segIndex];
+      }
+      segIndex = Math.min(segIndex, segDist.length - 1);
+      const segLen = segDist[segIndex] || 0;
+      const segT = segLen > 0 ? (targetDist - acc) / segLen : 0;
+      const p1 = pts[segIndex];
+      const p2 = pts[segIndex + 1] || pts[segIndex];
+      const lat = p1[0] + (p2[0] - p1[0]) * segT;
+      const lon = p1[1] + (p2[1] - p1[1]) * segT;
+      const deg = bearing({ lat: p1[0], lon: p1[1] }, { lat: p2[0], lon: p2[1] });
+
+      navMarker.setLatLng([lat, lon]);
+      navMarker.setIcon(makeArrowIcon(deg));
+      map.panTo([lat, lon], { animate: false });
+
+      if (t < 1) {
+        navAnimId = requestAnimationFrame(frame);
+      } else {
+        setStatus('Arrived at destination', 'ok');
+        navAnimId = null;
+      }
+    }
+
+    navAnimId = requestAnimationFrame(frame);
+  }
+
   function decodeShape(str) {
     let index = 0, lat = 0, lon = 0;
     const out = [];
@@ -237,6 +322,7 @@ window.addEventListener('load', () => {
   async function drawRoute() {
     try {
       navigate.disabled = true;
+      stopSimulation();
       setStatus('Calculating route...');
       const a = await getCoordinates('start', start);
       const b = await getCoordinates('dest', dest);
@@ -250,6 +336,7 @@ window.addEventListener('load', () => {
         '<span class="routecard">' + (route.distance / 1000).toFixed(1) + ' km</span>' +
         '<span class="routecard">' + escapeHtml(formatTime(route.duration)) + '</span>';
       setStatus('Route ready', 'ok');
+      setTimeout(() => simulateNavigation(route.pts), 600);
     } catch (e) {
       console.error(e);
       setStatus(e.message || 'Unable to calculate route', 'err');
@@ -285,13 +372,6 @@ window.addEventListener('load', () => {
       console.error(error);
       setStatus('Unable to access your location. Check browser location permission.', 'err');
     }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
-  });
-
-  const ugamaps = G('ugamaps');
-  if (ugamaps) ugamaps.addEventListener('click', () => {
-    map.invalidateSize();
-    map.setView([1.3733, 32.2903], 7);
-    setStatus('UGAMAP active', 'ok');
   });
 
   const googleMaps = G('googleMaps');
