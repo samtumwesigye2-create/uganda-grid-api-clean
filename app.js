@@ -15,7 +15,7 @@ window.addEventListener('load', () => {
   const map = L.map('map').setView([1.3733, 32.2903], 7);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
-    attribution: 'OpenStreetMap contributors'
+    attribution: '\u00A9 OpenStreetMap contributors'
   }).addTo(map);
 
   let routeLine = null;
@@ -97,8 +97,8 @@ window.addEventListener('load', () => {
     input.dataset.lat = String(place.lat);
     input.dataset.lon = String(place.lon);
     input.dataset.address = place.address || '';
-    if (out) out.textContent = (place.grid_id ? place.grid_id + ' - ' : '') + (place.address || 'Selected');
-    setStatus((type === 'start' ? 'Start' : 'Destination') + ' selected', 'ok');
+    if (out) out.textContent = (place.grid_id ? place.grid_id + ' \u2014 ' : '') + (place.address || 'Selected');
+    setStatus('\u2713 ' + (type === 'start' ? 'Start' : 'Destination') + ' selected', 'ok');
   }
 
   async function updateSuggestions(type) {
@@ -126,7 +126,7 @@ window.addEventListener('load', () => {
       }
       results.forEach(place => {
         const item = document.createElement('div');
-        item.textContent = (place.grid_id ? place.grid_id + ' - ' : '') + place.address;
+        item.textContent = (place.grid_id ? place.grid_id + ' \u2014 ' : '') + place.address;
         item.addEventListener('pointerdown', e => {
           e.preventDefault();
           saveSelection(type, place);
@@ -333,9 +333,9 @@ window.addEventListener('load', () => {
       map.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
       const label = (mode.options[mode.selectedIndex] && mode.options[mode.selectedIndex].text) || 'Route';
       info.innerHTML = '<span class="routecard">' + escapeHtml(label) + '</span>' +
-        '<span class="routecard">' + (route.distance / 1000).toFixed(1) + ' km</span>' +
-        '<span class="routecard">' + escapeHtml(formatTime(route.duration)) + '</span>';
-      setStatus('Route ready', 'ok');
+        '<span class="routecard">\uD83D\uDCCF ' + (route.distance / 1000).toFixed(1) + ' km</span>' +
+        '<span class="routecard">\u23F1 ' + escapeHtml(formatTime(route.duration)) + '</span>';
+      setStatus('\u2713 Route ready', 'ok');
       setTimeout(() => simulateNavigation(route.pts), 600);
     } catch (e) {
       console.error(e);
@@ -363,11 +363,11 @@ window.addEventListener('load', () => {
       start.dataset.lat = String(p.lat);
       start.dataset.lon = String(p.lon);
       start.dataset.address = p.address;
-      G('sr').textContent = 'Current location';
+      G('sr').textContent = '\uD83D\uDCCD Current location';
       if (userMarker) map.removeLayer(userMarker);
       userMarker = L.marker([p.lat, p.lon]).addTo(map).bindPopup('You are here').openPopup();
       map.setView([p.lat, p.lon], 16);
-      setStatus('Current location set as start', 'ok');
+      setStatus('\uD83D\uDCCD Current location set as start', 'ok');
     }, error => {
       console.error(error);
       setStatus('Unable to access your location. Check browser location permission.', 'err');
@@ -394,7 +394,7 @@ window.addEventListener('load', () => {
   });
 
   setTimeout(() => map.invalidateSize(), 300);
-  setStatus('Uganda National Grid ready', 'ok');
+  setStatus('\uD83C\uDDFA\uD83C\uDDEC Uganda National Grid ready', 'ok');
 });
 const reportBtn = document.getElementById("reportBtn");
 const reportMenu = document.getElementById("reportMenu");
