@@ -506,18 +506,23 @@ window.addEventListener('load', () => {
   }
 
   async function fetchReports() {
-    for (const base of apiCandidates()) {
-      try {
-        const r = await fetch(base + '/reports');
-        if (!r.ok) continue;
-        const d = await r.json();
-        if (Array.isArray(d.results)) {
-          renderReports(d.results, base);
-          return;
-        }
-      } catch (e) {}
+  let lastError = null;
+  for (const base of apiCandidates()) {
+    try {
+      const r = await fetch(base + '/reports');
+      if (!r.ok) { lastError = new Error('HTTP ' + r.status); continue; }
+      const d = await r.json();
+      if (Array.isArray(d.results)) {
+        renderReports(d.results, base);
+        return;
+      }
+    } catch (e) {
+      lastError = e;
     }
   }
+  console.error('fetchReports failed:', lastError);
+}
+
 
   function openReportModal(category) {
     pendingCategory = category;
