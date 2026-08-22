@@ -65,7 +65,7 @@ select{background:var(--bg-input);padding:10px 12px}
 .secondaryBtn{background:var(--bg-input);border:1px solid var(--border-subtle)}
 #googleMaps{background:#ffffff;color:#1a73e8;border:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:center;gap:8px}
 #googleMaps .btnIcon{flex:0 0 auto;display:block}
-.suggest{position:absolute;left:0;right:0;top:100%;display:none;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:10px;max-height:220px;overflow:auto;z-index:3000;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+.suggest{position:absolute;left:0;right:0;top:100%;display:none;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:10px;max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;z-index:3000;box-shadow:0 8px 20px rgba(0,0,0,.5)}
 .suggest div{padding:12px;border-bottom:1px solid var(--border-subtle);cursor:pointer;font-size:14px;color:var(--text-primary)}
 .suggest div:last-child{border-bottom:0}
 .suggest div:active,.suggest div:hover{background:var(--bg-input)}
