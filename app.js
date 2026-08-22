@@ -585,7 +585,7 @@ window.addEventListener('load', () => {
   const reportBtn = G('reportBtn');
   const reportMenu = G('reportMenu');
   if (reportBtn && reportMenu) {
-    reportBtn.addEventListener('click', () => {
+    
       reportMenu.style.display = (reportMenu.style.display === 'grid') ? 'none' : 'grid';
     });
     document.querySelectorAll('.reportType').forEach(btn => {
