@@ -456,6 +456,7 @@ window.addEventListener('load', () => {
   };
 
   let reportMarkers = [];
+  let pendingCategory = null;
 
   function makeReportIcon(category) {
     const meta = REPORT_META[category] || { icon: '\u26A0\uFE0F' };
@@ -476,12 +477,22 @@ window.addEventListener('load', () => {
     return hrs + ' hr ago';
   }
 
-  function renderReports(reports) {
+  function mediaHtml(rep, base) {
+    if (!rep.media_url) return '';
+    const url = base + rep.media_url;
+    if (rep.media_type && rep.media_type.indexOf('video') === 0) {
+      return '<br><video src="' + url + '" controls style="width:160px;border-radius:6px;margin-top:4px;"></video>';
+    }
+    return '<br><img src="' + url + '" style="width:160px;border-radius:6px;margin-top:4px;" />';
+  }
+
+  function renderReports(reports, base) {
     reportMarkers.forEach(m => map.removeLayer(m));
     reportMarkers = [];
     reports.forEach(rep => {
       const meta = REPORT_META[rep.category] || { label: rep.category, icon: '\u26A0\uFE0F' };
       const popupText = meta.label + (rep.note ? ' \u2014 ' + escapeHtml(rep.note) : '') +
+        mediaHtml(rep, base) +
         '<br><span style="font-size:11px;color:#6b7280;">' + timeAgo(rep.created_at) + '</span>';
       const marker = L.marker([rep.lat, rep.lon], { icon: makeReportIcon(rep.category) })
         .addTo(map)
@@ -497,34 +508,76 @@ window.addEventListener('load', () => {
         if (!r.ok) continue;
         const d = await r.json();
         if (Array.isArray(d.results)) {
-          renderReports(d.results);
+          renderReports(d.results, base);
           return;
         }
       } catch (e) {}
     }
   }
 
-  async function submitReport(category) {
+  function openReportModal(category) {
+    pendingCategory = category;
+    const overlay = G('reportModalOverlay');
+    const title = G('modalTitle');
+    const meta = REPORT_META[category];
+    if (title) title.textContent = 'Report: ' + (meta ? meta.label : category);
+    const noteEl = G('reportNote');
+    const fileEl = G('reportFile');
+    if (noteEl) noteEl.value = '';
+    if (fileEl) fileEl.value = '';
+    const modalStatus = G('modalStatus');
+    if (modalStatus) modalStatus.textContent = '';
+    if (overlay) overlay.classList.add('active');
+  }
+
+  function closeReportModal() {
+    pendingCategory = null;
+    const overlay = G('reportModalOverlay');
+    if (overlay) overlay.classList.remove('active');
+  }
+
+  async function submitReportModal() {
+    if (!pendingCategory) return;
     const center = map.getCenter();
-    try {
-      let ok = false;
-      for (const base of apiCandidates()) {
-        try {
-          const r = await fetch(base + '/report', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ category: category, lat: center.lat, lon: center.lng, note: '' })
-          });
-          if (r.ok) { ok = true; break; }
-        } catch (e) {}
-      }
-      if (!ok) throw new Error('Report service unavailable');
-      setStatus('Report submitted', 'ok');
-      fetchReports();
-    } catch (e) {
-      console.error(e);
-      setStatus('Unable to submit report', 'err');
+    const noteEl = G('reportNote');
+    const fileEl = G('reportFile');
+    const modalStatus = G('modalStatus');
+    const note = noteEl ? noteEl.value.trim() : '';
+    const file = (fileEl && fileEl.files && fileEl.files[0]) ? fileEl.files[0] : null;
+
+    if (file && file.size > 15 * 1024 * 1024) {
+      if (modalStatus) modalStatus.textContent = 'File too large (max 15MB)';
+      return;
     }
+
+    const submitBtn = G('modalSubmit');
+    if (submitBtn) submitBtn.disabled = true;
+    if (modalStatus) modalStatus.textContent = 'Submitting...';
+
+    let ok = false;
+    for (const base of apiCandidates()) {
+      try {
+        const formData = new FormData();
+        formData.append('category', pendingCategory);
+        formData.append('lat', String(center.lat));
+        formData.append('lon', String(center.lng));
+        formData.append('note', note);
+        if (file) formData.append('file', file);
+        const r = await fetch(base + '/report', { method: 'POST', body: formData });
+        if (r.ok) { ok = true; break; }
+      } catch (e) {}
+    }
+
+    if (submitBtn) submitBtn.disabled = false;
+
+    if (!ok) {
+      if (modalStatus) modalStatus.textContent = 'Unable to submit report';
+      return;
+    }
+
+    closeReportModal();
+    setStatus('Report submitted', 'ok');
+    fetchReports();
   }
 
   const reportBtn = G('reportBtn');
@@ -536,11 +589,20 @@ window.addEventListener('load', () => {
     document.querySelectorAll('.reportType').forEach(btn => {
       btn.addEventListener('click', () => {
         const category = btn.dataset.category;
-        submitReport(category);
         reportMenu.style.display = 'none';
+        openReportModal(category);
       });
     });
   }
+
+  const modalCancelBtn = G('modalCancel');
+  if (modalCancelBtn) modalCancelBtn.addEventListener('click', closeReportModal);
+  const modalSubmitBtn = G('modalSubmit');
+  if (modalSubmitBtn) modalSubmitBtn.addEventListener('click', submitReportModal);
+  const reportModalOverlay = G('reportModalOverlay');
+  if (reportModalOverlay) reportModalOverlay.addEventListener('click', (e) => {
+    if (e.target === reportModalOverlay) closeReportModal();
+  });
 
   map.on('click', () => {
     startBox.style.display = 'none';
