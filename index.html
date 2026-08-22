@@ -23,44 +23,42 @@
     --err-text:#f39a9a;
   }
   *{box-sizing:border-box}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:var(--bg-page);color:var(--text-primary);padding-bottom:82px}
-  header{background:var(--bg-header);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-subtle)}
-  header .icon-btn{background:none;border:0;color:var(--text-primary);font-size:20px;padding:6px;width:auto}
+  html,body{height:100%}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:var(--bg-page);color:var(--text-primary);display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+  header{flex:0 0 auto;background:var(--bg-header);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-subtle)}
+  header .icon-btn{background:none;border:0;color:var(--text-primary);font-size:18px;padding:4px;width:auto}
   header .titleWrap{text-align:center;flex:1}
-  header h1{margin:0;font-size:18px;font-weight:700}
-  header p{margin:2px 0 0;font-size:11px;color:var(--text-secondary)}
-  .panel{max-width:900px;margin:12px auto;padding:12px}
-  .field{position:relative;margin-bottom:12px}
-  label{display:block;font-weight:700;font-size:12px;margin-bottom:6px;color:var(--text-secondary)}
-  input,select,textarea{width:100%;font-size:15px;border-radius:12px;padding:12px 40px 12px 14px;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-primary)}
+  header h1{margin:0;font-size:15px;font-weight:700}
+  header p{margin:1px 0 0;font-size:10px;color:var(--text-secondary)}
+  .contentScroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+  .panel{flex:0 0 auto;max-width:900px;width:100%;margin:0 auto;padding:8px 10px}
+  .field{position:relative;margin-bottom:8px}
+  label{display:block;font-weight:700;font-size:11px;margin-bottom:4px;color:var(--text-secondary)}
+  input,select,textarea{width:100%;font-size:14px;border-radius:10px;padding:10px 36px 10px 12px;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-primary)}
   input::placeholder,textarea::placeholder{color:var(--text-secondary)}
-  .fieldIcon{position:absolute;right:12px;top:38px;color:var(--text-secondary);font-size:16px;background:none;border:0;padding:4px;cursor:pointer}
-  button{width:100%;font-size:15px;border-radius:12px;padding:12px;border:0;font-weight:700;cursor:pointer;color:var(--text-primary)}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
-  select{background:var(--bg-input);padding:12px 14px}
+  .fieldIcon{position:absolute;right:10px;top:30px;color:var(--text-secondary);font-size:15px;background:none;border:0;padding:4px;cursor:pointer}
+  button{width:100%;font-size:14px;border-radius:10px;padding:10px;border:0;font-weight:700;cursor:pointer;color:var(--text-primary)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+  select{background:var(--bg-input);padding:10px 12px}
   #navigate{background:var(--accent-red)}
-  #navigate .navMain{display:block;font-size:15px}
-  #navigate .navSub{display:block;font-size:11px;font-weight:400;opacity:.85}
+  #navigate .navMain{display:block;font-size:14px}
+  #navigate .navSub{display:block;font-size:10px;font-weight:400;opacity:.85}
   .secondaryBtn{background:var(--bg-input);border:1px solid var(--border-subtle)}
-  .createAddressLink{display:block;text-decoration:none;text-align:center;padding:12px;border-radius:12px;font-weight:700;background:var(--accent-blue);margin-bottom:8px}
-  #reportBtn{background:var(--accent-amber);color:#241a00;margin-bottom:8px}
-  .suggest{position:absolute;left:0;right:0;top:100%;display:none;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:10px;max-height:220px;overflow:auto;z-index:3000}
-  .suggest div{padding:10px;border-bottom:1px solid var(--border-subtle);cursor:pointer;font-size:13px}
+  .suggest{position:absolute;left:0;right:0;top:100%;display:none;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:10px;max-height:200px;overflow:auto;z-index:3000}
+  .suggest div{padding:9px;border-bottom:1px solid var(--border-subtle);cursor:pointer;font-size:13px}
   .suggest div:last-child{border-bottom:0}
-  .selected{font-size:12px;color:var(--text-secondary);min-height:16px;margin-top:4px}
-  .status{font-size:13px;margin:10px 0 0;padding:10px 12px;border-radius:10px;background:var(--bg-input)}
+  .selected{font-size:11px;color:var(--text-secondary);min-height:14px;margin-top:3px}
+  .status{font-size:12px;margin:6px 0 0;padding:8px 10px;border-radius:8px;background:var(--bg-input)}
   .status.ok{background:var(--success-bg);color:var(--success-text)}
   .status.err{background:var(--err-bg);color:var(--err-text)}
-  #info{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-  .routecard{background:var(--bg-input);border-radius:999px;padding:6px 10px;font-size:12px}
-  .reportMenu{display:none;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px}
-  .reportMenu button{background:var(--bg-input);border:1px solid var(--border-subtle);font-weight:600;font-size:12px;padding:10px 4px}
-  .navControls{display:none;gap:8px;margin-bottom:8px}
+  #info{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+  .routecard{background:var(--bg-input);border-radius:999px;padding:5px 9px;font-size:11px}
+  .navControls{display:none;gap:6px;margin-top:6px}
   .navControls.active{display:grid;grid-template-columns:1fr 1fr 1fr}
-  .navControls button{font-size:13px;padding:10px 6px;background:var(--bg-input);border:1px solid var(--border-subtle)}
-  .mapWrap{position:relative;max-width:1100px;margin:0 auto}
-  #map{height:calc(100vh - 470px);min-height:340px;width:100%;border-radius:0}
-  .locateFab{position:absolute;right:16px;bottom:16px;width:48px;height:48px;border-radius:50%;background:#fff;color:#111;font-size:18px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
+  .navControls button{font-size:12px;padding:9px 6px;background:var(--bg-input);border:1px solid var(--border-subtle)}
+  .mapWrap{position:relative;flex:1 1 auto;min-height:160px;width:100%}
+  #map{height:100%;width:100%}
+  .locateFab{position:absolute;right:14px;bottom:14px;width:44px;height:44px;border-radius:50%;background:#fff;color:#111;font-size:17px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
   .nav-arrow-icon{background:transparent !important;border:none !important}
   .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center;padding:16px}
   .modal-overlay.active{display:flex}
@@ -72,11 +70,13 @@
   .modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
   .modal-actions button{background:var(--bg-input);border:1px solid var(--border-subtle)}
   #modalSubmit{background:var(--accent-blue);border:0}
-  .bottomNav{position:fixed;left:0;right:0;bottom:0;background:var(--bg-header);border-top:1px solid var(--border-subtle);display:flex;justify-content:space-around;padding:8px 0 max(8px, env(safe-area-inset-bottom));z-index:2000}
+  .navWrap{flex:0 0 auto;position:relative;background:var(--bg-header);border-top:1px solid var(--border-subtle)}
+  .bottomNav{display:flex;justify-content:space-around;padding:6px 0 max(6px, env(safe-area-inset-bottom))}
   .navTab{background:none;border:0;color:var(--text-secondary);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;width:auto;padding:4px 8px}
   .navTab.active{color:var(--text-primary)}
-  .navTab .tabIcon{font-size:18px}
-  @media(max-width:600px){#map{height:calc(100vh - 520px);min-height:320px}}
+  .navTab .tabIcon{font-size:17px}
+  .reportMenu{position:absolute;left:10px;right:10px;bottom:100%;margin-bottom:8px;display:none;grid-template-columns:1fr 1fr 1fr;gap:6px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:12px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  .reportMenu button{background:var(--bg-input);border:1px solid var(--border-subtle);font-weight:600;font-size:11px;padding:9px 4px}
 </style>
 </head>
 <body>
@@ -89,55 +89,45 @@
   <button class="icon-btn" id="bellBtn" aria-label="Notifications">&#128276;</button>
 </header>
 
-<main class="panel">
-  <div class="field">
-    <label for="start">Start location</label>
-    <input id="start" autocomplete="off" placeholder="Address, place or grid ID e.g. 1001 Lake Victoria Drive" />
-    <button type="button" class="fieldIcon" id="startLocateBtn" aria-label="Use my location">&#8982;</button>
-    <div id="ss" class="suggest"></div><div id="sr" class="selected"></div>
+<div class="contentScroll" id="contentScroll">
+  <main class="panel">
+    <div class="field">
+      <label for="start">Start location</label>
+      <input id="start" autocomplete="off" placeholder="Address, place or grid ID e.g. 1001 Lake Victoria Drive" />
+      <button type="button" class="fieldIcon" id="startLocateBtn" aria-label="Use my location">&#8982;</button>
+      <div id="ss" class="suggest"></div><div id="sr" class="selected"></div>
+    </div>
+    <div class="field">
+      <label for="dest">Destination</label>
+      <input id="dest" autocomplete="off" placeholder="Address, place or grid ID e.g. UG-ENT-000400" />
+      <span class="fieldIcon">&#128205;</span>
+      <div id="ds" class="suggest"></div><div id="dr" class="selected"></div>
+    </div>
+
+    <div class="row">
+      <select id="mode" aria-label="Travel mode"><option value="driving">Driving</option><option value="walking">Walking</option><option value="cycling">Cycling</option><option value="flight">Flight</option></select>
+      <button id="navigate"><span class="navMain">UGAMAP</span><span class="navSub">Navigate</span></button>
+    </div>
+
+    <div class="row">
+      <button id="myLocation" class="secondaryBtn">My location</button>
+      <button id="googleMaps" class="secondaryBtn">Google Maps</button>
+    </div>
+
+    <div id="navControls" class="navControls">
+      <button id="navPause">Pause</button>
+      <button id="navCancel">Cancel</button>
+      <button id="navRecenter">Recenter</button>
+    </div>
+
+    <div id="status" class="status">Loading...</div>
+    <div id="info"></div>
+  </main>
+
+  <div class="mapWrap">
+    <div id="map"></div>
+    <button class="locateFab" id="mapLocateBtn" aria-label="Locate me">&#8982;</button>
   </div>
-  <div class="field">
-    <label for="dest">Destination</label>
-    <input id="dest" autocomplete="off" placeholder="Address, place or grid ID e.g. UG-ENT-000400" />
-    <span class="fieldIcon">&#128205;</span>
-    <div id="ds" class="suggest"></div><div id="dr" class="selected"></div>
-  </div>
-
-  <div class="row">
-    <select id="mode" aria-label="Travel mode"><option value="driving">Driving</option><option value="walking">Walking</option><option value="cycling">Cycling</option><option value="flight">Flight</option></select>
-    <button id="navigate"><span class="navMain">UGAMAP</span><span class="navSub">Navigate</span></button>
-  </div>
-
-  <div class="row">
-    <button id="myLocation" class="secondaryBtn">My location</button>
-    <button id="googleMaps" class="secondaryBtn">Google Maps</button>
-  </div>
-
-  <a href="/submit" class="createAddressLink">Create My Address</a>
-  <button id="reportBtn">Report</button>
-
-  <div id="reportMenu" class="reportMenu">
-    <button class="reportType" data-category="police">Police</button>
-    <button class="reportType" data-category="accident">Accident</button>
-    <button class="reportType" data-category="road_closure">Closure</button>
-    <button class="reportType" data-category="bridge">Bridge</button>
-    <button class="reportType" data-category="traffic">Traffic</button>
-    <button class="reportType" data-category="weather">Weather</button>
-  </div>
-
-  <div id="navControls" class="navControls">
-    <button id="navPause">Pause</button>
-    <button id="navCancel">Cancel</button>
-    <button id="navRecenter">Recenter</button>
-  </div>
-
-  <div id="status" class="status">Loading...</div>
-  <div id="info"></div>
-</main>
-
-<div class="mapWrap">
-  <div id="map"></div>
-  <button class="locateFab" id="mapLocateBtn" aria-label="Locate me">&#8982;</button>
 </div>
 
 <div id="reportModalOverlay" class="modal-overlay">
@@ -159,46 +149,64 @@
   </div>
 </div>
 
-<nav class="bottomNav">
-  <button class="navTab active" id="tabHome"><span class="tabIcon">&#8962;</span>Home</button>
-  <button class="navTab" id="tabMap"><span class="tabIcon">&#128506;</span>Map</button>
-  <button class="navTab" id="tabSaved"><span class="tabIcon">&#128278;</span>Saved</button>
-  <button class="navTab" id="tabReport"><span class="tabIcon">&#9888;</span>Report</button>
-  <button class="navTab" id="tabMore"><span class="tabIcon">&#8943;</span>More</button>
-</nav>
+<div class="navWrap">
+  <div id="reportMenu" class="reportMenu">
+    <button class="reportType" data-category="police">Police</button>
+    <button class="reportType" data-category="accident">Accident</button>
+    <button class="reportType" data-category="road_closure">Closure</button>
+    <button class="reportType" data-category="bridge">Bridge</button>
+    <button class="reportType" data-category="traffic">Traffic</button>
+    <button class="reportType" data-category="weather">Weather</button>
+  </div>
+  <nav class="bottomNav">
+    <button class="navTab active" id="tabHome"><span class="tabIcon">&#8962;</span>Home</button>
+    <button class="navTab" id="tabAddress"><span class="tabIcon">&#128205;</span>Address</button>
+    <button class="navTab" id="tabSaved"><span class="tabIcon">&#128278;</span>Saved</button>
+    <button class="navTab" id="reportBtn"><span class="tabIcon">&#9888;</span>Report</button>
+    <button class="navTab" id="tabMore"><span class="tabIcon">&#8943;</span>More</button>
+  </nav>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/app.js"></script>
 <script>
 (function () {
-  var tabs = ['tabHome','tabMap','tabSaved','tabReport','tabMore'];
+  var tabs = ['tabHome','tabAddress','tabSaved','reportBtn','tabMore'];
   function setActiveTab(id) {
     tabs.forEach(function (t) {
       var el = document.getElementById(t);
       if (el) el.classList.toggle('active', t === id);
     });
   }
+  var contentScroll = document.getElementById('contentScroll');
+
   var homeBtn = document.getElementById('tabHome');
   if (homeBtn) homeBtn.addEventListener('click', function () {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (contentScroll) contentScroll.scrollTo({ top: 0, behavior: 'smooth' });
     setActiveTab('tabHome');
   });
-  var mapBtn = document.getElementById('tabMap');
-  if (mapBtn) mapBtn.addEventListener('click', function () {
-    var el = document.querySelector('.mapWrap');
-    if (el) el.scrollIntoView({ behavior: 'smooth' });
-    setActiveTab('tabMap');
+
+  var addressBtn = document.getElementById('tabAddress');
+  if (addressBtn) addressBtn.addEventListener('click', function () {
+    window.location.href = '/submit';
   });
-  var reportTabBtn = document.getElementById('tabReport');
-  if (reportTabBtn) reportTabBtn.addEventListener('click', function () {
-    var rb = document.getElementById('reportBtn');
-    if (rb) rb.click();
-    setActiveTab('tabReport');
-  });
+
   var savedBtn = document.getElementById('tabSaved');
   if (savedBtn) savedBtn.addEventListener('click', function () { setActiveTab('tabSaved'); });
+
   var moreBtn = document.getElementById('tabMore');
   if (moreBtn) moreBtn.addEventListener('click', function () { setActiveTab('tabMore'); });
+
+  var reportBtn = document.getElementById('reportBtn');
+  if (reportBtn) reportBtn.addEventListener('click', function () { setActiveTab('reportBtn'); });
+
+  document.addEventListener('click', function (e) {
+    var menu = document.getElementById('reportMenu');
+    var trigger = document.getElementById('reportBtn');
+    if (!menu || menu.style.display !== 'grid') return;
+    if (menu.contains(e.target) || (trigger && trigger.contains(e.target))) return;
+    menu.style.display = 'none';
+  });
 
   var mapLocateBtn = document.getElementById('mapLocateBtn');
   if (mapLocateBtn) mapLocateBtn.addEventListener('click', function () {
