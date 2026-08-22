@@ -119,6 +119,16 @@ body.navigating header p{display:none}
 .recenterFab{position:absolute;right:14px;bottom:64px;width:40px;height:40px;border-radius:50%;background:var(--accent-blue);color:#fff;font-size:16px;display:none;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
 .recenterFab.show{display:flex}
 
+.startTripBtn{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);width:auto;display:none;align-items:center;gap:8px;background:#d7f2ff;color:#0f4c5c;font-weight:800;font-size:15px;padding:12px 26px;border-radius:999px;border:0;box-shadow:0 6px 18px rgba(0,0,0,.45);z-index:930}
+.startTripBtn.show{display:inline-flex}
+
+.compassFab{position:absolute;right:14px;bottom:156px;width:38px;height:38px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
+.compassFab.locked circle{stroke:var(--accent-blue)}
+#compassNeedle{transform-origin:12px 12px;transition:transform .2s linear}
+
+.satelliteFab{position:absolute;right:14px;bottom:110px;width:38px;height:38px;border-radius:50%;background:#fff;color:#111;font-size:16px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
+.satelliteFab.on{background:#0f4c5c;color:#fff}
+
 .locateFab{position:absolute;right:14px;bottom:14px;width:44px;height:44px;border-radius:50%;background:#fff;color:#111;font-size:17px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
 .voiceFab{position:absolute;left:14px;bottom:14px;width:40px;height:40px;border-radius:50%;background:#fff;color:#111;font-size:16px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900;transition:opacity .15s}
 .voiceFab.muted{opacity:.45}
@@ -232,6 +242,21 @@ Google Maps
 </div>
 </div>
 
+<button class="startTripBtn" id="startTripBtn" type="button">
+<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2 L19 21 L12 17 L5 21 Z" fill="#0f4c5c"/></svg>
+Start
+</button>
+
+<button class="compassFab" id="compassBtn" aria-label="Reset to north">
+<svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<circle cx="12" cy="12" r="10" fill="none" stroke="#c9ced9" stroke-width="1.5"/>
+<g id="compassNeedle">
+<path d="M12 3 L15 12 L12 10.5 L9 12 Z" fill="#e0332f"/>
+<path d="M12 21 L9 12 L12 13.5 L15 12 Z" fill="#9aa4bd"/>
+</g>
+</svg>
+</button>
+<button class="satelliteFab" id="satelliteToggle" aria-label="Toggle satellite view">&#128758;</button>
 <button class="recenterFab" id="recenterFab" aria-label="Recenter">&#8982;</button>
 <button class="nightFab" id="nightToggle" aria-label="Toggle night mode" aria-pressed="false">&#127769;</button>
 <button class="voiceFab" id="voiceToggle" aria-label="Toggle voice guidance" aria-pressed="false">&#128266;</button>
