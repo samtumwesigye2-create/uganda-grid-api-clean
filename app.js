@@ -1,3 +1,6 @@
+**app.js**
+
+```javascript
 window.addEventListener('load', () => {
   const G = id => document.getElementById(id);
   const start = G('start');
@@ -891,9 +894,228 @@ window.addEventListener('load', () => {
     if (!dest.contains(e.target) && !destBox.contains(e.target)) destBox.style.display = 'none';
   });
 
+  // ---------------------------------------------------------------------
+  // Home button: zoom the map in
+  // ---------------------------------------------------------------------
+
+  const tabHomeBtn = G('tabHome');
+  if (tabHomeBtn) tabHomeBtn.addEventListener('click', () => {
+    map.zoomIn();
+  });
+
+  // ---------------------------------------------------------------------
+  // User profile (menu button)
+  // ---------------------------------------------------------------------
+
+  const PROFILE_EMAIL_KEY = 'ugamap_profile_email';
+
+  function openOverlay(id) {
+    const el = G(id);
+    if (el) el.classList.add('active');
+  }
+  function closeOverlay(id) {
+    const el = G(id);
+    if (el) el.classList.remove('active');
+  }
+
+  async function loadProfileIntoForm() {
+    const savedEmail = localStorage.getItem(PROFILE_EMAIL_KEY);
+    const statusEl = G('profileStatus');
+    if (!savedEmail) return;
+    let lastError = null;
+    for (const base of apiCandidates()) {
+      try {
+        const r = await fetch(base + '/profile?email=' + encodeURIComponent(savedEmail));
+        if (!r.ok) { lastError = new Error('HTTP ' + r.status); continue; }
+        const d = await r.json();
+        if (G('profName')) G('profName').value = d.name || '';
+        if (G('profEmail')) G('profEmail').value = d.email || '';
+        if (G('profPhone')) G('profPhone').value = d.phone || '';
+        if (G('profAddress')) G('profAddress').value = d.address || '';
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    if (lastError) console.error('loadProfileIntoForm failed', lastError);
+  }
+
+  async function saveProfile() {
+    const name = (G('profName').value || '').trim();
+    const email = (G('profEmail').value || '').trim();
+    const phone = (G('profPhone').value || '').trim();
+    const address = (G('profAddress').value || '').trim();
+    const statusEl = G('profileStatus');
+
+    if (!name || !email) {
+      if (statusEl) { statusEl.textContent = 'Name and email are required'; statusEl.style.color = 'var(--err-text)'; }
+      return;
+    }
+
+    if (statusEl) { statusEl.textContent = 'Saving...'; statusEl.style.color = 'var(--text-secondary)'; }
+
+    let ok = false;
+    let lastError = null;
+    for (const base of apiCandidates()) {
+      try {
+        const r = await fetch(base + '/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, phone, address })
+        });
+        if (r.ok) { ok = true; break; }
+        lastError = new Error('HTTP ' + r.status);
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    if (ok) {
+      localStorage.setItem(PROFILE_EMAIL_KEY, email.toLowerCase());
+      if (statusEl) { statusEl.textContent = 'Profile saved'; statusEl.style.color = 'var(--success-text)'; }
+    } else {
+      console.error('saveProfile failed', lastError);
+      if (statusEl) { statusEl.textContent = 'Unable to save profile'; statusEl.style.color = 'var(--err-text)'; }
+    }
+  }
+
+  const menuBtn = G('menuBtn');
+  if (menuBtn) menuBtn.addEventListener('click', () => {
+    openOverlay('profileOverlay');
+    loadProfileIntoForm();
+  });
+  const profileCancelBtn = G('profileCancel');
+  if (profileCancelBtn) profileCancelBtn.addEventListener('click', () => closeOverlay('profileOverlay'));
+  const profileSaveBtn = G('profileSave');
+  if (profileSaveBtn) profileSaveBtn.addEventListener('click', saveProfile);
+  const profileOverlay = G('profileOverlay');
+  if (profileOverlay) profileOverlay.addEventListener('click', e => {
+    if (e.target === profileOverlay) closeOverlay('profileOverlay');
+  });
+
+  // ---------------------------------------------------------------------
+  // More: weekly weather forecast by region + trending news
+  // ---------------------------------------------------------------------
+
+  const UGANDA_REGIONS = {
+    'Kampala': [0.3476, 32.5825],
+    'Entebbe': [0.0512, 32.4637],
+    'Jinja': [0.4478, 33.2026],
+    'Mbarara': [-0.6072, 30.6545],
+    'Gulu': [2.7746, 32.2989],
+    'Mbale': [1.0820, 34.1750],
+    'Fort Portal': [0.6710, 30.2748],
+    'Arua': [3.0201, 30.9111],
+    'Masaka': [-0.3346, 31.7343],
+    'Lira': [2.2350, 32.9096]
+  };
+
+  function weatherIcon(code) {
+    if (code === 0) return '\u2600\uFE0F';
+    if (code === 1 || code === 2) return '\u26C5';
+    if (code === 3) return '\u2601\uFE0F';
+    if (code === 45 || code === 48) return '\uD83C\uDF2B\uFE0F';
+    if (code >= 51 && code <= 65) return '\uD83C\uDF27\uFE0F';
+    if (code >= 80 && code <= 82) return '\uD83C\uDF26\uFE0F';
+    if (code >= 95) return '\u26C8\uFE0F';
+    return '\uD83C\uDF24\uFE0F';
+  }
+
+  async function fetchWeather(region) {
+    const box = G('weatherForecast');
+    if (!box) return;
+    const coords = UGANDA_REGIONS[region];
+    if (!coords) return;
+    box.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);">Loading forecast...</div>';
+    try {
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + coords[0] + '&longitude=' + coords[1] +
+        '&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Africa%2FKampala&forecast_days=7';
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('Weather unavailable');
+      const d = await r.json();
+      const days = d.daily.time;
+      box.innerHTML = '';
+      days.forEach((day, i) => {
+        const code = d.daily.weathercode[i];
+        const hi = Math.round(d.daily.temperature_2m_max[i]);
+        const lo = Math.round(d.daily.temperature_2m_min[i]);
+        const label = new Date(day + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short' });
+        const card = document.createElement('div');
+        card.className = 'weatherCard';
+        card.innerHTML = '<div class="wDay">' + escapeHtml(label) + '</div>' +
+          '<div class="wIcon">' + weatherIcon(code) + '</div>' +
+          '<div class="wHi">' + hi + '\u00B0</div>' +
+          '<div class="wLo">' + lo + '\u00B0</div>';
+        box.appendChild(card);
+      });
+    } catch (e) {
+      console.error(e);
+      box.innerHTML = '<div style="font-size:12px;color:var(--err-text);">Unable to load forecast</div>';
+    }
+  }
+
+  async function fetchNews(region) {
+    const list = G('newsList');
+    if (!list) return;
+    list.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);">Loading news...</div>';
+    let lastError = null;
+    for (const base of apiCandidates()) {
+      try {
+        const r = await fetch(base + '/news?region=' + encodeURIComponent(region));
+        if (!r.ok) { lastError = new Error('HTTP ' + r.status); continue; }
+        const d = await r.json();
+        if (!d.available) {
+          list.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);">' + escapeHtml(d.message || 'News feed not available') + '</div>';
+          return;
+        }
+        if (!d.articles || !d.articles.length) {
+          list.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);">No trending stories right now</div>';
+          return;
+        }
+        list.innerHTML = '';
+        d.articles.forEach(a => {
+          const item = document.createElement('a');
+          item.href = a.url;
+          item.target = '_blank';
+          item.rel = 'noopener';
+          item.className = 'newsItem';
+          item.innerHTML = '<div class="newsTitle">' + escapeHtml(a.title) + '</div>' +
+            '<div class="newsSource">' + escapeHtml(a.source || '') + '</div>';
+          list.appendChild(item);
+        });
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    console.error('fetchNews failed', lastError);
+    list.innerHTML = '<div style="font-size:12px;color:var(--err-text);">Unable to load news</div>';
+  }
+
+  const weatherRegionSelect = G('weatherRegion');
+  if (weatherRegionSelect) weatherRegionSelect.addEventListener('change', () => {
+    fetchWeather(weatherRegionSelect.value);
+    fetchNews(weatherRegionSelect.value);
+  });
+
+  const tabMoreBtn = G('tabMore');
+  if (tabMoreBtn) tabMoreBtn.addEventListener('click', () => {
+    openOverlay('moreOverlay');
+    const region = weatherRegionSelect ? weatherRegionSelect.value : 'Kampala';
+    fetchWeather(region);
+    fetchNews(region);
+  });
+  const moreCloseBtn = G('moreClose');
+  if (moreCloseBtn) moreCloseBtn.addEventListener('click', () => closeOverlay('moreOverlay'));
+  const moreOverlay = G('moreOverlay');
+  if (moreOverlay) moreOverlay.addEventListener('click', e => {
+    if (e.target === moreOverlay) closeOverlay('moreOverlay');
+  });
+
   fetchReports();
   setInterval(fetchReports, 30000);
 
   setTimeout(() => map.invalidateSize(), 300);
   setStatus('\uD83C\uDDFA\uD83C\uDDEC Uganda National Grid ready', 'ok');
 });
+```
