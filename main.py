@@ -7,8 +7,10 @@ import json
 import os
 import time
 import uuid
+import urllib.request
+import urllib.parse
 
-app = FastAPI(title="Uganda National Grid API", version="1.5")
+app = FastAPI(title="Uganda National Grid API", version="1.6")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,11 +25,13 @@ APP_JS_FILE = os.path.join(BASE_DIR, "app.js")
 SUBMIT_FILE = os.path.join(BASE_DIR, "submit.html")
 REVIEW_FILE = os.path.join(BASE_DIR, "review.html")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
+PROFILES_FILE = os.path.join(BASE_DIR, "profiles.json")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "uganda2026")
+NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")
 
 try:
     with open(DATABASE, "r", encoding="utf-8") as file:
@@ -45,24 +49,43 @@ VALID_BUILDING_TYPES = {"hospital", "police", "government", "residence", "busine
 ALLOWED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/quicktime", "video/webm"}
 MAX_MEDIA_BYTES = 15 * 1024 * 1024
 
+try:
+    with open(PROFILES_FILE, "r", encoding="utf-8") as f:
+        PROFILES = json.load(f)
+except Exception:
+    PROFILES = {}
+
+
+def save_profiles():
+    try:
+        with open(PROFILES_FILE, "w", encoding="utf-8") as f:
+            json.dump(PROFILES, f)
+    except Exception as e:
+        print("Failed to save profiles:", e)
+
+
 def prune_reports():
     now = time.time()
     global REPORTS
     REPORTS = [r for r in REPORTS if now - r["created_at"] < REPORT_TTL_SECONDS]
 
+
 def check_admin(x_admin_passcode: str):
     if x_admin_passcode != ADMIN_PASSCODE:
         raise HTTPException(status_code=401, detail="Invalid passcode")
 
+
 @app.get("/health")
 def health():
     return {"status": "ok", "records": len(addresses)}
+
 
 @app.api_route("/", methods=["GET", "HEAD"])
 def home():
     if not os.path.exists(INDEX_FILE):
         raise HTTPException(status_code=404, detail="index.html not found")
     return FileResponse(INDEX_FILE, media_type="text/html")
+
 
 @app.get("/app.js")
 def app_js():
@@ -74,17 +97,20 @@ def app_js():
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
     )
 
+
 @app.get("/submit")
 def submit_page():
     if not os.path.exists(SUBMIT_FILE):
         raise HTTPException(status_code=404, detail="submit.html not found")
     return FileResponse(SUBMIT_FILE, media_type="text/html")
 
+
 @app.get("/review")
 def review_page():
     if not os.path.exists(REVIEW_FILE):
         raise HTTPException(status_code=404, detail="review.html not found")
     return FileResponse(REVIEW_FILE, media_type="text/html")
+
 
 @app.get("/search")
 def search(q: str = Query(..., min_length=1)):
@@ -101,6 +127,7 @@ def search(q: str = Query(..., min_length=1)):
                 break
     return {"count": len(results), "results": results}
 
+
 @app.get("/address/{grid_id}")
 def get_address(grid_id: str):
     search_id = grid_id.strip().lower()
@@ -110,6 +137,7 @@ def get_address(grid_id: str):
             return item
     raise HTTPException(status_code=404, detail="Address not found")
 
+
 @app.get("/stats")
 def stats():
     return {
@@ -117,6 +145,7 @@ def stats():
         "database": "entebbe_database.json",
         "frontend": "index.html + app.js",
     }
+
 
 @app.post("/report")
 async def create_report(
@@ -160,10 +189,12 @@ async def create_report(
     REPORTS.append(report)
     return report
 
+
 @app.get("/reports")
 def list_reports():
     prune_reports()
     return {"count": len(REPORTS), "results": REPORTS}
+
 
 @app.post("/submissions")
 async def create_submission(
@@ -209,6 +240,7 @@ async def create_submission(
     SUBMISSIONS.append(submission)
     return submission
 
+
 @app.get("/submissions")
 def list_submissions(status: str = Query(default=""), x_admin_passcode: str = Header(default="")):
     check_admin(x_admin_passcode)
@@ -216,6 +248,7 @@ def list_submissions(status: str = Query(default=""), x_admin_passcode: str = He
     if status:
         items = [s for s in items if s["status"] == status]
     return {"count": len(items), "results": list(reversed(items))}
+
 
 @app.post("/submissions/{submission_id}/decision")
 def decide_submission(
@@ -254,3 +287,83 @@ def decide_submission(
         "longitude": sub["lon"],
     })
     return sub
+
+
+# ---------------------------------------------------------------------
+# User profiles
+# ---------------------------------------------------------------------
+
+class ProfileIn(BaseModel):
+    name: str
+    email: str
+    phone: str = ""
+    address: str = ""
+
+
+@app.post("/profile")
+def save_profile(profile: ProfileIn):
+    email = profile.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="A valid email is required")
+    name = profile.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name is required")
+
+    record = {
+        "name": name[:100],
+        "email": email,
+        "phone": profile.phone.strip()[:30],
+        "address": profile.address.strip()[:200],
+        "updated_at": time.time(),
+    }
+    PROFILES[email] = record
+    save_profiles()
+    return record
+
+
+@app.get("/profile")
+def get_profile(email: str = Query(...)):
+    record = PROFILES.get(email.strip().lower())
+    if not record:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return record
+
+
+# ---------------------------------------------------------------------
+# Trending news (requires a free NEWS_API_KEY from gnews.io set as an
+# environment variable on Railway/Render; without it, returns a
+# friendly "not configured" response instead of failing).
+# ---------------------------------------------------------------------
+
+@app.get("/news")
+def get_news(region: str = Query(default="Uganda")):
+    if not NEWS_API_KEY:
+        return {
+            "available": False,
+            "message": "News feed not configured yet. Add a NEWS_API_KEY environment variable to enable this.",
+            "articles": [],
+        }
+    try:
+        query = urllib.parse.quote(f"{region} Uganda")
+        url = (
+            "https://gnews.io/api/v4/search"
+            f"?q={query}&lang=en&max=8&sortby=publishedAt&token={NEWS_API_KEY}"
+        )
+        with urllib.request.urlopen(url, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        articles = [
+            {
+                "title": a.get("title", ""),
+                "source": (a.get("source") or {}).get("name", ""),
+                "url": a.get("url", ""),
+                "publishedAt": a.get("publishedAt", ""),
+            }
+            for a in data.get("articles", [])[:8]
+        ]
+        return {"available": True, "articles": articles}
+    except Exception:
+        return {
+            "available": False,
+            "message": "Unable to fetch news right now. Try again shortly.",
+            "articles": [],
+        }
