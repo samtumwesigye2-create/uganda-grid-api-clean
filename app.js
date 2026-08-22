@@ -127,7 +127,7 @@ window.addEventListener('load', () => {
       results.forEach(place => {
         const item = document.createElement('div');
         item.textContent = (place.grid_id ? place.grid_id + ' \u2014 ' : '') + place.address;
-        item.addEventListener('pointerdown', e => {
+        item.addEventListener('click', e => {
           e.preventDefault();
           saveSelection(type, place);
           box.style.display = 'none';
