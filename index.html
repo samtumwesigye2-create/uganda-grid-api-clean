@@ -22,6 +22,14 @@
     #navigate .navMain{display:block;font-size:16px}
     #navigate .navSub{display:block;font-size:12px;font-weight:400;opacity:.85}
     .nav-arrow-icon{background:transparent !important;border:none !important;}
+    #reportBtn{margin-top:8px;background:#f59e0b;color:#111827}
+    .reportMenu{display:none;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}
+    .reportMenu button{background:#f3f4f6;color:#111827;font-weight:600;font-size:12px;padding:10px 4px}
+    .navControls{display:none;gap:8px;margin-top:8px}
+    .navControls.active{display:grid;grid-template-columns:1fr 1fr 1fr}
+    .navControls button{font-size:13px;padding:10px 6px}
+    #navCancel{background:#374151}
+    #navRecenter{background:#2563eb}
     @media(max-width:600px){.panel{margin:8px;border-radius:10px}.row,.row.three{grid-template-columns:1fr 1fr}#map{height:calc(100vh - 470px);min-height:360px;border-radius:0}}
   </style>
 </head>
@@ -45,6 +53,20 @@
     <div class="row" style="margin-top:8px">
       <button id="myLocation" class="secondary">&#128205; My location</button>
       <button id="googleMaps" class="light">Google Maps</button>
+    </div>
+    <button id="reportBtn">&#9888;&#65039; Report</button>
+    <div id="reportMenu" class="reportMenu">
+      <button class="reportType" data-category="police">&#128659; Police</button>
+      <button class="reportType" data-category="accident">&#128165; Accident</button>
+      <button class="reportType" data-category="road_closure">&#128679; Closure</button>
+      <button class="reportType" data-category="bridge">&#127753; Bridge</button>
+      <button class="reportType" data-category="traffic">&#128678; Traffic</button>
+      <button class="reportType" data-category="weather">&#127783;&#65039; Weather</button>
+    </div>
+    <div id="navControls" class="navControls">
+      <button id="navPause" class="secondary">Pause</button>
+      <button id="navCancel" class="light">Cancel</button>
+      <button id="navRecenter">Recenter</button>
     </div>
     <div id="status" class="status">Loading...</div><div id="info"></div>
   </main>
