@@ -37,12 +37,11 @@ def home():
     return FileResponse(INDEX_FILE, media_type="text/html")
 
 
-@app.get("/app.js")
+@@app.get("/app.js")
 def app_js():
     if not os.path.exists(APP_JS_FILE):
         raise HTTPException(status_code=404, detail="app.js not found")
-    return FileResponse(APP_JS_FILE, media_type="application/javascript")
-
+    return FileResponse(APP_JS_FILE, media_type="application/javascript; charset=utf-8")
 
 @app.get("/search")
 def search(q: str = Query(..., min_length=1)):
