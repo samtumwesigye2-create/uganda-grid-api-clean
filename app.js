@@ -388,9 +388,9 @@ window.addEventListener('load', () => {
       map.fitBounds(routeLine.getBounds(), { padding: [30, 30] });
       const label = (mode.options[mode.selectedIndex] && mode.options[mode.selectedIndex].text) || 'Route';
       info.innerHTML = '<span class="routecard">' + escapeHtml(label) + '</span>' +
-        '<span class="routecard">\uD83D\uDCCF ' + (route.distance / 1000).toFixed(1) + ' km</span>' +
-        '<span class="routecard">\u23F1 ' + escapeHtml(formatTime(route.duration)) + '</span>';
-      setStatus('\u2713 Route ready', 'ok');
+        '<span class="routecard">' + (route.distance / 1000).toFixed(1) + ' km</span>' +
+        '<span class="routecard">' + escapeHtml(formatTime(route.duration)) + '</span>';
+      setStatus('Route ready', 'ok');
       setTimeout(() => simulateNavigation(route.pts), 600);
     } catch (e) {
       console.error(e);
@@ -425,12 +425,12 @@ window.addEventListener('load', () => {
       start.dataset.lat = String(p.lat);
       start.dataset.lon = String(p.lon);
       start.dataset.address = p.address;
-      G('sr').textContent = '\uD83D\uDCCD Current location';
+      G('sr').textContent = 'Current location';
       if (userMarker) map.removeLayer(userMarker);
       userMarker = L.marker([p.lat, p.lon]).addTo(map).bindPopup('You are here').openPopup();
       map.setView([p.lat, p.lon], 16);
-      setStatus('\uD83D\uDCCD Current location set as start', 'ok');
-    },     }, error => {
+      setStatus('Current location set as start', 'ok');
+    }, error => {
       console.error(error);
       setStatus('Unable to access your location. Check browser location permission.', 'err');
       document.activeElement && document.activeElement.blur();
@@ -438,6 +438,8 @@ window.addEventListener('load', () => {
       const ds = G('ds'); if (ds) ds.style.display = 'none';
       const overlay = G('reportModalOverlay'); if (overlay) overlay.classList.remove('active');
     }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
+  });
+
   const googleMaps = G('googleMaps');
   if (googleMaps) googleMaps.addEventListener('click', () => {
     if (!dest.value.trim()) {
@@ -585,9 +587,6 @@ window.addEventListener('load', () => {
   const reportBtn = G('reportBtn');
   const reportMenu = G('reportMenu');
   if (reportBtn && reportMenu) {
-    
-      reportMenu.style.display = (reportMenu.style.display === 'grid') ? 'none' : 'grid';
-    });
     document.querySelectorAll('.reportType').forEach(btn => {
       btn.addEventListener('click', () => {
         const category = btn.dataset.category;
