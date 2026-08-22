@@ -44,6 +44,7 @@
   #navigate .navMain{display:block;font-size:14px}
   #navigate .navSub{display:block;font-size:10px;font-weight:400;opacity:.85}
   .secondaryBtn{background:var(--bg-input);border:1px solid var(--border-subtle)}
+  #googleMaps{background:#ffffff;color:#1a73e8;border:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:center;gap:6px}
   .suggest{position:absolute;left:0;right:0;top:100%;display:none;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:10px;max-height:200px;overflow:auto;z-index:3000}
   .suggest div{padding:9px;border-bottom:1px solid var(--border-subtle);cursor:pointer;font-size:13px}
   .suggest div:last-child{border-bottom:0}
@@ -105,13 +106,13 @@
     </div>
 
     <div class="row">
-      <select id="mode" aria-label="Travel mode"><option value="driving">Driving</option><option value="walking">Walking</option><option value="cycling">Cycling</option><option value="flight">Flight</option></select>
+      <select id="mode" aria-label="Travel mode"><option value="driving">&#128664; Driving</option><option value="walking">&#128694; Walking</option><option value="cycling">&#128692; Cycling</option><option value="flight">&#9992;&#65039; Flight</option></select>
       <button id="navigate"><span class="navMain">UGAMAP</span><span class="navSub">Navigate</span></button>
     </div>
 
     <div class="row">
       <button id="myLocation" class="secondaryBtn">My location</button>
-      <button id="googleMaps" class="secondaryBtn">Google Maps</button>
+      <button id="googleMaps">&#128506; Google Maps</button>
     </div>
 
     <div id="navControls" class="navControls">
@@ -198,15 +199,20 @@
   if (moreBtn) moreBtn.addEventListener('click', function () { setActiveTab('tabMore'); });
 
   var reportBtn = document.getElementById('reportBtn');
-  if (reportBtn) reportBtn.addEventListener('click', function () { setActiveTab('reportBtn'); });
-
-  document.addEventListener('click', function (e) {
-    var menu = document.getElementById('reportMenu');
-    var trigger = document.getElementById('reportBtn');
-    if (!menu || menu.style.display !== 'grid') return;
-    if (menu.contains(e.target) || (trigger && trigger.contains(e.target))) return;
-    menu.style.display = 'none';
-  });
+  var reportMenu = document.getElementById('reportMenu');
+  if (reportBtn && reportMenu) {
+    reportBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var isOpen = reportMenu.style.display === 'grid';
+      reportMenu.style.display = isOpen ? 'none' : 'grid';
+      setActiveTab(isOpen ? 'tabHome' : 'reportBtn');
+    });
+    document.addEventListener('click', function (e) {
+      if (reportMenu.style.display !== 'grid') return;
+      if (reportMenu.contains(e.target) || reportBtn.contains(e.target)) return;
+      reportMenu.style.display = 'none';
+    });
+  }
 
   var mapLocateBtn = document.getElementById('mapLocateBtn');
   if (mapLocateBtn) mapLocateBtn.addEventListener('click', function () {
