@@ -21,7 +21,7 @@ window.addEventListener('load', () => {
   let routeLine = null;
   let userMarker = null;
   let navMarker = null;
-  let navAnimId = null;
+  let navState = null;
   const selected = { start: null, dest: null };
   const requestSeq = { start: 0, dest: 0 };
 
@@ -98,7 +98,7 @@ window.addEventListener('load', () => {
     input.dataset.lon = String(place.lon);
     input.dataset.address = place.address || '';
     if (out) out.textContent = (place.grid_id ? place.grid_id + ' \u2014 ' : '') + (place.address || 'Selected');
-    setStatus('\u2713 ' + (type === 'start' ? 'Start' : 'Destination') + ' selected', 'ok');
+    setStatus((type === 'start' ? 'Start' : 'Destination') + ' selected', 'ok');
   }
 
   async function updateSuggestions(type) {
@@ -213,10 +213,60 @@ window.addEventListener('load', () => {
     });
   }
 
+  function showNavControls() {
+    const nc = G('navControls');
+    if (nc) nc.classList.add('active');
+    const pauseBtn = G('navPause');
+    if (pauseBtn) pauseBtn.textContent = 'Pause';
+  }
+
+  function hideNavControls() {
+    const nc = G('navControls');
+    if (nc) nc.classList.remove('active');
+  }
+
   function stopSimulation() {
-    if (navAnimId) {
-      cancelAnimationFrame(navAnimId);
-      navAnimId = null;
+    if (navState && navState.rafId) cancelAnimationFrame(navState.rafId);
+    navState = null;
+    hideNavControls();
+  }
+
+  function navFrame(now) {
+    if (!navState || navState.paused) return;
+    const delta = now - navState.lastTime;
+    navState.lastTime = now;
+    navState.elapsed += delta;
+
+    let t = navState.elapsed / navState.totalAnimMs;
+    if (t >= 1) t = 1;
+    const targetDist = t * navState.total;
+
+    const pts = navState.pts;
+    const segDist = navState.segDist;
+    let acc = 0, segIndex = 0;
+    for (; segIndex < segDist.length; segIndex++) {
+      if (acc + segDist[segIndex] >= targetDist) break;
+      acc += segDist[segIndex];
+    }
+    segIndex = Math.min(segIndex, segDist.length - 1);
+    const segLen = segDist[segIndex] || 0;
+    const segT = segLen > 0 ? (targetDist - acc) / segLen : 0;
+    const p1 = pts[segIndex];
+    const p2 = pts[segIndex + 1] || pts[segIndex];
+    const lat = p1[0] + (p2[0] - p1[0]) * segT;
+    const lon = p1[1] + (p2[1] - p1[1]) * segT;
+    const deg = bearing({ lat: p1[0], lon: p1[1] }, { lat: p2[0], lon: p2[1] });
+
+    navMarker.setLatLng([lat, lon]);
+    navMarker.setIcon(makeArrowIcon(deg));
+    map.panTo([lat, lon], { animate: false });
+
+    if (t < 1) {
+      navState.rafId = requestAnimationFrame(navFrame);
+    } else {
+      setStatus('Arrived at destination', 'ok');
+      hideNavControls();
+      navState = null;
     }
   }
 
@@ -238,42 +288,47 @@ window.addEventListener('load', () => {
     navMarker = L.marker(pts[0], { icon: makeArrowIcon(initialDeg), zIndexOffset: 1000 }).addTo(map);
 
     const totalAnimMs = Math.min(45000, Math.max(12000, total / 3));
-    const startTime = performance.now();
+
+    navState = {
+      pts, segDist, total, totalAnimMs,
+      elapsed: 0,
+      lastTime: performance.now(),
+      paused: false,
+      rafId: null
+    };
+
+    showNavControls();
     setStatus('Navigating...', 'ok');
+    navState.rafId = requestAnimationFrame(navFrame);
+  }
 
-    function frame(now) {
-      const elapsed = now - startTime;
-      let t = elapsed / totalAnimMs;
-      if (t >= 1) t = 1;
-      const targetDist = t * total;
-
-      let acc = 0, segIndex = 0;
-      for (; segIndex < segDist.length; segIndex++) {
-        if (acc + segDist[segIndex] >= targetDist) break;
-        acc += segDist[segIndex];
-      }
-      segIndex = Math.min(segIndex, segDist.length - 1);
-      const segLen = segDist[segIndex] || 0;
-      const segT = segLen > 0 ? (targetDist - acc) / segLen : 0;
-      const p1 = pts[segIndex];
-      const p2 = pts[segIndex + 1] || pts[segIndex];
-      const lat = p1[0] + (p2[0] - p1[0]) * segT;
-      const lon = p1[1] + (p2[1] - p1[1]) * segT;
-      const deg = bearing({ lat: p1[0], lon: p1[1] }, { lat: p2[0], lon: p2[1] });
-
-      navMarker.setLatLng([lat, lon]);
-      navMarker.setIcon(makeArrowIcon(deg));
-      map.panTo([lat, lon], { animate: false });
-
-      if (t < 1) {
-        navAnimId = requestAnimationFrame(frame);
-      } else {
-        setStatus('Arrived at destination', 'ok');
-        navAnimId = null;
-      }
+  function pauseResumeNav() {
+    if (!navState) return;
+    const btn = G('navPause');
+    if (!navState.paused) {
+      navState.paused = true;
+      if (navState.rafId) cancelAnimationFrame(navState.rafId);
+      setStatus('Paused', 'ok');
+      if (btn) btn.textContent = 'Resume';
+    } else {
+      navState.paused = false;
+      navState.lastTime = performance.now();
+      setStatus('Navigating...', 'ok');
+      if (btn) btn.textContent = 'Pause';
+      navState.rafId = requestAnimationFrame(navFrame);
     }
+  }
 
-    navAnimId = requestAnimationFrame(frame);
+  function cancelNav() {
+    stopSimulation();
+    if (navMarker) { map.removeLayer(navMarker); navMarker = null; }
+    setStatus('Navigation cancelled', 'err');
+  }
+
+  function recenterNav() {
+    if (navMarker) {
+      map.setView(navMarker.getLatLng(), map.getZoom());
+    }
   }
 
   function decodeShape(str) {
@@ -350,6 +405,13 @@ window.addEventListener('load', () => {
     if (start.value.trim() && dest.value.trim()) drawRoute();
   });
 
+  const navPauseBtn = G('navPause');
+  if (navPauseBtn) navPauseBtn.addEventListener('click', pauseResumeNav);
+  const navCancelBtn = G('navCancel');
+  if (navCancelBtn) navCancelBtn.addEventListener('click', cancelNav);
+  const navRecenterBtn = G('navRecenter');
+  if (navRecenterBtn) navRecenterBtn.addEventListener('click', recenterNav);
+
   myLocation.addEventListener('click', () => {
     if (!navigator.geolocation) {
       setStatus('Location is not supported on this device', 'err');
@@ -384,6 +446,102 @@ window.addEventListener('load', () => {
     window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q), '_blank');
   });
 
+  const REPORT_META = {
+    police: { label: 'Police', icon: '\uD83D\uDE93' },
+    accident: { label: 'Accident', icon: '\uD83D\uDCA5' },
+    road_closure: { label: 'Road Closure', icon: '\uD83D\uDEA7' },
+    bridge: { label: 'Bridge Issue', icon: '\uD83C\uDF09' },
+    traffic: { label: 'Traffic', icon: '\uD83D\uDEA6' },
+    weather: { label: 'Weather', icon: '\uD83C\uDF27\uFE0F' }
+  };
+
+  let reportMarkers = [];
+
+  function makeReportIcon(category) {
+    const meta = REPORT_META[category] || { icon: '\u26A0\uFE0F' };
+    return L.divIcon({
+      className: 'nav-arrow-icon',
+      html: '<div style="font-size:22px;line-height:1;">' + meta.icon + '</div>',
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    });
+  }
+
+  function timeAgo(createdAtSeconds) {
+    const diff = Math.max(0, (Date.now() / 1000) - createdAtSeconds);
+    const mins = Math.round(diff / 60);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return mins + ' min ago';
+    const hrs = Math.round(mins / 60);
+    return hrs + ' hr ago';
+  }
+
+  function renderReports(reports) {
+    reportMarkers.forEach(m => map.removeLayer(m));
+    reportMarkers = [];
+    reports.forEach(rep => {
+      const meta = REPORT_META[rep.category] || { label: rep.category, icon: '\u26A0\uFE0F' };
+      const popupText = meta.label + (rep.note ? ' \u2014 ' + escapeHtml(rep.note) : '') +
+        '<br><span style="font-size:11px;color:#6b7280;">' + timeAgo(rep.created_at) + '</span>';
+      const marker = L.marker([rep.lat, rep.lon], { icon: makeReportIcon(rep.category) })
+        .addTo(map)
+        .bindPopup(popupText);
+      reportMarkers.push(marker);
+    });
+  }
+
+  async function fetchReports() {
+    for (const base of apiCandidates()) {
+      try {
+        const r = await fetch(base + '/reports');
+        if (!r.ok) continue;
+        const d = await r.json();
+        if (Array.isArray(d.results)) {
+          renderReports(d.results);
+          return;
+        }
+      } catch (e) {}
+    }
+  }
+
+  async function submitReport(category) {
+    const center = map.getCenter();
+    try {
+      let ok = false;
+      for (const base of apiCandidates()) {
+        try {
+          const r = await fetch(base + '/report', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category: category, lat: center.lat, lon: center.lng, note: '' })
+          });
+          if (r.ok) { ok = true; break; }
+        } catch (e) {}
+      }
+      if (!ok) throw new Error('Report service unavailable');
+      setStatus('Report submitted', 'ok');
+      fetchReports();
+    } catch (e) {
+      console.error(e);
+      setStatus('Unable to submit report', 'err');
+    }
+  }
+
+  const reportBtn = G('reportBtn');
+  const reportMenu = G('reportMenu');
+  if (reportBtn && reportMenu) {
+    reportBtn.addEventListener('click', () => {
+      reportMenu.style.display = (reportMenu.style.display === 'grid') ? 'none' : 'grid';
+    });
+    document.querySelectorAll('.reportType').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const category = btn.dataset.category;
+        submitReport(category);
+        reportMenu.style.display = 'none';
+      });
+    });
+  }
+
   map.on('click', () => {
     startBox.style.display = 'none';
     destBox.style.display = 'none';
@@ -393,25 +551,9 @@ window.addEventListener('load', () => {
     if (!dest.contains(e.target) && !destBox.contains(e.target)) destBox.style.display = 'none';
   });
 
+  fetchReports();
+  setInterval(fetchReports, 30000);
+
   setTimeout(() => map.invalidateSize(), 300);
   setStatus('\uD83C\uDDFA\uD83C\uDDEC Uganda National Grid ready', 'ok');
 });
-const reportBtn = document.getElementById("reportBtn");
-const reportMenu = document.getElementById("reportMenu");
-
-if (reportBtn && reportMenu) {
-  reportBtn.onclick = () => {
-    reportMenu.style.display =
-      reportMenu.style.display === "none" ? "block" : "none";
-  };
-
-  document.querySelectorAll(".reportType").forEach(button => {
-    button.onclick = () => {
-      const type = button.textContent;
-      document.getElementById("status").textContent =
-        "Report selected: " + type;
-
-      reportMenu.style.display = "none";
-    };
-  });
-}
