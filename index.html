@@ -171,9 +171,14 @@
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="/app.js"></script>
+<script src="/app.js?v=2"></script>
 <script>
 (function () {
+  function setVH() {
+    document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px');
+  }
+  setVH();
+  window.addEventListener('resize', setVH);
   var tabs = ['tabHome','tabAddress','tabSaved','reportBtn','tabMore'];
   function setActiveTab(id) {
     tabs.forEach(function (t) {
