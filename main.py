@@ -67,7 +67,11 @@ def home():
 def app_js():
     if not os.path.exists(APP_JS_FILE):
         raise HTTPException(status_code=404, detail="app.js not found")
-    return FileResponse(APP_JS_FILE, media_type="application/javascript; charset=utf-8")
+    return FileResponse(
+        APP_JS_FILE,
+        media_type="application/javascript; charset=utf-8",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+    )
 
 @app.get("/submit")
 def submit_page():
