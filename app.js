@@ -430,12 +430,14 @@ window.addEventListener('load', () => {
       userMarker = L.marker([p.lat, p.lon]).addTo(map).bindPopup('You are here').openPopup();
       map.setView([p.lat, p.lon], 16);
       setStatus('\uD83D\uDCCD Current location set as start', 'ok');
-    }, error => {
+    },     }, error => {
       console.error(error);
       setStatus('Unable to access your location. Check browser location permission.', 'err');
+      document.activeElement && document.activeElement.blur();
+      const ss = G('ss'); if (ss) ss.style.display = 'none';
+      const ds = G('ds'); if (ds) ds.style.display = 'none';
+      const overlay = G('reportModalOverlay'); if (overlay) overlay.classList.remove('active');
     }, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
-  });
-
   const googleMaps = G('googleMaps');
   if (googleMaps) googleMaps.addEventListener('click', () => {
     if (!dest.value.trim()) {
