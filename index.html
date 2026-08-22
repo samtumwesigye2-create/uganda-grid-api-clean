@@ -113,6 +113,9 @@ select{background:var(--bg-input);padding:10px 12px}
 .weatherCard .wIcon{font-size:20px;margin:4px 0}
 .weatherCard .wHi{font-size:12px}
 .weatherCard .wLo{font-size:11px;color:var(--text-secondary)}
+input:disabled{opacity:.6}
+.authTab{width:auto;flex:1;padding:8px;background:var(--bg-input);border:1px solid var(--border-subtle);font-size:13px;font-weight:600;color:var(--text-secondary)}
+.authTab.active{background:var(--accent-blue);color:#fff;border-color:var(--accent-blue)}
 </style>
 </head>
 <body>
@@ -194,26 +197,68 @@ Google Maps
 </div>
 <div id="profileOverlay" class="modal-overlay">
 <div class="modal-box">
-<h3>Your Profile</h3>
+<h3 id="profileTitle">Account</h3>
+<div id="authTabs" style="display:flex;gap:6px;margin-bottom:10px;">
+<button type="button" id="tabLogin" class="authTab active">Log in</button>
+<button type="button" id="tabSignup" class="authTab">Sign up</button>
+</div>
+<div id="loginForm">
 <div class="field">
-<label for="profName">Name</label>
-<input id="profName" placeholder="Full name" />
+<label for="loginEmail">Email</label>
+<input id="loginEmail" type="email" placeholder="you@example.com" />
 </div>
 <div class="field">
-<label for="profEmail">Email</label>
-<input id="profEmail" type="email" placeholder="you@example.com" />
+<label for="loginPassword">Password</label>
+<input id="loginPassword" type="password" placeholder="Password" />
+</div>
+</div>
+<div id="signupForm" style="display:none;">
+<div class="field">
+<label for="suName">Name</label>
+<input id="suName" placeholder="Full name" />
 </div>
 <div class="field">
-<label for="profPhone">Phone number</label>
-<input id="profPhone" placeholder="+256 7xx xxx xxx" />
+<label for="suEmail">Email</label>
+<input id="suEmail" type="email" placeholder="you@example.com" />
 </div>
 <div class="field">
-<label for="profAddress">Location address</label>
-<input id="profAddress" placeholder="Address, place or grid ID" />
+<label for="suPassword">Password</label>
+<input id="suPassword" type="password" placeholder="At least 6 characters" />
+</div>
+<div class="field">
+<label for="suPhone">Phone number</label>
+<input id="suPhone" placeholder="+256 7xx xxx xxx" />
+</div>
+<div class="field">
+<label for="suAddress">Location address</label>
+<input id="suAddress" placeholder="Address, place or grid ID" />
+</div>
+</div>
+<div id="accountView" style="display:none;">
+<div class="field">
+<label for="accName">Name</label>
+<input id="accName" placeholder="Full name" />
+</div>
+<div class="field">
+<label for="accEmail">Email</label>
+<input id="accEmail" disabled />
+</div>
+<div class="field">
+<label for="accPhone">Phone number</label>
+<input id="accPhone" placeholder="+256 7xx xxx xxx" />
+</div>
+<div class="field">
+<label for="accAddress">Location address</label>
+<input id="accAddress" placeholder="Address, place or grid ID" />
+</div>
 </div>
 <div id="profileStatus" style="font-size:12px;color:var(--text-secondary);min-height:16px;margin-top:4px;"></div>
-<div class="modal-actions">
+<div class="modal-actions" id="authActions">
 <button id="profileCancel" type="button">Close</button>
+<button id="profileSubmit" type="button" style="background:var(--accent-blue);border:0;">Log in</button>
+</div>
+<div class="modal-actions" id="accountActions" style="display:none;">
+<button id="profileLogout" type="button">Log out</button>
 <button id="profileSave" type="button" style="background:var(--accent-blue);border:0;">Save</button>
 </div>
 </div>
