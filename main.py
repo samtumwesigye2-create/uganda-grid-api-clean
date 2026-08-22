@@ -9,6 +9,8 @@ import time
 import uuid
 import urllib.request
 import urllib.parse
+import hashlib
+import secrets
 
 app = FastAPI(title="Uganda National Grid API", version="1.6")
 app.add_middleware(
@@ -25,7 +27,7 @@ APP_JS_FILE = os.path.join(BASE_DIR, "app.js")
 SUBMIT_FILE = os.path.join(BASE_DIR, "submit.html")
 REVIEW_FILE = os.path.join(BASE_DIR, "review.html")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
-PROFILES_FILE = os.path.join(BASE_DIR, "profiles.json")
+USERS_FILE = os.path.join(BASE_DIR, "users.json")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
@@ -50,18 +52,53 @@ ALLOWED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "vi
 MAX_MEDIA_BYTES = 15 * 1024 * 1024
 
 try:
-    with open(PROFILES_FILE, "r", encoding="utf-8") as f:
-        PROFILES = json.load(f)
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
+        USERS = json.load(f)
 except Exception:
-    PROFILES = {}
+    USERS = {}
+
+SESSIONS = {}
 
 
-def save_profiles():
+def save_users():
     try:
-        with open(PROFILES_FILE, "w", encoding="utf-8") as f:
-            json.dump(PROFILES, f)
+        with open(USERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(USERS, f)
     except Exception as e:
-        print("Failed to save profiles:", e)
+        print("Failed to save users:", e)
+
+
+def hash_password(password, salt=None):
+    if salt is None:
+        salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000
+    ).hex()
+    return digest, salt
+
+
+def verify_password(password, salt, digest):
+    check, _ = hash_password(password, salt)
+    return secrets.compare_digest(check, digest)
+
+
+def make_session(email):
+    token = secrets.token_hex(32)
+    SESSIONS[token] = email
+    return token
+
+
+def get_session_email(token):
+    return SESSIONS.get(token)
+
+
+def public_user(record):
+    return {
+        "name": record.get("name", ""),
+        "email": record.get("email", ""),
+        "phone": record.get("phone", ""),
+        "address": record.get("address", ""),
+    }
 
 
 def prune_reports():
@@ -290,43 +327,104 @@ def decide_submission(
 
 
 # ---------------------------------------------------------------------
-# User profiles
+# User accounts (signup / login / profile)
 # ---------------------------------------------------------------------
 
-class ProfileIn(BaseModel):
+class SignupIn(BaseModel):
     name: str
     email: str
+    password: str
     phone: str = ""
     address: str = ""
 
 
-@app.post("/profile")
-def save_profile(profile: ProfileIn):
-    email = profile.email.strip().lower()
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+class ProfileUpdateIn(BaseModel):
+    token: str
+    name: str = ""
+    phone: str = ""
+    address: str = ""
+
+
+@app.post("/auth/signup")
+def signup(body: SignupIn):
+    email = body.email.strip().lower()
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="A valid email is required")
-    name = profile.name.strip()
+    name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name is required")
+    if len(body.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if email in USERS:
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
 
+    digest, salt = hash_password(body.password)
     record = {
         "name": name[:100],
         "email": email,
-        "phone": profile.phone.strip()[:30],
-        "address": profile.address.strip()[:200],
+        "phone": body.phone.strip()[:30],
+        "address": body.address.strip()[:200],
+        "password_hash": digest,
+        "password_salt": salt,
+        "created_at": time.time(),
         "updated_at": time.time(),
     }
-    PROFILES[email] = record
-    save_profiles()
-    return record
+    USERS[email] = record
+    save_users()
+    token = make_session(email)
+    return {"token": token, **public_user(record)}
 
 
-@app.get("/profile")
-def get_profile(email: str = Query(...)):
-    record = PROFILES.get(email.strip().lower())
+@app.post("/auth/login")
+def login(body: LoginIn):
+    email = body.email.strip().lower()
+    record = USERS.get(email)
+    if not record or not verify_password(
+        body.password, record.get("password_salt", ""), record.get("password_hash", "")
+    ):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    token = make_session(email)
+    return {"token": token, **public_user(record)}
+
+
+@app.post("/auth/logout")
+def logout(token: str = Form(...)):
+    SESSIONS.pop(token, None)
+    return {"ok": True}
+
+
+@app.get("/auth/me")
+def me(token: str = Query(...)):
+    email = get_session_email(token)
+    if not email:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    record = USERS.get(email)
     if not record:
-        raise HTTPException(status_code=404, detail="Profile not found")
-    return record
+        raise HTTPException(status_code=404, detail="User not found")
+    return public_user(record)
+
+
+@app.post("/profile")
+def update_profile(body: ProfileUpdateIn):
+    email = get_session_email(body.token)
+    if not email:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    record = USERS.get(email)
+    if not record:
+        raise HTTPException(status_code=404, detail="User not found")
+    if body.name.strip():
+        record["name"] = body.name.strip()[:100]
+    record["phone"] = body.phone.strip()[:30]
+    record["address"] = body.address.strip()[:200]
+    record["updated_at"] = time.time()
+    USERS[email] = record
+    save_users()
+    return public_user(record)
 
 
 # ---------------------------------------------------------------------
