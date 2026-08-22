@@ -45,7 +45,7 @@ def prune_reports():
 def health():
     return {"status": "ok", "records": len(addresses)}
 
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 def home():
     if not os.path.exists(INDEX_FILE):
         raise HTTPException(status_code=404, detail="index.html not found")
