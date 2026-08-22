@@ -301,33 +301,105 @@ window.addEventListener('load', () => {
     navState.rafId = requestAnimationFrame(navFrame);
   }
 
-  function pauseResumeNav() {
-    if (!navState) return;
-    const btn = G('navPause');
-    if (!navState.paused) {
-      navState.paused = true;
-      if (navState.rafId) cancelAnimationFrame(navState.rafId);
-      setStatus('Paused', 'ok');
-      if (btn) btn.textContent = 'Resume';
-    } else {
-      navState.paused = false;
-      navState.lastTime = performance.now();
-      setStatus('Navigating...', 'ok');
-      if (btn) btn.textContent = 'Pause';
-      navState.rafId = requestAnimationFrame(navFrame);
+  // ---------------------------------------------------------------------
+  // Live GPS turn-by-turn navigation with voice guidance
+  // ---------------------------------------------------------------------
+
+  let liveNav = null;
+  let voiceEnabled = true;
+  let lastSpokenText = '';
+
+  const turnBanner = G('turnBanner');
+  const turnMain = G('turnMain');
+  const turnSub = G('turnSub');
+  const voiceToggleBtn = G('voiceToggle');
+
+  function speak(text) {
+    if (!voiceEnabled || !text) return;
+    if (!('speechSynthesis' in window)) return;
+    if (text === lastSpokenText && window.speechSynthesis.speaking) return;
+    lastSpokenText = text;
+    try {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 1;
+      u.pitch = 1;
+      window.speechSynthesis.speak(u);
+    } catch (e) {
+      console.error('speech error', e);
     }
   }
 
-  function cancelNav() {
-    stopSimulation();
-    if (navMarker) { map.removeLayer(navMarker); navMarker = null; }
-    setStatus('Navigation cancelled', 'err');
+  if (voiceToggleBtn) {
+    voiceToggleBtn.addEventListener('click', () => {
+      voiceEnabled = !voiceEnabled;
+      voiceToggleBtn.classList.toggle('muted', !voiceEnabled);
+      voiceToggleBtn.setAttribute('aria-pressed', String(!voiceEnabled));
+      if (!voiceEnabled && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+      setStatus(voiceEnabled ? 'Voice guidance on' : 'Voice guidance off', 'ok');
+    });
   }
 
-  function recenterNav() {
-    if (navMarker) {
-      map.setView(navMarker.getLatLng(), map.getZoom());
+  function showTurnBanner(main, sub) {
+    if (!turnBanner) return;
+    if (turnMain) turnMain.textContent = main || '';
+    if (turnSub) turnSub.textContent = sub || '';
+    turnBanner.classList.add('active');
+  }
+
+  function hideTurnBanner() {
+    if (turnBanner) turnBanner.classList.remove('active');
+  }
+
+  function computeCumDist(pts) {
+    const cum = [0];
+    for (let i = 1; i < pts.length; i++) {
+      cum.push(cum[i - 1] + haversine({ lat: pts[i - 1][0], lon: pts[i - 1][1] }, { lat: pts[i][0], lon: pts[i][1] }));
     }
+    return cum;
+  }
+
+  function parseManeuvers(rawManeuvers, pts, cumDist) {
+    if (!Array.isArray(rawManeuvers) || !pts.length) return [];
+    return rawManeuvers.map(m => {
+      const idx = Math.min(Math.max(m.begin_shape_index || 0, 0), pts.length - 1);
+      return {
+        instruction: m.instruction || 'Continue',
+        verbalPre: m.verbal_pre_transition_instruction || m.instruction || 'Continue',
+        verbalPost: m.verbal_post_transition_instruction || m.instruction || 'Continue',
+        atIndex: idx,
+        atDistance: cumDist[idx] || 0,
+        lat: pts[idx][0],
+        lon: pts[idx][1]
+      };
+    });
+  }
+
+  async function getRoute(a, b) {
+    if (mode.value === 'flight') {
+      const distance = haversine(a, b);
+      return { pts: [[a.lat, a.lon], [b.lat, b.lon]], distance, duration: distance / 800000 * 3600, maneuvers: [], cumDist: [0, distance] };
+    }
+
+    const costing = mode.value === 'walking' ? 'pedestrian' : mode.value === 'cycling' ? 'bicycle' : 'auto';
+    const payload = { locations: [{ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon }], costing, units: 'kilometers' };
+    const r = await fetch('https://valhalla1.openstreetmap.de/route', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error('Routing service unavailable');
+    const d = await r.json();
+    const leg = d && d.trip && d.trip.legs && d.trip.legs[0];
+    if (!leg || !leg.shape) throw new Error('No route found');
+    const pts = decodeShape(leg.shape);
+    const cumDist = computeCumDist(pts);
+    const maneuvers = parseManeuvers(leg.maneuvers, pts, cumDist);
+    return {
+      pts,
+      distance: Number((leg.summary && leg.summary.length) || 0) * 1000,
+      duration: Number((leg.summary && leg.summary.time) || 0),
+      maneuvers,
+      cumDist
+    };
   }
 
   function decodeShape(str) {
@@ -345,26 +417,223 @@ window.addEventListener('load', () => {
     return out;
   }
 
-  async function getRoute(a, b) {
-    if (mode.value === 'flight') {
-      const distance = haversine(a, b);
-      return { pts: [[a.lat, a.lon], [b.lat, b.lon]], distance, duration: distance / 800000 * 3600 };
+  function announceThresholds() {
+    if (mode.value === 'walking') return { announce: 50, instruct: 8 };
+    if (mode.value === 'cycling') return { announce: 100, instruct: 12 };
+    return { announce: 300, instruct: 15 };
+  }
+
+  function offRouteThreshold() {
+    return mode.value === 'walking' ? 30 : mode.value === 'cycling' ? 40 : 60;
+  }
+
+  function projectToRoute(pos, pts, cumDist) {
+    let best = { progress: 0, perp: Infinity };
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p1 = { lat: pts[i][0], lon: pts[i][1] };
+      const p2 = { lat: pts[i + 1][0], lon: pts[i + 1][1] };
+      const dx = p2.lat - p1.lat, dy = p2.lon - p1.lon;
+      const lenSq = dx * dx + dy * dy;
+      let t = 0;
+      if (lenSq > 0) {
+        const wx = pos.lat - p1.lat, wy = pos.lon - p1.lon;
+        t = Math.max(0, Math.min(1, (dx * wx + dy * wy) / lenSq));
+      }
+      const projLat = p1.lat + dx * t;
+      const projLon = p1.lon + dy * t;
+      const perp = haversine(pos, { lat: projLat, lon: projLon });
+      if (perp < best.perp) {
+        const segLen = haversine(p1, p2);
+        best = { progress: cumDist[i] + segLen * t, perp };
+      }
+    }
+    return best;
+  }
+
+  function stopLiveNav(finalStatus) {
+    if (liveNav && liveNav.watchId != null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(liveNav.watchId);
+    }
+    liveNav = null;
+    hideNavControls();
+    hideTurnBanner();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (navMarker) { map.removeLayer(navMarker); navMarker = null; }
+    if (finalStatus) setStatus(finalStatus.text, finalStatus.type);
+  }
+
+  async function rerouteFrom(pos) {
+    if (!liveNav) return;
+    const now = Date.now();
+    if (liveNav.lastRerouteAt && now - liveNav.lastRerouteAt < 8000) return;
+    liveNav.lastRerouteAt = now;
+    try {
+      setStatus('Rerouting...', 'ok');
+      speak('Recalculating route');
+      const newRoute = await getRoute(pos, liveNav.destination);
+      liveNav.route = newRoute;
+      liveNav.maneuverIdx = 0;
+      liveNav.announced = new Set();
+      liveNav.offRouteStrikes = 0;
+      if (routeLine) map.removeLayer(routeLine);
+      routeLine = L.polyline(newRoute.pts, { color: '#d71920', weight: 6, smoothFactor: 1 }).addTo(map);
+      setStatus('Route updated', 'ok');
+    } catch (e) {
+      console.error('reroute failed', e);
+      setStatus('Unable to reroute', 'err');
+    }
+  }
+
+  function onLivePosition(position) {
+    if (!liveNav || liveNav.paused) return;
+    const pos = { lat: position.coords.latitude, lon: position.coords.longitude };
+    const heading = Number.isFinite(position.coords.heading) ? position.coords.heading : null;
+    const route = liveNav.route;
+
+    if (!navMarker) {
+      navMarker = L.marker([pos.lat, pos.lon], { icon: makeArrowIcon(heading || 0), zIndexOffset: 1000 }).addTo(map);
+    } else {
+      navMarker.setLatLng([pos.lat, pos.lon]);
+    }
+    map.panTo([pos.lat, pos.lon], { animate: true });
+
+    const distToDest = haversine(pos, liveNav.destination);
+    if (distToDest < 25) {
+      speak('You have arrived at your destination');
+      stopLiveNav({ text: 'Arrived at destination', type: 'ok' });
+      return;
     }
 
-    const costing = mode.value === 'walking' ? 'pedestrian' : mode.value === 'cycling' ? 'bicycle' : 'auto';
-    const payload = { locations: [{ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon }], costing, units: 'kilometers' };
-    const r = await fetch('https://valhalla1.openstreetmap.de/route', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-    });
-    if (!r.ok) throw new Error('Routing service unavailable');
-    const d = await r.json();
-    const leg = d && d.trip && d.trip.legs && d.trip.legs[0];
-    if (!leg || !leg.shape) throw new Error('No route found');
-    return {
-      pts: decodeShape(leg.shape),
-      distance: Number((leg.summary && leg.summary.length) || 0) * 1000,
-      duration: Number((leg.summary && leg.summary.time) || 0)
+    if (!route.maneuvers || !route.maneuvers.length) {
+      const brg = liveNav.lastPos ? bearing(liveNav.lastPos, pos) : 0;
+      navMarker.setIcon(makeArrowIcon(heading != null ? heading : brg));
+      liveNav.lastPos = pos;
+      const remainingLabel = distToDest >= 1000 ? (distToDest / 1000).toFixed(1) + ' km remaining' : Math.round(distToDest) + ' m remaining';
+      info.innerHTML = '<span class="routecard">' + escapeHtml(remainingLabel) + '</span>';
+      return;
+    }
+
+    const { progress, perp } = projectToRoute(pos, route.pts, route.cumDist);
+
+    if (perp > offRouteThreshold()) {
+      liveNav.offRouteStrikes = (liveNav.offRouteStrikes || 0) + 1;
+      if (liveNav.offRouteStrikes >= 3) {
+        liveNav.offRouteStrikes = 0;
+        rerouteFrom(pos);
+        return;
+      }
+    } else {
+      liveNav.offRouteStrikes = 0;
+    }
+
+    while (liveNav.maneuverIdx < route.maneuvers.length - 1 &&
+           route.maneuvers[liveNav.maneuverIdx].atDistance < progress - 5) {
+      liveNav.maneuverIdx++;
+    }
+    const man = route.maneuvers[liveNav.maneuverIdx];
+    const distToManeuver = Math.max(0, man.atDistance - progress);
+    const { announce, instruct } = announceThresholds();
+
+    const brg = bearing(pos, { lat: man.lat, lon: man.lon });
+    navMarker.setIcon(makeArrowIcon(heading != null ? heading : brg));
+
+    const distLabel = distToManeuver >= 1000 ? (distToManeuver / 1000).toFixed(1) + ' km' : Math.round(distToManeuver) + ' m';
+    showTurnBanner(man.instruction, 'In ' + distLabel);
+
+    const instructKey = liveNav.maneuverIdx + '-instruct';
+    const announceKey = liveNav.maneuverIdx + '-announce';
+    if (distToManeuver <= instruct && !liveNav.announced.has(instructKey)) {
+      liveNav.announced.add(instructKey);
+      speak(man.verbalPost);
+    } else if (distToManeuver <= announce && !liveNav.announced.has(announceKey)) {
+      liveNav.announced.add(announceKey);
+      speak(man.verbalPre);
+    }
+
+    const remainingM = Math.max(0, route.distance - progress);
+    const remainingLabel = remainingM >= 1000 ? (remainingM / 1000).toFixed(1) + ' km remaining' : Math.round(remainingM) + ' m remaining';
+    info.innerHTML = '<span class="routecard">' + escapeHtml(remainingLabel) + '</span>';
+  }
+
+  function startNavigation(route, destination) {
+    stopSimulation();
+    stopLiveNav();
+
+    if (!navigator.geolocation) {
+      setStatus('Live GPS not available \u2014 showing route preview', 'err');
+      simulateNavigation(route.pts);
+      return;
+    }
+
+    liveNav = {
+      route,
+      destination,
+      maneuverIdx: 0,
+      announced: new Set(),
+      offRouteStrikes: 0,
+      paused: false,
+      watchId: null,
+      lastRerouteAt: 0,
+      lastPos: null
     };
+
+    showNavControls();
+    const pauseBtn = G('navPause');
+    if (pauseBtn) pauseBtn.textContent = 'Pause';
+
+    liveNav.watchId = navigator.geolocation.watchPosition(
+      onLivePosition,
+      err => {
+        console.error('geolocation watch error', err);
+        setStatus('Location signal lost \u2014 check GPS/permissions', 'err');
+      },
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
+    );
+
+    setStatus('Navigating...', 'ok');
+    if (route.maneuvers && route.maneuvers.length) {
+      showTurnBanner(route.maneuvers[0].instruction, 'Starting navigation');
+    }
+  }
+
+  function pauseResumeNav() {
+    const btn = G('navPause');
+    if (liveNav) {
+      liveNav.paused = !liveNav.paused;
+      if (btn) btn.textContent = liveNav.paused ? 'Resume' : 'Pause';
+      setStatus(liveNav.paused ? 'Paused' : 'Navigating...', 'ok');
+      if (liveNav.paused && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+      return;
+    }
+    if (!navState) return;
+    if (!navState.paused) {
+      navState.paused = true;
+      if (navState.rafId) cancelAnimationFrame(navState.rafId);
+      setStatus('Paused', 'ok');
+      if (btn) btn.textContent = 'Resume';
+    } else {
+      navState.paused = false;
+      navState.lastTime = performance.now();
+      setStatus('Navigating...', 'ok');
+      if (btn) btn.textContent = 'Pause';
+      navState.rafId = requestAnimationFrame(navFrame);
+    }
+  }
+
+  function cancelNav() {
+    if (liveNav) {
+      stopLiveNav({ text: 'Navigation cancelled', type: 'err' });
+      return;
+    }
+    stopSimulation();
+    if (navMarker) { map.removeLayer(navMarker); navMarker = null; }
+    setStatus('Navigation cancelled', 'err');
+  }
+
+  function recenterNav() {
+    if (navMarker) {
+      map.setView(navMarker.getLatLng(), map.getZoom());
+    }
   }
 
   function formatTime(seconds) {
@@ -377,6 +646,7 @@ window.addEventListener('load', () => {
     try {
       navigate.disabled = true;
       stopSimulation();
+      stopLiveNav();
       setStatus('Calculating route...');
       const a = await getCoordinates('start', start);
       const b = await getCoordinates('dest', dest);
@@ -390,7 +660,7 @@ window.addEventListener('load', () => {
         '<span class="routecard">' + (route.distance / 1000).toFixed(1) + ' km</span>' +
         '<span class="routecard">' + escapeHtml(formatTime(route.duration)) + '</span>';
       setStatus('Route ready', 'ok');
-      setTimeout(() => simulateNavigation(route.pts), 600);
+      setTimeout(() => startNavigation(route, b), 600);
     } catch (e) {
       console.error(e);
       setStatus(e.message || 'Unable to calculate route', 'err');
