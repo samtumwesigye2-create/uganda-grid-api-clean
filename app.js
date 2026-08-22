@@ -13,7 +13,7 @@ window.addEventListener('load', () => {
   if (!window.L || !G('map')) return;
 
   const map = L.map('map', { zoomControl: true }).setView([1.3733, 32.2903], 7);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '\u00A9 OpenStreetMap contributors'
   }).addTo(map);
@@ -57,30 +57,76 @@ window.addEventListener('load', () => {
     throw lastError || new Error('Grid service unavailable');
   }
 
+  // Photon (photon.komoot.io) is an OSM-based geocoder built specifically
+  // for search-as-you-type: unlike Nominatim's /search endpoint, it indexes
+  // name prefixes, so "Kampal" already matches "Kampala" while the person
+  // is still typing instead of only resolving once the full word (or
+  // autocorrect) completes it. Uganda's bounding box keeps results local.
+  const UGANDA_BBOX = '29.4,-1.6,35.1,4.3';
+
   async function nominatim(q, limit = 5) {
-    const url = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&countrycodes=ug&limit=' + limit + '&q=' + encodeURIComponent(q);
+    const url = 'https://photon.komoot.io/api/?q=' + encodeURIComponent(q) +
+      '&limit=' + limit + '&lang=en&bbox=' + UGANDA_BBOX;
     const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
     if (!r.ok) throw new Error('Address search unavailable');
-    return await r.json();
+    const d = await r.json();
+    const feats = Array.isArray(d.features) ? d.features : [];
+    return feats.map(f => {
+      const p = f.properties || {};
+      const coords = (f.geometry && f.geometry.coordinates) || [];
+      const label = [p.name, p.street, p.city || p.town || p.village, p.state, p.country]
+        .filter((v, i, arr) => v && arr.indexOf(v) === i)
+        .join(', ');
+      return { lat: coords[1], lon: coords[0], display_name: label || p.name || q };
+    }).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lon));
   }
 
   async function searchAddress(q) {
-    if (/^UG-/i.test(q)) {
-      const grid = await gridSearch(q);
+    const trimmed = q.trim();
+    if (/^UG-/i.test(trimmed)) {
+      const grid = await gridSearch(trimmed);
       return grid.map(x => ({
         lat: Number(x.latitude ?? x.lat),
         lon: Number(x.longitude ?? x.lon),
-        address: x.address || x.display_name || x.grid_id || q,
+        address: x.address || x.display_name || x.grid_id || trimmed,
         grid_id: x.grid_id || ''
       })).filter(x => Number.isFinite(x.lat) && Number.isFinite(x.lon));
     }
-    const places = await nominatim(q, 5);
-    return places.map(x => ({
-      lat: Number(x.lat),
-      lon: Number(x.lon),
-      address: x.display_name,
-      grid_id: ''
-    }));
+
+    // Merge our own grid database (forgiving substring match on saved
+    // addresses) with Photon (broader place/street search) so whichever
+    // source has a match shows up immediately.
+    const [localResult, placesResult] = await Promise.allSettled([
+      gridSearch(trimmed),
+      nominatim(trimmed, 6)
+    ]);
+
+    const out = [];
+    if (localResult.status === 'fulfilled') {
+      localResult.value.forEach(x => {
+        const lat = Number(x.latitude ?? x.lat);
+        const lon = Number(x.longitude ?? x.lon);
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          out.push({ lat, lon, address: x.address || x.display_name || x.grid_id || trimmed, grid_id: x.grid_id || '' });
+        }
+      });
+    }
+    if (placesResult.status === 'fulfilled') {
+      placesResult.value.forEach(x => {
+        out.push({ lat: Number(x.lat), lon: Number(x.lon), address: x.display_name, grid_id: '' });
+      });
+    }
+
+    const seen = new Set();
+    const deduped = [];
+    for (const p of out) {
+      const key = (p.grid_id || '') + '|' + (p.address || '').toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(p);
+      if (deduped.length >= 8) break;
+    }
+    return deduped;
   }
 
   function clearSelection(type) {
@@ -120,8 +166,12 @@ window.addEventListener('load', () => {
       if (seq !== requestSeq[type]) return;
       box.innerHTML = '';
       if (!results.length) {
-        box.style.display = 'none';
-        setStatus('No matching location found', 'err');
+        const empty = document.createElement('div');
+        empty.textContent = 'No matches yet \u2014 keep typing\u2026';
+        empty.style.cursor = 'default';
+        empty.style.color = 'var(--text-secondary)';
+        box.appendChild(empty);
+        box.style.display = 'block';
         return;
       }
       results.forEach(place => {
@@ -204,11 +254,11 @@ window.addEventListener('load', () => {
   function makeArrowIcon(deg) {
     return L.divIcon({
       className: 'nav-arrow-icon',
-      html: '<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;transform:rotate(' + deg + 'deg);">' +
-            '<svg width="30" height="30" viewBox="0 0 24 24"><path d="M12 2 L19 21 L12 17 L5 21 Z" fill="#1d4ed8" stroke="#ffffff" stroke-width="1.5"/></svg>' +
+      html: '<div style="width:38px;height:38px;display:flex;align-items:center;justify-content:center;transform:rotate(' + deg + 'deg);filter:drop-shadow(0 2px 4px rgba(0,0,0,.45));">' +
+            '<svg width="32" height="32" viewBox="0 0 24 24"><path d="M12 2 L19 21 L12 17 L5 21 Z" fill="#1d4ed8" stroke="#ffffff" stroke-width="1.5"/></svg>' +
             '</div>',
-      iconSize: [34, 34],
-      iconAnchor: [17, 17]
+      iconSize: [38, 38],
+      iconAnchor: [19, 19]
     });
   }
 
@@ -248,7 +298,21 @@ window.addEventListener('load', () => {
     target = currentRotation + diff;
     currentRotation = target;
     if (mapEl) mapEl.style.transform = 'translate(-50%,-50%) rotate(' + target + 'deg)';
+    const compassNeedle = G('compassNeedle');
+    if (compassNeedle) compassNeedle.style.transform = 'rotate(' + (-target) + 'deg)';
   }
+
+  // ---- Compass: tap to snap back to north while still following position ----
+  let northLocked = false;
+  const compassBtn = G('compassBtn');
+  function refreshCompassBtn() {
+    if (compassBtn) compassBtn.classList.toggle('locked', northLocked);
+  }
+  if (compassBtn) compassBtn.addEventListener('click', () => {
+    northLocked = !northLocked;
+    if (northLocked) setMapRotation(0);
+    refreshCompassBtn();
+  });
 
   function applyFollowView(lat, lon, headingDeg) {
     if (!followMode) return;
@@ -258,8 +322,28 @@ window.addEventListener('load', () => {
     } else {
       map.panTo([lat, lon], { animate: true, duration: 0.5 });
     }
-    if (mode.value !== 'flight') setMapRotation(headingDeg || 0);
+    if (mode.value !== 'flight' && !northLocked) setMapRotation(headingDeg || 0);
   }
+
+  // ---- Satellite view toggle ----
+  const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19,
+    attribution: 'Esri, Maxar, Earthstar Geographics'
+  });
+  let satelliteOn = false;
+  const satelliteToggleBtn = G('satelliteToggle');
+  function toggleSatellite() {
+    satelliteOn = !satelliteOn;
+    if (satelliteOn) {
+      map.removeLayer(streetLayer);
+      satelliteLayer.addTo(map);
+    } else {
+      map.removeLayer(satelliteLayer);
+      streetLayer.addTo(map);
+    }
+    if (satelliteToggleBtn) satelliteToggleBtn.classList.toggle('on', satelliteOn);
+  }
+  if (satelliteToggleBtn) satelliteToggleBtn.addEventListener('click', toggleSatellite);
 
   function engageFollow() {
     followMode = true;
@@ -379,6 +463,24 @@ window.addEventListener('load', () => {
     if (recenterFab) recenterFab.classList.remove('show');
     if (followBadge) followBadge.classList.remove('show');
   }
+
+  // ---- Explicit "Start" confirmation before turn-by-turn begins ----
+  let pendingRoute = null;
+  const startTripBtn = G('startTripBtn');
+  function showStartTripBtn() {
+    if (startTripBtn) startTripBtn.classList.add('show');
+  }
+  function hideStartTripBtn() {
+    pendingRoute = null;
+    if (startTripBtn) startTripBtn.classList.remove('show');
+  }
+  if (startTripBtn) startTripBtn.addEventListener('click', () => {
+    if (!pendingRoute) return;
+    const { route, destination } = pendingRoute;
+    pendingRoute = null;
+    hideStartTripBtn();
+    startNavigation(route, destination);
+  });
 
   // -----------------------------------------------------------------
   // Trip history (localStorage)
@@ -862,6 +964,7 @@ window.addEventListener('load', () => {
   function startNavigation(route, destination) {
     stopSimulation();
     stopLiveNav();
+    hideStartTripBtn();
     setBodyNavigating(true);
     engageFollow();
 
@@ -931,6 +1034,7 @@ window.addEventListener('load', () => {
   }
 
   function cancelNav() {
+    hideStartTripBtn();
     if (liveNav) {
       stopLiveNav({ text: 'Navigation cancelled', type: 'err' });
       return;
@@ -954,6 +1058,7 @@ window.addEventListener('load', () => {
       navigate.disabled = true;
       stopSimulation();
       stopLiveNav();
+      hideStartTripBtn();
       setStatus('Calculating route...');
       const a = await getCoordinates('start', start);
       const b = await getCoordinates('dest', dest);
@@ -967,7 +1072,8 @@ window.addEventListener('load', () => {
         '<span class="routecard">' + (route.distance / 1000).toFixed(1) + ' km</span>' +
         '<span class="routecard">' + escapeHtml(formatTime(route.duration)) + '</span>';
       setStatus('Route ready', 'ok');
-      setTimeout(() => startNavigation(route, b), 600);
+      pendingRoute = { route, destination: b };
+      showStartTripBtn();
     } catch (e) {
       console.error(e);
       setStatus(e.message || 'Unable to calculate route', 'err');
