@@ -25,7 +25,7 @@
   }
   *{box-sizing:border-box}
   html,body{height:100%}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:var(--bg-page);color:var(--text-primary);display:flex;flex-direction:column;height:100dvh;overflow:hidden}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:var(--bg-page);color:var(--text-primary);display:flex;flex-direction:column;height:100vh;height:calc(var(--vh, 1vh) * 100);overflow:hidden}
   header{flex:0 0 auto;background:var(--bg-header);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-subtle)}
   header .icon-btn{background:none;border:0;color:var(--text-primary);font-size:18px;padding:4px;width:auto}
   header .titleWrap{text-align:center;flex:1}
@@ -179,6 +179,7 @@
   }
   setVH();
   window.addEventListener('resize', setVH);
+
   var tabs = ['tabHome','tabAddress','tabSaved','reportBtn','tabMore'];
   function setActiveTab(id) {
     tabs.forEach(function (t) {
