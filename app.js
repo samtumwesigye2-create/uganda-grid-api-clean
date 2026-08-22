@@ -201,7 +201,6 @@ window.addEventListener('load', () => {
               Math.sin(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.cos(toRad(b.lon - a.lon));
     return (toDeg(Math.atan2(y, x)) + 360) % 360;
   }
-
   function makeArrowIcon(deg) {
     return L.divIcon({
       className: 'nav-arrow-icon',
@@ -411,7 +410,6 @@ window.addEventListener('load', () => {
   if (navCancelBtn) navCancelBtn.addEventListener('click', cancelNav);
   const navRecenterBtn = G('navRecenter');
   if (navRecenterBtn) navRecenterBtn.addEventListener('click', recenterNav);
-
   myLocation.addEventListener('click', () => {
     if (!navigator.geolocation) {
       setStatus('Location is not supported on this device', 'err');
@@ -506,24 +504,23 @@ window.addEventListener('load', () => {
   }
 
   async function fetchReports() {
-  let lastError = null;
-  for (const base of apiCandidates()) {
-    try {
-      const r = await fetch(base + '/reports');
-      if (!r.ok) { lastError = new Error('HTTP ' + r.status); continue; }
-      const d = await r.json();
-      if (Array.isArray(d.results)) {
-        renderReports(d.results, base);
-        return;
+    let lastError = null;
+    for (const base of apiCandidates()) {
+      try {
+        const r = await fetch(base + '/reports');
+        if (!r.ok) { lastError = new Error('HTTP ' + r.status + ' from ' + base); continue; }
+        const d = await r.json();
+        if (Array.isArray(d.results)) {
+          renderReports(d.results, base);
+          return;
+        }
+        lastError = new Error('Unexpected response shape from ' + base);
+      } catch (e) {
+        lastError = e;
       }
-    } catch (e) {
-      lastError = e;
     }
+    console.error('fetchReports failed:', lastError);
   }
-  console.error('fetchReports failed:', lastError);
-}
-
-
   function openReportModal(category) {
     pendingCategory = category;
     const overlay = G('reportModalOverlay');
@@ -564,6 +561,7 @@ window.addEventListener('load', () => {
     if (modalStatus) modalStatus.textContent = 'Submitting...';
 
     let ok = false;
+    let lastError = null;
     for (const base of apiCandidates()) {
       try {
         const formData = new FormData();
@@ -574,12 +572,16 @@ window.addEventListener('load', () => {
         if (file) formData.append('file', file);
         const r = await fetch(base + '/report', { method: 'POST', body: formData });
         if (r.ok) { ok = true; break; }
-      } catch (e) {}
+        lastError = new Error('HTTP ' + r.status + ' from ' + base);
+      } catch (e) {
+        lastError = e;
+      }
     }
 
     if (submitBtn) submitBtn.disabled = false;
 
     if (!ok) {
+      console.error('submitReportModal failed:', lastError);
       if (modalStatus) modalStatus.textContent = 'Unable to submit report';
       return;
     }
