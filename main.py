@@ -2,12 +2,13 @@ from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form, Heade
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 import json
 import os
 import time
 import uuid
 
-app = FastAPI(title="Uganda National Grid API", version="1.4")
+app = FastAPI(title="Uganda National Grid API", version="1.5")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
