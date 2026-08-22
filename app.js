@@ -901,10 +901,11 @@ window.addEventListener('load', () => {
   });
 
   // ---------------------------------------------------------------------
-  // User profile (menu button)
+  // User accounts: signup / login / profile (menu button)
   // ---------------------------------------------------------------------
 
-  const PROFILE_EMAIL_KEY = 'ugamap_profile_email';
+  const AUTH_TOKEN_KEY = 'ugamap_token';
+  let authMode = 'login';
 
   function openOverlay(id) {
     const el = G(id);
@@ -915,80 +916,221 @@ window.addEventListener('load', () => {
     if (el) el.classList.remove('active');
   }
 
-  async function loadProfileIntoForm() {
-    const savedEmail = localStorage.getItem(PROFILE_EMAIL_KEY);
+  function setProfileStatus(text, kind) {
     const statusEl = G('profileStatus');
-    if (!savedEmail) return;
+    if (!statusEl) return;
+    statusEl.textContent = text || '';
+    statusEl.style.color = kind === 'ok' ? 'var(--success-text)' : kind === 'err' ? 'var(--err-text)' : 'var(--text-secondary)';
+  }
+
+  function setAuthMode(newMode) {
+    authMode = newMode;
+    const loginForm = G('loginForm');
+    const signupForm = G('signupForm');
+    const accountView = G('accountView');
+    const authTabs = G('authTabs');
+    const authActions = G('authActions');
+    const accountActions = G('accountActions');
+    const tabLogin = G('tabLogin');
+    const tabSignup = G('tabSignup');
+    const profileTitle = G('profileTitle');
+    const profileSubmit = G('profileSubmit');
+
+    if (loginForm) loginForm.style.display = newMode === 'login' ? '' : 'none';
+    if (signupForm) signupForm.style.display = newMode === 'signup' ? '' : 'none';
+    if (accountView) accountView.style.display = newMode === 'account' ? '' : 'none';
+    if (authTabs) authTabs.style.display = newMode === 'account' ? 'none' : 'flex';
+    if (authActions) authActions.style.display = newMode === 'account' ? 'none' : 'grid';
+    if (accountActions) accountActions.style.display = newMode === 'account' ? 'grid' : 'none';
+    if (tabLogin) tabLogin.classList.toggle('active', newMode === 'login');
+    if (tabSignup) tabSignup.classList.toggle('active', newMode === 'signup');
+    if (profileTitle) profileTitle.textContent = newMode === 'account' ? 'Account' : 'Welcome';
+    if (profileSubmit) profileSubmit.textContent = newMode === 'signup' ? 'Sign up' : 'Log in';
+    setProfileStatus('');
+  }
+
+  function fillAccountView(user) {
+    if (G('accName')) G('accName').value = user.name || '';
+    if (G('accEmail')) G('accEmail').value = user.email || '';
+    if (G('accPhone')) G('accPhone').value = user.phone || '';
+    if (G('accAddress')) G('accAddress').value = user.address || '';
+  }
+
+  async function checkSession() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token) {
+      setAuthMode('login');
+      return;
+    }
     let lastError = null;
     for (const base of apiCandidates()) {
       try {
-        const r = await fetch(base + '/profile?email=' + encodeURIComponent(savedEmail));
+        const r = await fetch(base + '/auth/me?token=' + encodeURIComponent(token));
+        if (r.status === 401 || r.status === 404) {
+          localStorage.removeItem(AUTH_TOKEN_KEY);
+          setAuthMode('login');
+          return;
+        }
         if (!r.ok) { lastError = new Error('HTTP ' + r.status); continue; }
         const d = await r.json();
-        if (G('profName')) G('profName').value = d.name || '';
-        if (G('profEmail')) G('profEmail').value = d.email || '';
-        if (G('profPhone')) G('profPhone').value = d.phone || '';
-        if (G('profAddress')) G('profAddress').value = d.address || '';
+        fillAccountView(d);
+        setAuthMode('account');
         return;
       } catch (e) {
         lastError = e;
       }
     }
-    if (lastError) console.error('loadProfileIntoForm failed', lastError);
+    if (lastError) console.error('checkSession failed', lastError);
+    setAuthMode('login');
   }
 
-  async function saveProfile() {
-    const name = (G('profName').value || '').trim();
-    const email = (G('profEmail').value || '').trim();
-    const phone = (G('profPhone').value || '').trim();
-    const address = (G('profAddress').value || '').trim();
-    const statusEl = G('profileStatus');
+  async function submitAuth() {
+    if (authMode === 'signup') {
+      const name = (G('suName').value || '').trim();
+      const email = (G('suEmail').value || '').trim();
+      const password = G('suPassword').value || '';
+      const phone = (G('suPhone').value || '').trim();
+      const address = (G('suAddress').value || '').trim();
 
-    if (!name || !email) {
-      if (statusEl) { statusEl.textContent = 'Name and email are required'; statusEl.style.color = 'var(--err-text)'; }
+      if (!name || !email || password.length < 6) {
+        setProfileStatus('Name, email, and a 6+ character password are required', 'err');
+        return;
+      }
+
+      setProfileStatus('Creating account...');
+      let lastError = null;
+      for (const base of apiCandidates()) {
+        try {
+          const r = await fetch(base + '/auth/signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password, phone, address })
+          });
+          const d = await r.json();
+          if (!r.ok) {
+            setProfileStatus(d.detail || 'Unable to create account', 'err');
+            return;
+          }
+          localStorage.setItem(AUTH_TOKEN_KEY, d.token);
+          fillAccountView(d);
+          setAuthMode('account');
+          return;
+        } catch (e) {
+          lastError = e;
+        }
+      }
+      console.error('signup failed', lastError);
+      setProfileStatus('Unable to reach the server', 'err');
       return;
     }
 
-    if (statusEl) { statusEl.textContent = 'Saving...'; statusEl.style.color = 'var(--text-secondary)'; }
+    const email = (G('loginEmail').value || '').trim();
+    const password = G('loginPassword').value || '';
+    if (!email || !password) {
+      setProfileStatus('Enter your email and password', 'err');
+      return;
+    }
 
-    let ok = false;
+    setProfileStatus('Logging in...');
+    let lastError = null;
+    for (const base of apiCandidates()) {
+      try {
+        const r = await fetch(base + '/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const d = await r.json();
+        if (!r.ok) {
+          setProfileStatus(d.detail || 'Invalid email or password', 'err');
+          return;
+        }
+        localStorage.setItem(AUTH_TOKEN_KEY, d.token);
+        fillAccountView(d);
+        setAuthMode('account');
+        return;
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    console.error('login failed', lastError);
+    setProfileStatus('Unable to reach the server', 'err');
+  }
+
+  async function saveAccount() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token) { setAuthMode('login'); return; }
+    const name = (G('accName').value || '').trim();
+    const phone = (G('accPhone').value || '').trim();
+    const address = (G('accAddress').value || '').trim();
+
+    setProfileStatus('Saving...');
     let lastError = null;
     for (const base of apiCandidates()) {
       try {
         const r = await fetch(base + '/profile', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, phone, address })
+          body: JSON.stringify({ token, name, phone, address })
         });
-        if (r.ok) { ok = true; break; }
-        lastError = new Error('HTTP ' + r.status);
+        const d = await r.json();
+        if (!r.ok) {
+          setProfileStatus(d.detail || 'Unable to save', 'err');
+          return;
+        }
+        fillAccountView(d);
+        setProfileStatus('Saved', 'ok');
+        return;
       } catch (e) {
         lastError = e;
       }
     }
+    console.error('saveAccount failed', lastError);
+    setProfileStatus('Unable to reach the server', 'err');
+  }
 
-    if (ok) {
-      localStorage.setItem(PROFILE_EMAIL_KEY, email.toLowerCase());
-      if (statusEl) { statusEl.textContent = 'Profile saved'; statusEl.style.color = 'var(--success-text)'; }
-    } else {
-      console.error('saveProfile failed', lastError);
-      if (statusEl) { statusEl.textContent = 'Unable to save profile'; statusEl.style.color = 'var(--err-text)'; }
+  async function logoutAccount() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    if (token) {
+      for (const base of apiCandidates()) {
+        try {
+          const formData = new FormData();
+          formData.append('token', token);
+          await fetch(base + '/auth/logout', { method: 'POST', body: formData });
+          break;
+        } catch (e) {
+          // best effort
+        }
+      }
     }
+    if (G('loginEmail')) G('loginEmail').value = '';
+    if (G('loginPassword')) G('loginPassword').value = '';
+    setAuthMode('login');
   }
 
   const menuBtn = G('menuBtn');
   if (menuBtn) menuBtn.addEventListener('click', () => {
     openOverlay('profileOverlay');
-    loadProfileIntoForm();
+    checkSession();
   });
   const profileCancelBtn = G('profileCancel');
   if (profileCancelBtn) profileCancelBtn.addEventListener('click', () => closeOverlay('profileOverlay'));
-  const profileSaveBtn = G('profileSave');
-  if (profileSaveBtn) profileSaveBtn.addEventListener('click', saveProfile);
   const profileOverlay = G('profileOverlay');
   if (profileOverlay) profileOverlay.addEventListener('click', e => {
     if (e.target === profileOverlay) closeOverlay('profileOverlay');
   });
+
+  const tabLoginBtn = G('tabLogin');
+  if (tabLoginBtn) tabLoginBtn.addEventListener('click', () => setAuthMode('login'));
+  const tabSignupBtn = G('tabSignup');
+  if (tabSignupBtn) tabSignupBtn.addEventListener('click', () => setAuthMode('signup'));
+  const profileSubmitBtn = G('profileSubmit');
+  if (profileSubmitBtn) profileSubmitBtn.addEventListener('click', submitAuth);
+  const profileSaveBtn = G('profileSave');
+  if (profileSaveBtn) profileSaveBtn.addEventListener('click', saveAccount);
+  const profileLogoutBtn = G('profileLogout');
+  if (profileLogoutBtn) profileLogoutBtn.addEventListener('click', logoutAccount);
 
   // ---------------------------------------------------------------------
   // More: weekly weather forecast by region + trending news
