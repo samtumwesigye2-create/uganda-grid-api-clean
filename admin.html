@@ -483,19 +483,31 @@
         return '<option value="' + st + '"' + (st === s.status ? ' selected' : '') + '>' + st.replace(/_/g, ' ') + '</option>';
       }).join('');
 
+      var senderLoc = escapeHtml(s.sender.name) + (s.sender.country && s.sender.country !== 'Uganda' ? ' (' + escapeHtml(s.sender.country) + ')' : '');
+      var receiverLoc = escapeHtml(s.receiver.name) + (s.receiver.country && s.receiver.country !== 'Uganda' ? ' (' + escapeHtml(s.receiver.country) + ')' : '');
+      var customsHtml = '';
+      if (s.international && s.customs) {
+        customsHtml = '<div class="subMeta" style="margin-top:6px">Declared value: ' +
+          (s.customs.declared_value != null ? s.customs.declared_value + ' ' + escapeHtml(s.customs.declared_value_currency || '') : '—') +
+          (s.customs.hs_code ? ' · HS: ' + escapeHtml(s.customs.hs_code) : '') + '</div>';
+      }
+
       card.innerHTML =
         '<div class="shipHeader">' +
           '<div><div class="trackingNum">' + escapeHtml(s.tracking_number) + '</div>' +
-          '<div class="subMeta">' + escapeHtml(s.sender.name) + ' → ' + escapeHtml(s.receiver.name) + '</div></div>' +
+          '<div class="subMeta">' + senderLoc + ' → ' + receiverLoc + '</div></div>' +
           '<div style="text-align:right"><span class="statusPill">' + s.status.replace(/_/g, ' ') + '</span><br/>' +
           '<span class="payPill ' + payClass + '" style="margin-top:4px;display:inline-block">' + payLabel + '</span></div>' +
         '</div>' +
         (s.description ? '<p style="margin:8px 0 0;font-size:13px;color:#9ca3af">' + escapeHtml(s.description) + '</p>' : '') +
         '<div style="margin-top:6px">' +
+          (s.international ? '<span class="tag" style="background:#1e3a5f;color:#93c5fd">International</span>' : '') +
           (s.price ? '<span class="tag">' + Number(s.price).toLocaleString() + ' ' + escapeHtml(s.currency || 'UGX') + '</span>' : '') +
           (s.weight_kg ? '<span class="tag">' + s.weight_kg + ' kg</span>' : '') +
           (s.speed_label ? '<span class="tag">' + escapeHtml(s.speed_label) + '</span>' : '') +
+          (s.zone_label ? '<span class="tag">' + escapeHtml(s.zone_label) + '</span>' : '') +
         '</div>' +
+        customsHtml +
         '<div class="actionRow">' +
           '<button class="toggleStatusBtn" data-tn="' + s.tracking_number + '" style="background:#1f2937">Update Status</button>' +
           '<a class="linkBtn" href="' + API_BASE + '/api/shipments/' + s.tracking_number + '/receipt" target="_blank">Receipt</a>' +
