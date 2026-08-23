@@ -1,5 +1,5 @@
-from fastapi import FastAPI,from auth_middleware import PasscodeMiddleware
- Query, HTTPException, UploadFile, File, Form, Header
+from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form, Header
+from auth_middleware import PasscodeMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,6 +20,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(PasscodeMiddleware)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "entebbe_database.json")
