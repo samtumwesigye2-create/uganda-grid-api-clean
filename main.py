@@ -472,6 +472,8 @@ from fastapi.responses import FileResponse
 app.include_router(mailing_router)
 app.include_router(shipments_router)
 
+from pathlib import Path
+
 @app.get("/admin")
 def admin_page():
-    return FileResponse("admin.html")
+    return FileResponse(Path(__file__).parent / "admin.html")
