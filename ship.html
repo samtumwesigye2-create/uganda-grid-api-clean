@@ -1,1 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Ship & Mail - Uganda National Grid</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,Arial,sans-serif;background:#0e1220;color:#e5e7eb}
+  header{background:#111827;color:#fff;padding:16px;text-align:center}
+  header h1{margin:0;font-size:20px}
+  header p{margin:4px 0 0;font-size:13px;color:#9ca3af}
+  main{max-width:520px;margin:0 auto;padding:16px}
+  .tabs{display:flex;gap:8px;margin-bottom:16px}
+  .tabBtn{flex:1;padding:12px;border-radius:8px;border:1px solid #2a3150;background:#1a2035;color:#9ca3af;font-size:14px;font-weight:600;cursor:pointer}
+  .tabBtn.active{background:#e15b4d;color:#fff;border-color:#e15b4d}
+  .panel{display:none}
+  .panel.active{display:block}
+  .card{background:#1a2035;border:1px solid #2a3150;border-radius:12px;padding:16px;margin-bottom:14px}
+  label{display:block;font-size:13px;color:#9ca3af;margin-bottom:6px;margin-top:12px}
+  label:first-child{margin-top:0}
+  input,select{width:100%;padding:12px;border-radius:8px;border:1px solid #2a3150;background:#111527;color:#fff;font-size:15px}
+  button{width:100%;padding:14px;border:0;border-radius:8px;background:#e15b4d;color:#fff;font-weight:700;font-size:15px;cursor:pointer;margin-top:14px}
+  button.secondary{background:#374151}
+  button:disabled{opacity:0.6}
+  .status{font-size:13px;margin-top:10px;color:#9ca3af}
+  .rateOption{background:#111527;border:1px solid #2a3150;border-radius:8px;padding:12px;margin-top:10px;cursor:pointer}
+  .rateOption:hover{border-color:#e15b4d}
+  .rateOption .rTitle{font-weight:700;color:#fff;font-size:14px}
+  .rateOption .rPrice{color:#e15b4d;font-weight:700;font-size:16px;margin-top:4px}
+  .rateOption .rMeta{color:#9ca3af;font-size:12px;margin-top:2px}
+  .trackRow{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #2a3150;font-size:13px}
+  .trackRow:last-child{border-bottom:none}
+  .bigTracking{font-size:20px;font-weight:700;color:#fff;text-align:center;margin:10px 0}
+  .linkBtn{display:block;text-align:center;color:#e15b4d;text-decoration:none;font-size:14px;margin-top:10px}
+  h3{margin:0 0 12px;color:#fff;font-size:16px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
 
+<header>
+  <h1>Ship &amp; Mail</h1>
+  <p>Send a parcel or subscribe to updates</p>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="tabBtn active" data-tab="ship">Ship a Package</button>
+    <button class="tabBtn" data-tab="track">Track a Shipment</button>
+  </div>
+
+  <!-- ================= SHIP TAB ================= -->
+  <div class="panel active" id="panel-ship">
+
+    <div class="card" id="quoteCard">
+      <h3>Get a rate</h3>
+      <label>Pickup (address or grid ID)</label>
+      <input id="quoteOrigin" placeholder="e.g. UG-ENT-000001" />
+      <label>Delivery (address or grid ID)</label>
+      <input id="quoteDestination" placeholder="e.g. UG-ENT-000400" />
+      <label>Weight (kg)</label>
+      <input id="quoteWeight" type="number" min="0.1" step="0.1" placeholder="e.g. 2.5" />
+      <button id="getRatesBtn">Get Rates</button>
+      <div class="status" id="quoteStatus"></div>
+      <div id="rateOptions"></div>
+    </div>
+
+    <div class="card hidden" id="detailsCard">
+      <h3>Sender &amp; Receiver</h3>
+      <label>Selected service</label>
+      <div id="selectedRateSummary" class="status"></div>
+
+      <label>Sender name</label>
+      <input id="senderName" />
+      <label>Sender phone</label>
+      <input id="senderPhone" />
+      <label>Sender address</label>
+      <input id="senderAddress" />
+
+      <label>Receiver name</label>
+      <input id="receiverName" />
+      <label>Receiver phone</label>
+      <input id="receiverPhone" />
+      <label>Receiver address</label>
+      <input id="receiverAddress" />
+
+      <label>Package description (optional)</label>
+      <input id="packageDescription" placeholder="e.g. Documents, clothes..." />
+
+      <button id="createShipmentBtn">Create Shipment</button>
+      <button class="secondary" id="backToQuoteBtn">Back</button>
+      <div class="status" id="createStatus"></div>
+    </div>
+
+    <div class="card hidden" id="confirmCard">
+      <h3>Shipment created</h3>
+      <div class="bigTracking" id="confirmTrackingNumber"></div>
+      <div class="status" id="confirmStatus">Save this tracking number — you'll need it to pay and track.</div>
+      <button id="payNowBtn">Pay Now</button>
+      <a class="linkBtn" id="receiptLink" href="#" target="_blank">View printable receipt</a>
+      <button class="secondary" id="shipAnotherBtn">Ship another package</button>
+    </div>
+
+  </div>
+
+  <!-- ================= TRACK TAB ================= -->
+  <div class="panel" id="panel-track">
+    <div class="card">
+      <h3>Track a shipment</h3>
+      <label>Tracking number</label>
+      <input id="trackInput" placeholder="UG-SHIP-000002" />
+      <button id="trackBtn">Track</button>
+      <div class="status" id="trackStatus"></div>
+    </div>
+
+    <div class="card hidden" id="trackResultCard">
+      <h3 id="trackResultTitle"></h3>
+      <div id="trackRows"></div>
+      <button id="trackPayBtn" class="hidden">Pay Now</button>
+      <a class="linkBtn" id="trackReceiptLink" href="#" target="_blank">View printable receipt</a>
+    </div>
+  </div>
+
+  <!-- ================= MAILING SIGNUP ================= -->
+  <div class="card" style="margin-top:24px">
+    <h3>Get shipping &amp; delivery updates by email</h3>
+    <label>Email</label>
+    <input id="subEmail" type="email" placeholder="you@example.com" />
+    <label>Name (optional)</label>
+    <input id="subName" />
+    <label>Region (optional)</label>
+    <input id="subRegion" placeholder="e.g. Kampala, Entebbe" />
+    <button id="subscribeBtn">Subscribe</button>
+    <div class="status" id="subscribeStatus"></div>
+  </div>
+</main>
+
+<script>
+(function () {
+  function apiCandidates() {
+    var urls = [];
+    if (location.protocol.indexOf('http') === 0) urls.push(location.origin);
+    urls.push('https://uganda-grid-api-clean-production.up.railway.app');
+    return urls;
+  }
+
+  async function apiFetch(path, options) {
+    var candidates = apiCandidates();
+    var lastErr = null;
+    for (var i = 0; i < candidates.length; i++) {
+      try {
+        var res = await fetch(candidates[i] + path, options);
+        return { res: res, base: candidates[i] };
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    throw lastErr || new Error('Could not reach server');
+  }
+
+  // ---------- tabs ----------
+  document.querySelectorAll('.tabBtn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.tabBtn').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('.panel').forEach(function (p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ---------- ship flow state ----------
+  var state = { base: null, selectedTier: null, tracking: null };
+
+  var quoteCard = document.getElementById('quoteCard');
+  var detailsCard = document.getElementById('detailsCard');
+  var confirmCard = document.getElementById('confirmCard');
+
+  function money(v, currency) {
+    if (v === undefined || v === null) return '—';
+    var n = Number(v);
+    if (isNaN(n)) return String(v);
+    return n.toLocaleString() + ' ' + (currency || 'UGX');
+  }
+
+  document.getElementById('getRatesBtn').addEventListener('click', async function () {
+    var origin = document.getElementById('quoteOrigin').value.trim();
+    var destination = document.getElementById('quoteDestination').value.trim();
+    var weight = parseFloat(document.getElementById('quoteWeight').value);
+    var status = document.getElementById('quoteStatus');
+    var ratesDiv = document.getElementById('rateOptions');
+    ratesDiv.innerHTML = '';
+
+    if (!origin || !destination || !weight) {
+      status.textContent = 'Fill in pickup, delivery, and weight.';
+      return;
+    }
+
+    status.textContent = 'Getting rates...';
+    try {
+      var result = await apiFetch('/api/shipments/quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin: origin, destination: destination, weight_kg: weight })
+      });
+      state.base = result.base;
+      var data = await result.res.json();
+      if (!result.res.ok) {
+        status.textContent = data.detail || 'Could not get a quote for that route.';
+        return;
+      }
+      status.textContent = 'Choose a delivery speed:';
+
+      Object.keys(data).forEach(function (key) {
+        var tier = data[key];
+        var label = (tier && tier.label) || key;
+        var price = tier && (tier.price !== undefined ? tier.price : tier.amount);
+        var currency = (tier && tier.currency) || 'UGX';
+        var eta = tier && (tier.eta || tier.delivery_time || tier.days);
+
+        var el = document.createElement('div');
+        el.className = 'rateOption';
+        el.innerHTML =
+          '<div class="rTitle">' + label + '</div>' +
+          '<div class="rPrice">' + money(price, currency) + '</div>' +
+          (eta ? '<div class="rMeta">' + eta + '</div>' : '');
+        el.addEventListener('click', function () {
+          state.selectedTier = { key: key, label: label, price: price, currency: currency, weight: weight };
+          document.getElementById('selectedRateSummary').textContent = label + ' — ' + money(price, currency);
+          quoteCard.classList.add('hidden');
+          detailsCard.classList.remove('hidden');
+        });
+        ratesDiv.appendChild(el);
+      });
+
+      if (!Object.keys(data).length) {
+        status.textContent = 'No rates returned for that route.';
+      }
+    } catch (e) {
+      status.textContent = 'Network error — could not reach the server.';
+    }
+  });
+
+  document.getElementById('backToQuoteBtn').addEventListener('click', function () {
+    detailsCard.classList.add('hidden');
+    quoteCard.classList.remove('hidden');
+  });
+
+  document.getElementById('createShipmentBtn').addEventListener('click', async function () {
+    var status = document.getElementById('createStatus');
+    var senderName = document.getElementById('senderName').value.trim();
+    var senderPhone = document.getElementById('senderPhone').value.trim();
+    var senderAddress = document.getElementById('senderAddress').value.trim();
+    var receiverName = document.getElementById('receiverName').value.trim();
+    var receiverPhone = document.getElementById('receiverPhone').value.trim();
+    var receiverAddress = document.getElementById('receiverAddress').value.trim();
+    var description = document.getElementById('packageDescription').value.trim();
+
+    if (!senderName || !senderAddress || !receiverName || !receiverAddress) {
+      status.textContent = 'Sender/receiver name and address are required.';
+      return;
+    }
+    if (!state.selectedTier) {
+      status.textContent = 'Please select a delivery speed first.';
+      return;
+    }
+
+    status.textContent = 'Creating shipment...';
+    var payload = {
+      sender: { name: senderName, phone: senderPhone, address: senderAddress },
+      receiver: { name: receiverName, phone: receiverPhone, address: receiverAddress },
+      description: description,
+      weight_kg: state.selectedTier.weight,
+      speed: state.selectedTier.key,
+      price: state.selectedTier.price,
+      currency: state.selectedTier.currency
+    };
+
+    try {
+      var result = await apiFetch('/api/shipments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var data = await result.res.json();
+      if (!result.res.ok) {
+        status.textContent = data.detail || 'Could not create shipment.';
+        return;
+      }
+      state.base = result.base;
+      state.tracking = data.tracking_number;
+
+      detailsCard.classList.add('hidden');
+      confirmCard.classList.remove('hidden');
+      document.getElementById('confirmTrackingNumber').textContent = data.tracking_number;
+      document.getElementById('receiptLink').href = state.base + '/api/shipments/' + encodeURIComponent(data.tracking_number) + '/receipt';
+    } catch (e) {
+      status.textContent = 'Network error — could not reach the server.';
+    }
+  });
+
+  document.getElementById('payNowBtn').addEventListener('click', async function () {
+    if (!state.tracking) return;
+    var status = document.getElementById('confirmStatus');
+    status.textContent = 'Requesting payment link...';
+    try {
+      var result = await apiFetch('/api/shipments/' + encodeURIComponent(state.tracking) + '/pay', { method: 'POST' });
+      var data = await result.res.json();
+      if (!result.res.ok) {
+        status.textContent = data.detail || 'Payment request failed.';
+        return;
+      }
+      status.textContent = 'Opening checkout...';
+      window.open(data.payment_link, '_blank');
+    } catch (e) {
+      status.textContent = 'Network error — could not reach the server.';
+    }
+  });
+
+  document.getElementById('shipAnotherBtn').addEventListener('click', function () {
+    state = { base: state.base, selectedTier: null, tracking: null };
+    confirmCard.classList.add('hidden');
+    quoteCard.classList.remove('hidden');
+    document.getElementById('rateOptions').innerHTML = '';
+    document.getElementById('quoteStatus').textContent = '';
+    ['quoteOrigin', 'quoteDestination', 'quoteWeight', 'senderName', 'senderPhone',
+     'senderAddress', 'receiverName', 'receiverPhone', 'receiverAddress', 'packageDescription']
+      .forEach(function (id) { document.getElementById(id).value = ''; });
+  });
+
+  // ---------- track tab ----------
+  document.getElementById('trackBtn').addEventListener('click', async function () {
+    var tn = document.getElementById('trackInput').value.trim();
+    var status = document.getElementById('trackStatus');
+    var resultCard = document.getElementById('trackResultCard');
+    resultCard.classList.add('hidden');
+
+    if (!tn) {
+      status.textContent = 'Enter a tracking number.';
+      return;
+    }
+    status.textContent = 'Looking up shipment...';
+    try {
+      var result = await apiFetch('/api/shipments/' + encodeURIComponent(tn));
+      var data = await result.res.json();
+      if (!result.res.ok) {
+        status.textContent = data.detail || 'Shipment not found.';
+        return;
+      }
+      status.textContent = '';
+      resultCard.classList.remove('hidden');
+      document.getElementById('trackResultTitle').textContent = 'Status: ' + data.status;
+
+      var rows = document.getElementById('trackRows');
+      rows.innerHTML = '';
+      function row(label, value) {
+        var d = document.createElement('div');
+        d.className = 'trackRow';
+        d.innerHTML = '<span>' + label + '</span><span>' + (value || '—') + '</span>';
+        rows.appendChild(d);
+      }
+      row('From', data.sender ? data.sender.name : '—');
+      row('To', data.receiver ? data.receiver.name : '—');
+      row('Service', data.speed_label || data.speed || '—');
+      if (data.price) row('Price', money(data.price, data.currency));
+      row('Payment', data.payment_status || 'unpaid');
+
+      var payBtn = document.getElementById('trackPayBtn');
+      var receiptLink = document.getElementById('trackReceiptLink');
+      receiptLink.href = result.base + '/api/shipments/' + encodeURIComponent(tn) + '/receipt';
+
+      if (data.price && data.payment_status !== 'paid') {
+        payBtn.classList.remove('hidden');
+        payBtn.onclick = async function () {
+          payBtn.disabled = true;
+          try {
+            var payResult = await apiFetch('/api/shipments/' + encodeURIComponent(tn) + '/pay', { method: 'POST' });
+            var payData = await payResult.res.json();
+            if (payResult.res.ok) {
+              window.open(payData.payment_link, '_blank');
+            }
+          } finally {
+            payBtn.disabled = false;
+          }
+        };
+      } else {
+        payBtn.classList.add('hidden');
+      }
+    } catch (e) {
+      status.textContent = 'Network error — could not reach the server.';
+    }
+  });
+
+  // ---------- mailing subscribe ----------
+  document.getElementById('subscribeBtn').addEventListener('click', async function () {
+    var email = document.getElementById('subEmail').value.trim();
+    var name = document.getElementById('subName').value.trim();
+    var region = document.getElementById('subRegion').value.trim();
+    var status = document.getElementById('subscribeStatus');
+
+    if (!email) {
+      status.textContent = 'Enter an email address.';
+      return;
+    }
+    status.textContent = 'Subscribing...';
+    try {
+      var result = await apiFetch('/api/mail/subscribers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, name: name || null, region: region || null })
+      });
+      var data = await result.res.json();
+      if (!result.res.ok) {
+        status.textContent = data.detail || 'Could not subscribe.';
+        return;
+      }
+      status.textContent = 'Subscribed! You will receive updates by email.';
+    } catch (e) {
+      status.textContent = 'Network error — could not reach the server.';
+    }
+  });
+})();
+</script>
+</body>
+</html>
