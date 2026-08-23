@@ -63,6 +63,10 @@
     margin-top: 14px; margin-left: 8px; background: var(--panel-2); border: 1px solid var(--border);
     border-radius: 10px; color: var(--text); padding: 11px 20px; font-size: 0.95rem; cursor: pointer;
   }
+  button.danger {
+    margin-top: 14px; margin-left: 8px; background: transparent; border: 1px solid var(--accent);
+    border-radius: 10px; color: var(--accent); padding: 11px 20px; font-size: 0.95rem; cursor: pointer;
+  }
 
   table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.88rem; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
@@ -74,7 +78,7 @@
   }
   .badge.delivered { color: var(--ok); border-color: var(--ok); }
   .badge.in_transit, .badge.out_for_delivery { color: var(--warn); border-color: var(--warn); }
-  .badge.failed_delivery, .badge.returned { color: var(--accent); border-color: var(--accent); }
+  .badge.failed_delivery, .badge.returned, .badge.cancelled { color: var(--accent); border-color: var(--accent); }
   .badge.paid { color: var(--ok); border-color: var(--ok); }
   .badge.unpaid { color: var(--warn); border-color: var(--warn); }
 
@@ -89,6 +93,10 @@
   .tier-option .tier-name { font-weight: 600; }
   .tier-option .tier-eta { color: var(--muted); font-size: 0.8rem; }
   .tier-option .tier-price { font-weight: 700; font-size: 1.05rem; }
+
+  .edit-block {
+    margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
+  }
 </style>
 </head>
 <body>
@@ -200,7 +208,9 @@
 
 <script>
   const API = "";
-  let selectedQuote = null; // holds the chosen tier's quote object
+  let selectedQuote = null; // holds the chosen tier's quote object (new shipment form)
+  let editQuote = null;     // holds the chosen tier's quote object (edit-existing-shipment form)
+  let currentTrackingNumber = null;
 
   function showTab(name) {
     document.getElementById('mail').classList.toggle('active', name === 'mail');
@@ -264,7 +274,7 @@
     } catch (e) { /* silent */ }
   }
 
-  // ---------- shipping quotes ----------
+  // ---------- shipping quotes (new shipment) ----------
 
   async function getQuote() {
     const origin = document.getElementById('quoteOrigin').value.trim();
@@ -298,7 +308,6 @@
           <div class="tier-price">${q.total.toLocaleString()} ${q.currency}</div>
         </div>
       `).join('');
-      // auto-fill sender/receiver address fields from the quote inputs
       document.getElementById('senderAddress').value = origin;
       document.getElementById('receiverAddress').value = destination;
     } catch (e) {
@@ -308,7 +317,7 @@
 
   function selectTier(index, quotes) {
     selectedQuote = quotes[index];
-    document.querySelectorAll('.tier-option').forEach(el => el.classList.remove('selected'));
+    document.querySelectorAll('#tierList .tier-option').forEach(el => el.classList.remove('selected'));
     document.getElementById(`tier-${selectedQuote.speed}`).classList.add('selected');
     updateSelectedTierMsg();
   }
@@ -366,6 +375,8 @@
     const tn = document.getElementById('trackInput').value.trim();
     const resultEl = document.getElementById('trackResult');
     if (!tn) return;
+    currentTrackingNumber = tn;
+    editQuote = null;
     try {
       const res = await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}`);
       if (!res.ok) throw new Error('Not found');
@@ -374,26 +385,157 @@
       const priceLine = s.price
         ? `<p>Price: <strong>${s.price.toLocaleString()} ${s.currency}</strong> (${s.speed_label || s.speed}) — <span class="badge ${s.payment_status}">${s.payment_status}</span></p>`
         : `<p class="status-msg">No price set for this shipment.</p>`;
-      const payButton = (s.price && s.payment_status !== 'paid')
+      const isPaid = s.payment_status === 'paid';
+      const isCancelled = s.status === 'cancelled';
+      const payButton = (s.price && !isPaid && !isCancelled)
         ? `<button class="primary" onclick="payShipment('${s.tracking_number}')">Pay now</button>`
         : '';
       const receiptButton = `<button class="secondary" onclick="window.open('${API}/api/shipments/${encodeURIComponent(s.tracking_number)}/receipt', '_blank')">View / print receipt</button>`;
+
+      // Edit + cancel block — only offered while unpaid and not already cancelled
+      let editBlock = '';
+      if (!isPaid && !isCancelled) {
+        editBlock = `
+          <div class="edit-block">
+            <h2 style="font-size:0.95rem;">Edit shipment</h2>
+            <label>Description</label>
+            <input id="editDesc" type="text" value="${escapeHtml(s.description || '')}">
+            <div class="row">
+              <div>
+                <label>Re-quote — sender address / grid ID</label>
+                <input id="editOrigin" type="text" value="${escapeHtml(s.sender.address)}">
+              </div>
+              <div>
+                <label>Re-quote — receiver address / grid ID</label>
+                <input id="editDest" type="text" value="${escapeHtml(s.receiver.address)}">
+              </div>
+            </div>
+            <label>Weight (kg)</label>
+            <input id="editWeight" type="number" step="0.1" value="${s.weight_kg ?? ''}">
+            <button class="secondary" onclick="getEditQuote('${s.tracking_number}')">Get new quote</button>
+            <div class="status-msg" id="editQuoteStatus"></div>
+            <div id="editTierList" style="margin-top: 10px;"></div>
+            <div class="status-msg" id="editSelectedTierMsg">No new tier selected — description/weight changes only.</div>
+            <button class="primary" onclick="saveShipmentEdit('${s.tracking_number}')">Save changes</button>
+            <button class="danger" onclick="cancelShipment('${s.tracking_number}')">Cancel shipment</button>
+          </div>
+        `;
+      } else if (isPaid) {
+        editBlock = `<p class="status-msg">This shipment is paid and can no longer be edited or cancelled.</p>`;
+      } else if (isCancelled) {
+        editBlock = `<p class="status-msg">This shipment has been cancelled.</p>`;
+      }
+
       resultEl.innerHTML = `
         <p><strong>${s.tracking_number}</strong> — <span class="badge ${s.status}">${s.status}</span></p>
         <p style="color:var(--muted)">To: ${escapeHtml(s.receiver.name)}, ${escapeHtml(s.receiver.address)}</p>
         ${priceLine}
         <label>Update status</label>
         <select id="newStatus">
-          ${['created','picked_up','in_transit','out_for_delivery','delivered','failed_delivery','returned']
+          ${['created','picked_up','in_transit','out_for_delivery','delivered','failed_delivery','returned','cancelled']
             .map(st => `<option value="${st}" ${st === s.status ? 'selected' : ''}>${st}</option>`).join('')}
         </select>
         <button class="primary" onclick="updateStatus('${s.tracking_number}')">Update status</button>
         ${payButton}
         ${receiptButton}
+        ${editBlock}
         <ul>${history}</ul>
       `;
     } catch (e) {
       resultEl.innerHTML = `<p class="status-msg">${e.message}</p>`;
+    }
+  }
+
+  async function getEditQuote(tn) {
+    const origin = document.getElementById('editOrigin').value.trim();
+    const destination = document.getElementById('editDest').value.trim();
+    const weight = parseFloat(document.getElementById('editWeight').value);
+    const statusEl = document.getElementById('editQuoteStatus');
+    const tierListEl = document.getElementById('editTierList');
+    editQuote = null;
+    updateEditSelectedTierMsg();
+
+    if (!origin || !destination || !weight) {
+      statusEl.textContent = 'Fill in both addresses and a weight first.';
+      return;
+    }
+    statusEl.textContent = 'Getting quote...';
+    tierListEl.innerHTML = '';
+    try {
+      const res = await fetch(`${API}/api/shipments/quote`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin, destination, weight_kg: weight })
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Failed to get quote');
+      const quotes = await res.json();
+      statusEl.textContent = `${quotes[0].distance_km} km road distance. Tap a tier to select it.`;
+      tierListEl.innerHTML = quotes.map((q, i) => `
+        <div class="tier-option" id="edit-tier-${q.speed}" onclick="selectEditTier(${i}, ${JSON.stringify(quotes).replace(/"/g, '&quot;')})">
+          <div>
+            <div class="tier-name">${q.speed_label}</div>
+            <div class="tier-eta">${q.eta_days === 0 ? 'Same day' : q.eta_days + ' day' + (q.eta_days > 1 ? 's' : '')}</div>
+          </div>
+          <div class="tier-price">${q.total.toLocaleString()} ${q.currency}</div>
+        </div>
+      `).join('');
+    } catch (e) {
+      statusEl.textContent = `Error: ${e.message}`;
+    }
+  }
+
+  function selectEditTier(index, quotes) {
+    editQuote = quotes[index];
+    document.querySelectorAll('#editTierList .tier-option').forEach(el => el.classList.remove('selected'));
+    document.getElementById(`edit-tier-${editQuote.speed}`).classList.add('selected');
+    updateEditSelectedTierMsg();
+  }
+
+  function updateEditSelectedTierMsg() {
+    const el = document.getElementById('editSelectedTierMsg');
+    if (!el) return;
+    if (editQuote) {
+      el.textContent = `New tier selected: ${editQuote.speed_label} — ${editQuote.total.toLocaleString()} ${editQuote.currency}`;
+    } else {
+      el.textContent = 'No new tier selected — description/weight changes only.';
+    }
+  }
+
+  async function saveShipmentEdit(tn) {
+    const payload = {
+      description: document.getElementById('editDesc').value.trim() || null,
+    };
+    if (editQuote) {
+      payload.weight_kg = editQuote.weight_kg;
+      payload.speed = editQuote.speed;
+      payload.price = editQuote.total;
+      payload.currency = editQuote.currency;
+    } else {
+      const weightVal = parseFloat(document.getElementById('editWeight').value);
+      if (!isNaN(weightVal)) payload.weight_kg = weightVal;
+    }
+    try {
+      const res = await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Failed to save changes');
+      editQuote = null;
+      lookupShipment();
+      loadShipments();
+    } catch (e) {
+      document.getElementById('editQuoteStatus').textContent = `Error: ${e.message}`;
+    }
+  }
+
+  async function cancelShipment(tn) {
+    if (!confirm(`Cancel shipment ${tn}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}/cancel`, { method: 'POST' });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Failed to cancel');
+      lookupShipment();
+      loadShipments();
+    } catch (e) {
+      alert(`Error: ${e.message}`);
     }
   }
 
@@ -403,7 +545,7 @@
       const res = await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}/pay`, { method: 'POST' });
       if (!res.ok) throw new Error((await res.json()).detail || 'Failed to start payment');
       const data = await res.json();
-      window.location.href = data.payment_link; // send to Flutterwave hosted checkout
+      window.location.href = data.payment_link;
     } catch (e) {
       statusEl.insertAdjacentHTML('beforeend', `<p class="status-msg">Payment error: ${e.message}</p>`);
     }
