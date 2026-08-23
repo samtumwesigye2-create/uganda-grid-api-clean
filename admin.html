@@ -5,24 +5,56 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Admin - Uganda National Grid</title>
 <style>
-  *{box-sizing:border-box} body{margin:0;font-family:Arial,sans-serif;background:#0d1117;color:#e6edf3}
-  header{background:#111827;padding:16px;text-align:center}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Arial,sans-serif;background:#0d1117;color:#e6edf3}
+  header{background:#111827;padding:16px;text-align:center;position:sticky;top:0;z-index:10}
   header h1{margin:0;font-size:20px}
-  main{max-width:480px;margin:40px auto;padding:16px}
-  .loginBox{background:#161b22;border-radius:12px;padding:24px;border:1px solid #2a3150}
+  main{max-width:720px;margin:0 auto;padding:16px}
+
+  /* Login */
+  .loginBox{background:#161b22;border-radius:12px;padding:24px;border:1px solid #2a3150;margin-top:24px}
   label{display:block;font-weight:700;font-size:13px;margin-bottom:8px}
-  input,button{width:100%;font-size:16px;border-radius:8px;padding:12px;border:1px solid #2a3150;box-sizing:border-box}
-  input{background:#0d1117;color:#e6edf3;margin-bottom:12px}
+  input,button,select,textarea{width:100%;font-size:16px;border-radius:8px;padding:12px;border:1px solid #2a3150;box-sizing:border-box}
+  input,select,textarea{background:#0d1117;color:#e6edf3;margin-bottom:10px;font-family:inherit}
   button{border:0;font-weight:700;cursor:pointer;background:#2563eb;color:#fff}
-  button:disabled{opacity:.6;cursor:default}
+  button:disabled{opacity:.5;cursor:default}
   #loginStatus{font-size:13px;margin-top:10px;color:#9ca3af}
-  #panel{display:none;margin-top:20px}
+
+  /* Panel */
+  #panel{display:none}
+  #logoutBar{display:flex;justify-content:space-between;align-items:center;margin:16px 0}
+  #logoutBar button{width:auto;background:#374151;padding:8px 14px;font-size:13px}
+
+  /* Tabs */
+  .tabs{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px}
+  .tabBtn{width:auto;flex-shrink:0;background:#161b22;color:#9ca3af;border:1px solid #2a3150;padding:10px 14px;font-size:13px}
+  .tabBtn.active{background:#2563eb;color:#fff;border-color:#2563eb}
+  .tabPane{display:none}
+  .tabPane.active{display:block}
+
+  /* Cards */
   .row{background:#161b22;border:1px solid #2a3150;border-radius:12px;padding:16px;margin-bottom:12px}
+  .row h3{margin:0 0 8px;font-size:15px}
+  .tag{display:inline-block;background:#1f2937;color:#9ca3af;border-radius:999px;padding:4px 10px;font-size:12px;margin:0 6px 6px 0}
+  .card img,.card video{max-width:100%;border-radius:8px;margin-top:8px}
+  .decisionRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .approveForm{margin-top:10px;display:none}
+  .approveForm.active{display:block}
+  .denyBtn{background:#374151}
+  .toggleApproveBtn{background:#059669}
+  .confirmApproveBtn{background:#059669}
+  .statusMsg{font-size:12px;margin-top:6px;color:#9ca3af}
+  .emptyMsg{color:#6b7280;font-size:14px;text-align:center;padding:24px 0}
+  .refreshBtn{width:auto;background:#1f2937;color:#e6edf3;padding:8px 14px;font-size:13px;margin-bottom:12px}
+
+  /* Placeholder for sections not yet wired */
+  .placeholder{border:1px dashed #374151;border-radius:12px;padding:20px;color:#6b7280;font-size:14px;text-align:center}
 </style>
 </head>
 <body>
 <header><h1>Admin</h1></header>
 <main>
+
   <div id="loginSection" class="loginBox">
     <label for="passcodeInput">Admin passcode</label>
     <input type="password" id="passcodeInput" placeholder="Passcode" autocomplete="off" />
@@ -31,29 +63,86 @@
   </div>
 
   <div id="panel">
-    <div class="row">
-      <p>You're in. This confirms the passcode is being accepted by the backend.</p>
-      <p style="color:#9ca3af;font-size:13px">Pending submissions: <span id="pendingCount">–</span></p>
+    <div id="logoutBar">
+      <strong>Uganda National Grid Admin</strong>
+      <button id="lockBtn">Lock</button>
     </div>
-    <button id="lockBtn" style="background:#374151">Lock</button>
+
+    <div class="tabs">
+      <button class="tabBtn active" data-tab="submissions">Submissions</button>
+      <button class="tabBtn" data-tab="reports">Reports</button>
+      <button class="tabBtn" data-tab="mailing">Mailing</button>
+      <button class="tabBtn" data-tab="shipments">Shipments</button>
+    </div>
+
+    <div id="tab-submissions" class="tabPane active">
+      <button class="refreshBtn" data-refresh="submissions">Refresh</button>
+      <div id="submissionsList"></div>
+    </div>
+
+    <div id="tab-reports" class="tabPane">
+      <button class="refreshBtn" data-refresh="reports">Refresh</button>
+      <div id="reportsList"></div>
+    </div>
+
+    <div id="tab-mailing" class="tabPane">
+      <div class="placeholder">
+        Mailing admin controls aren't wired up here yet — send over mailing.py and I'll build this tab out.
+      </div>
+    </div>
+
+    <div id="tab-shipments" class="tabPane">
+      <div class="placeholder">
+        Shipment admin controls aren't wired up here yet — send over shipments.py and I'll build this tab out.
+      </div>
+    </div>
   </div>
 </main>
 
 <script>
 (function () {
   var passcode = '';
+  var API_BASE = location.origin;
+
   var passcodeInput = document.getElementById('passcodeInput');
   var unlockBtn = document.getElementById('unlockBtn');
   var loginStatus = document.getElementById('loginStatus');
   var loginSection = document.getElementById('loginSection');
   var panel = document.getElementById('panel');
   var lockBtn = document.getElementById('lockBtn');
-  var pendingCount = document.getElementById('pendingCount');
 
-  // Same-origin only — this page is served by the same API it talks to,
-  // so no cross-origin guessing needed.
-  var API_BASE = location.origin;
+  var BUILDING_LABELS = {
+    hospital: 'Hospital / Health Facility',
+    police: 'Police Station',
+    government: 'Government Office',
+    residence: 'Home / Residence',
+    business: 'Business',
+    other: 'Other'
+  };
 
+  var CATEGORY_LABELS = {
+    police: 'Police',
+    accident: 'Accident',
+    road_closure: 'Road Closure',
+    bridge: 'Bridge',
+    traffic: 'Traffic',
+    weather: 'Weather'
+  };
+
+  function escapeHtml(v) {
+    return String(v || '').replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function authedFetch(path, opts) {
+    opts = opts || {};
+    opts.headers = opts.headers || {};
+    opts.headers['X-Admin-Passcode'] = passcode;
+    return fetch(API_BASE + path, opts);
+  }
+
+  // ---------- Login ----------
   async function tryUnlock() {
     passcode = passcodeInput.value;
     if (!passcode) {
@@ -64,10 +153,7 @@
     loginStatus.textContent = 'Checking...';
 
     try {
-      var r = await fetch(API_BASE + '/submissions?status=pending', {
-        headers: { 'X-Admin-Passcode': passcode }
-      });
-
+      var r = await authedFetch('/submissions?status=pending');
       if (r.status === 401) {
         loginStatus.textContent = 'Incorrect passcode — rejected by server.';
         unlockBtn.disabled = false;
@@ -78,11 +164,9 @@
         unlockBtn.disabled = false;
         return;
       }
-
-      var data = await r.json();
-      pendingCount.textContent = data.count;
       loginSection.style.display = 'none';
       panel.style.display = 'block';
+      loadSubmissions();
     } catch (e) {
       loginStatus.textContent = 'Network error — could not reach ' + API_BASE;
       unlockBtn.disabled = false;
@@ -102,6 +186,156 @@
     panel.style.display = 'none';
     loginSection.style.display = 'block';
   });
+
+  // ---------- Tabs ----------
+  document.querySelectorAll('.tabBtn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.tabBtn').forEach(function (b) { b.classList.remove('active'); });
+      document.querySelectorAll('.tabPane').forEach(function (p) { p.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('[data-refresh]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      if (btn.dataset.refresh === 'submissions') loadSubmissions();
+      if (btn.dataset.refresh === 'reports') loadReports();
+    });
+  });
+
+  // ---------- Submissions ----------
+  async function loadSubmissions() {
+    var list = document.getElementById('submissionsList');
+    list.innerHTML = '<div class="emptyMsg">Loading...</div>';
+    try {
+      var r = await authedFetch('/submissions?status=pending');
+      if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load submissions.</div>'; return; }
+      var data = await r.json();
+      renderSubmissions(data.results || []);
+    } catch (e) {
+      list.innerHTML = '<div class="emptyMsg">Network error.</div>';
+    }
+  }
+
+  function renderSubmissions(items) {
+    var list = document.getElementById('submissionsList');
+    list.innerHTML = '';
+    if (!items.length) {
+      list.innerHTML = '<div class="emptyMsg">No pending submissions.</div>';
+      return;
+    }
+    items.forEach(function (sub) {
+      var card = document.createElement('div');
+      card.className = 'row card';
+      var mediaHtml = '';
+      if (sub.media_url) {
+        var url = API_BASE + sub.media_url;
+        mediaHtml = (sub.media_type && sub.media_type.indexOf('video') === 0)
+          ? '<video src="' + url + '" controls></video>'
+          : '<img src="' + url + '" />';
+      }
+      card.innerHTML =
+        '<span class="tag">' + escapeHtml(BUILDING_LABELS[sub.building_type] || sub.building_type) + '</span>' +
+        '<span class="tag">' + sub.lat.toFixed(6) + ', ' + sub.lon.toFixed(6) + '</span>' +
+        (sub.note ? '<p>' + escapeHtml(sub.note) + '</p>' : '') +
+        mediaHtml +
+        '<div class="decisionRow">' +
+          '<button class="toggleApproveBtn" data-id="' + sub.id + '">Approve</button>' +
+          '<button class="denyBtn" data-id="' + sub.id + '">Deny</button>' +
+        '</div>' +
+        '<div class="approveForm" id="approveForm-' + sub.id + '">' +
+          '<input type="text" placeholder="Grid ID e.g. UG-ENT-000123" id="gridId-' + sub.id + '" />' +
+          '<input type="text" placeholder="Full address" id="address-' + sub.id + '" />' +
+          '<button data-id="' + sub.id + '" class="confirmApproveBtn">Confirm Approval</button>' +
+        '</div>' +
+        '<div class="statusMsg" id="msg-' + sub.id + '"></div>';
+      list.appendChild(card);
+    });
+
+    document.querySelectorAll('.toggleApproveBtn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.getElementById('approveForm-' + btn.dataset.id).classList.toggle('active');
+      });
+    });
+    document.querySelectorAll('.denyBtn').forEach(function (btn) {
+      btn.addEventListener('click', function () { decideSubmission(btn.dataset.id, 'deny', '', ''); });
+    });
+    document.querySelectorAll('.confirmApproveBtn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.dataset.id;
+        var gridId = document.getElementById('gridId-' + id).value.trim();
+        var address = document.getElementById('address-' + id).value.trim();
+        if (!gridId || !address) {
+          document.getElementById('msg-' + id).textContent = 'Grid ID and address are required';
+          return;
+        }
+        decideSubmission(id, 'approve', gridId, address);
+      });
+    });
+  }
+
+  async function decideSubmission(id, action, gridId, address) {
+    var msg = document.getElementById('msg-' + id);
+    if (msg) msg.textContent = 'Saving...';
+    var formData = new FormData();
+    formData.append('action', action);
+    formData.append('grid_id', gridId);
+    formData.append('address', address);
+    try {
+      var r = await authedFetch('/submissions/' + id + '/decision', { method: 'POST', body: formData });
+      if (r.ok) {
+        loadSubmissions();
+      } else if (msg) {
+        msg.textContent = 'Failed to save decision';
+      }
+    } catch (e) {
+      if (msg) msg.textContent = 'Network error';
+    }
+  }
+
+  // ---------- Reports ----------
+  async function loadReports() {
+    var list = document.getElementById('reportsList');
+    list.innerHTML = '<div class="emptyMsg">Loading...</div>';
+    try {
+      var r = await authedFetch('/reports');
+      if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load reports.</div>'; return; }
+      var data = await r.json();
+      renderReports(data.results || []);
+    } catch (e) {
+      list.innerHTML = '<div class="emptyMsg">Network error.</div>';
+    }
+  }
+
+  function renderReports(items) {
+    var list = document.getElementById('reportsList');
+    list.innerHTML = '';
+    if (!items.length) {
+      list.innerHTML = '<div class="emptyMsg">No active reports.</div>';
+      return;
+    }
+    items.sort(function (a, b) { return b.created_at - a.created_at; });
+    items.forEach(function (rep) {
+      var card = document.createElement('div');
+      card.className = 'row card';
+      var mediaHtml = '';
+      if (rep.media_url) {
+        var url = API_BASE + rep.media_url;
+        mediaHtml = (rep.media_type && rep.media_type.indexOf('video') === 0)
+          ? '<video src="' + url + '" controls></video>'
+          : '<img src="' + url + '" />';
+      }
+      var age = Math.max(0, Math.round((Date.now() / 1000 - rep.created_at) / 60));
+      card.innerHTML =
+        '<span class="tag">' + escapeHtml(CATEGORY_LABELS[rep.category] || rep.category) + '</span>' +
+        '<span class="tag">' + rep.lat.toFixed(6) + ', ' + rep.lon.toFixed(6) + '</span>' +
+        '<span class="tag">' + age + ' min ago</span>' +
+        (rep.note ? '<p>' + escapeHtml(rep.note) + '</p>' : '') +
+        mediaHtml;
+      list.appendChild(card);
+    });
+  }
 })();
 </script>
 </body>
