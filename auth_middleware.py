@@ -1,23 +1,21 @@
-"""
-Passcode protection middleware.
-
-Drop this file in your repo root (next to main.py), then wire it in
-as shown at the bottom of this file. It checks every incoming request
-for a secret passcode before your route functions ever run.
-"""
-
 import os
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
-PASSCODE = os.environ.get("PASSCODE")
+# Reuses the same ADMIN_PASSCODE env var already used by /submissions
+PASSCODE = os.environ.get("ADMIN_PASSCODE")
 
-OPEN_PATHS = {"/health", "/"}
+# Only these path prefixes require the passcode. Public/citizen-facing
+# routes (/, /search, /address, /submit, /report, /auth/*, /news, etc.)
+# stay open.
+PROTECTED_PREFIXES = ("/admin", "/mailing", "/shipments")
 
 
 class PasscodeMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
-        if request.url.path in OPEN_PATHS:
+        path = request.url.path
+
+        if not path.startswith(PROTECTED_PREFIXES):
             return await call_next(request)
 
         if not PASSCODE:
@@ -31,8 +29,3 @@ class PasscodeMiddleware(BaseHTTPMiddleware):
             return JSONResponse({"error": "Invalid or missing passcode"}, status_code=401)
 
         return await call_next(request)
-
-
-# In main.py:
-# from auth_middleware import PasscodeMiddleware
-# app.add_middleware(PasscodeMiddleware)
