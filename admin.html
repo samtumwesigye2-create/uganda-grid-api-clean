@@ -3,44 +3,39 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Review Submissions - Uganda National Grid</title>
+<title>Admin - Uganda National Grid</title>
 <style>
-  *{box-sizing:border-box} body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#111827}
-  header{background:#111827;color:#fff;padding:16px;text-align:center}
+  *{box-sizing:border-box} body{margin:0;font-family:Arial,sans-serif;background:#0d1117;color:#e6edf3}
+  header{background:#111827;padding:16px;text-align:center}
   header h1{margin:0;font-size:20px}
-  main{max-width:640px;margin:16px auto;padding:16px}
-  .loginBox{background:#fff;border-radius:12px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-  input,button{width:100%;font-size:16px;border-radius:8px;padding:12px;border:1px solid #d1d5db;box-sizing:border-box}
-  button{border:0;font-weight:700;cursor:pointer;margin-top:8px}
-  #unlockBtn{background:#2563eb;color:#fff}
-  .card{background:#fff;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-  .card img,.card video{max-width:100%;border-radius:8px;margin-top:8px}
-  .tag{display:inline-block;background:#f3f4f6;border-radius:999px;padding:4px 10px;font-size:12px;margin-right:6px}
-  .decisionRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-  .approveForm{margin-top:10px;display:none}
-  .approveForm.active{display:block}
-  .approveForm input{margin-bottom:8px}
-  .denyBtn{background:#374151;color:#fff}
-  .toggleApproveBtn{background:#059669;color:#fff}
-  .confirmApproveBtn{background:#059669;color:#fff}
-  .statusMsg{font-size:12px;margin-top:6px;color:#6b7280}
-  #logoutBar{display:flex;justify-content:flex-end;margin-bottom:10px}
-  #logoutBtn{width:auto;background:#e5e7eb;color:#111827;padding:8px 14px;font-size:13px}
+  main{max-width:480px;margin:40px auto;padding:16px}
+  .loginBox{background:#161b22;border-radius:12px;padding:24px;border:1px solid #2a3150}
+  label{display:block;font-weight:700;font-size:13px;margin-bottom:8px}
+  input,button{width:100%;font-size:16px;border-radius:8px;padding:12px;border:1px solid #2a3150;box-sizing:border-box}
+  input{background:#0d1117;color:#e6edf3;margin-bottom:12px}
+  button{border:0;font-weight:700;cursor:pointer;background:#2563eb;color:#fff}
+  button:disabled{opacity:.6;cursor:default}
+  #loginStatus{font-size:13px;margin-top:10px;color:#9ca3af}
+  #panel{display:none;margin-top:20px}
+  .row{background:#161b22;border:1px solid #2a3150;border-radius:12px;padding:16px;margin-bottom:12px}
 </style>
 </head>
 <body>
-<header><h1>Submission Review</h1></header>
+<header><h1>Admin</h1></header>
 <main>
   <div id="loginSection" class="loginBox">
-    <label style="display:block;font-weight:700;font-size:13px;margin-bottom:6px">Enter passcode</label>
-    <input type="password" id="passcodeInput" placeholder="Passcode" />
+    <label for="passcodeInput">Admin passcode</label>
+    <input type="password" id="passcodeInput" placeholder="Passcode" autocomplete="off" />
     <button id="unlockBtn">Unlock</button>
-    <div id="loginStatus" class="statusMsg"></div>
+    <div id="loginStatus"></div>
   </div>
 
-  <div id="reviewSection" style="display:none">
-    <div id="logoutBar"><button id="logoutBtn">Lock</button></div>
-    <div id="list"></div>
+  <div id="panel">
+    <div class="row">
+      <p>You're in. This confirms the passcode is being accepted by the backend.</p>
+      <p style="color:#9ca3af;font-size:13px">Pending submissions: <span id="pendingCount">–</span></p>
+    </div>
+    <button id="lockBtn" style="background:#374151">Lock</button>
   </div>
 </main>
 
@@ -51,231 +46,61 @@
   var unlockBtn = document.getElementById('unlockBtn');
   var loginStatus = document.getElementById('loginStatus');
   var loginSection = document.getElementById('loginSection');
-  var reviewSection = document.getElementById('reviewSection');
-  var list = document.getElementById('list');
-  var logoutBtn = document.getElementById('logoutBtn');
+  var panel = document.getElementById('panel');
+  var lockBtn = document.getElementById('lockBtn');
+  var pendingCount = document.getElementById('pendingCount');
 
-  var BUILDING_LABELS = {
-    hospital: 'Hospital / Health Facility',
-    police: 'Police Station',
-    government: 'Government Office',
-    residence: 'Home / Residence',
-    business: 'Business',
-    other: 'Other'
-  };
+  // Same-origin only — this page is served by the same API it talks to,
+  // so no cross-origin guessing needed.
+  var API_BASE = location.origin;
 
-  function apiCandidates() {
-    var urls = [];
-    if (location.protocol.indexOf('http') === 0) urls.push(location.origin);
-    urls.push('https://uganda-grid-api-clean-production.up.railway.app');
-    return urls;
-  }
-
-  async function fetchSubmissions() {
-    var candidates = apiCandidates();
-    for (var i = 0; i < candidates.length; i++) {
-      try {
-        var r = await fetch(candidates[i] + '/submissions?status=pending', {
-          headers: { 'X-Admin-Passcode': passcode }
-        });
-        if (r.status === 401) return { unauthorized: true };
-        if (r.ok) {
-          var d = await r.json();
-          return { base: candidates[i], results: d.results || [] };
-        }
-      } catch (e) {}
-    }
-    return null;
-  }
-
-  function mediaHtml(sub, base) {
-    if (!sub.media_url) return '';
-    var url = base + sub.media_url;
-    if (sub.media_type && sub.media_type.indexOf('video') === 0) {
-      return '<video src="' + url + '" controls></video>';
-    }
-    return '<img src="' + url + '" />';
-  }
-
-  function escapeHtml(v) {
-    return String(v || '').replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
-
-  function renderList(base, submissions) {
-    list.innerHTML = '';
-    if (!submissions.length) {
-      list.innerHTML = '<div class="card">No pending submissions.</div>';
-      return;
-    }
-    submissions.forEach(function (sub) {
-      var card = document.createElement('div');
-      card.className = 'card';
-      card.innerHTML =
-        '<span class="tag">' + escapeHtml(BUILDING_LABELS[sub.building_type] || sub.building_type) + '</span>' +
-        '<span class="tag">' + sub.lat.toFixed(6) + ', ' + sub.lon.toFixed(6) + '</span>' +
-        (sub.note ? '<p>' + escapeHtml(sub.note) + '</p>' : '') +
-        mediaHtml(sub, base) +
-        '<div class="decisionRow">' +
-        '<button class="toggleApproveBtn" data-id="' + sub.id + '">Approve</button>' +
-        '<button class="denyBtn" data-id="' + sub.id + '">Deny</button>' +
-        '</div>' +
-        '<div class="approveForm" id="approveForm-' + sub.id + '">' +
-        '<input type="text" placeholder="Grid ID e.g. UG-ENT-000123" id="gridId-' + sub.id + '" />' +
-        '<input type="text" placeholder="Full address" id="address-' + sub.id + '" />' +
-        '<button data-id="' + sub.id + '" class="confirmApproveBtn">Confirm Approval</button>' +
-        '</div>' +
-        '<div class="statusMsg" id="msg-' + sub.id + '"></div>';
-      list.appendChild(card);
-    });
-
-    document.querySelectorAll('.toggleApproveBtn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var id = btn.dataset.id;
-        document.getElementById('approveForm-' + id).classList.toggle('active');
-      });
-    });
-
-    document.querySelectorAll('.denyBtn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        decide(base, btn.dataset.id, 'deny', '', '');
-      });
-    });
-
-    document.querySelectorAll('.confirmApproveBtn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var id = btn.dataset.id;
-        var gridId = document.getElementById('gridId-' + id).value.trim();
-        var address = document.getElementById('address-' + id).value.trim();
-        if (!gridId || !address) {
-          document.getElementById('msg-' + id).textContent = 'Grid ID and address are required';
-          return;
-        }
-        decide(base, id, 'approve', gridId, address);
-      });
-    });
-  }
-
-  async function decide(base, id, action, gridId, address) {
-    var msg = document.getElementById('msg-' + id);
-    if (msg) msg.textContent = 'Saving...';
-    var formData = new FormData();
-    formData.append('action', action);
-    formData.append('grid_id', gridId);
-    formData.append('address', address);
-    try {
-      var r = await fetch(base + '/submissions/' + id + '/decision', {
-        method: 'POST',
-        headers: { 'X-Admin-Passcode': passcode },
-        body: formData
-      });
-      if (r.ok) {
-        loadSubmissions();
-      } else if (msg) {
-        msg.textContent = 'Failed to save decision';
-      }
-    } catch (e) {
-      if (msg) msg.textContent = 'Network error';
-    }
-  }
-
-  async function loadSubmissions() {
-    var result = await fetchSubmissions();
-    if (!result) {
-      loginStatus.textContent = 'Unable to reach server';
-      return;
-    }
-    if (result.unauthorized) {
-      loginStatus.textContent = 'Incorrect passcode';
-      loginSection.style.display = 'block';
-      reviewSection.style.display = 'none';
-      return;
-    }
-    loginSection.style.display = 'none';
-    reviewSection.style.display = 'block';
-    renderList(result.base, result.results);
-  }
-
-  unlockBtn.addEventListener('click', function () {
+  async function tryUnlock() {
     passcode = passcodeInput.value;
+    if (!passcode) {
+      loginStatus.textContent = 'Enter a passcode first.';
+      return;
+    }
+    unlockBtn.disabled = true;
     loginStatus.textContent = 'Checking...';
-    loadSubmissions();
+
+    try {
+      var r = await fetch(API_BASE + '/submissions?status=pending', {
+        headers: { 'X-Admin-Passcode': passcode }
+      });
+
+      if (r.status === 401) {
+        loginStatus.textContent = 'Incorrect passcode — rejected by server.';
+        unlockBtn.disabled = false;
+        return;
+      }
+      if (!r.ok) {
+        loginStatus.textContent = 'Server error (' + r.status + '). Try again.';
+        unlockBtn.disabled = false;
+        return;
+      }
+
+      var data = await r.json();
+      pendingCount.textContent = data.count;
+      loginSection.style.display = 'none';
+      panel.style.display = 'block';
+    } catch (e) {
+      loginStatus.textContent = 'Network error — could not reach ' + API_BASE;
+      unlockBtn.disabled = false;
+    }
+  }
+
+  unlockBtn.addEventListener('click', tryUnlock);
+  passcodeInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') tryUnlock();
   });
 
-  logoutBtn.addEventListener('click', function () {
+  lockBtn.addEventListener('click', function () {
     passcode = '';
     passcodeInput.value = '';
-    loginSection.style.display = 'block';
-    reviewSection.style.display = 'none';
     loginStatus.textContent = '';
-  });
-})();
-</script>
-
-<!-- ===== Pay a shipment ===== -->
-<div style="margin-top:24px;padding:16px;border-radius:12px;background:#1a2035;border:1px solid #2a3150;">
-  <h3 style="margin:0 0 12px;color:#fff;">Pay a shipment</h3>
-
-  <label style="display:block;font-size:13px;color:#9ca3af;margin-bottom:6px;">Tracking number</label>
-  <input
-    type="text"
-    id="payTrackingInput"
-    placeholder="UG-SHIP-000002"
-    style="width:100%;padding:12px;border-radius:8px;border:1px solid #2a3150;background:#111527;color:#fff;font-size:16px;margin-bottom:10px;"
-  />
-
-  <button
-    type="button"
-    id="payButton"
-    style="width:100%;padding:14px;border:0;border-radius:8px;background:#e15b4d;color:#fff;font-weight:700;font-size:16px;cursor:pointer;"
-  >
-    Get payment link
-  </button>
-
-  <div id="payStatus" style="margin-top:12px;font-size:14px;color:#9ca3af;"></div>
-</div>
-
-<script>
-(function () {
-  var API_BASE = "https://uganda-grid-api-clean-production.up.railway.app";
-
-  var input = document.getElementById("payTrackingInput");
-  var button = document.getElementById("payButton");
-  var status = document.getElementById("payStatus");
-
-  button.addEventListener("click", async function () {
-    var tracking = input.value.trim();
-    if (!tracking) {
-      status.textContent = "Enter a tracking number first.";
-      status.style.color = "#f87171";
-      return;
-    }
-
-    button.disabled = true;
-    status.textContent = "Requesting payment link...";
-    status.style.color = "#9ca3af";
-
-    try {
-      var resp = await fetch(
-        API_BASE + "/api/shipments/" + encodeURIComponent(tracking) + "/pay",
-        { method: "POST" }
-      );
-      var data = await resp.json();
-
-      if (!resp.ok) {
-        throw new Error(data.detail || "Payment request failed");
-      }
-
-      status.textContent = "Opening checkout...";
-      status.style.color = "#34d399";
-      window.open(data.payment_link, "_blank");
-    } catch (err) {
-      status.textContent = "Error: " + err.message;
-      status.style.color = "#f87171";
-    } finally {
-      button.disabled = false;
-    }
+    unlockBtn.disabled = false;
+    panel.style.display = 'none';
+    loginSection.style.display = 'block';
   });
 })();
 </script>
