@@ -1,584 +1,475 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UGAMAP Admin — Mail &amp; Shipments</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Uganda National Grid</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
-  :root {
-    --bg: #0d1225;
-    --panel: #161c36;
-    --panel-2: #1f2749;
-    --accent: #e0483e;
-    --text: #f2f4fb;
-    --muted: #9aa3c7;
-    --border: #2a3358;
-    --ok: #4ade80;
-    --warn: #fbbf24;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  }
-  header { padding: 20px 24px; border-bottom: 1px solid var(--border); }
-  header h1 { margin: 0; font-size: 1.4rem; }
-  header p { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
+:root{
+--bg-page:#0b1220;
+--bg-header:#0f1830;
+--bg-card:#1c2540;
+--bg-input:#1b2338;
+--text-primary:#f5f7fb;
+--text-secondary:#9aa4bd;
+--border-subtle:rgba(255,255,255,0.08);
+--border-strong:rgba(255,255,255,0.22);
+--accent-red:#e0332f;
+--accent-blue:#3b5bfd;
+--accent-amber:#f5a623;
+--accent-green:#22c55e;
+--success-bg:rgba(16,60,36,0.55);
+--success-text:#6fe3a1;
+--err-bg:rgba(80,20,20,0.55);
+--err-text:#f39a9a;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:var(--bg-page);color:var(--text-primary);display:flex;flex-direction:column;height:100vh;height:calc(var(--vh, 1vh) * 100);overflow:hidden}
+header{flex:0 0 auto;background:var(--bg-header);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-subtle);transition:padding .2s ease}
+header .icon-btn{background:none;border:0;color:var(--text-primary);font-size:18px;padding:4px;width:auto}
+header .titleWrap{text-align:center;flex:1}
+header h1{margin:0;font-size:15px;font-weight:700}
+header p{margin:1px 0 0;font-size:10px;color:var(--text-secondary)}
+.contentScroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.panel{flex:0 0 auto;max-width:900px;width:100%;margin:0 auto;padding:8px 10px;transition:opacity .15s ease}
+.field{position:relative;margin-bottom:8px}
+label{display:block;font-weight:700;font-size:11px;margin-bottom:4px;color:var(--text-secondary)}
+input,select,textarea{width:100%;font-size:14px;border-radius:10px;padding:10px 36px 10px 12px;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-primary)}
+input::placeholder,textarea::placeholder{color:var(--text-secondary)}
+.fieldIcon{
+position:absolute;
+right:8px;
+top:26px;
+width:24px;
+height:24px;
+display:flex;
+align-items:center;
+justify-content:center;
+color:var(--text-secondary);
+font-size:15px;
+background:none;
+border:0;
+padding:0;
+cursor:pointer;
+}
+#start{ padding-right:40px; }
+button{width:100%;font-size:14px;border-radius:10px;padding:10px;border:0;font-weight:700;cursor:pointer;color:var(--text-primary)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+select{background:var(--bg-input);padding:10px 12px}
+#navigate{background:var(--accent-red);display:flex;align-items:center;justify-content:center;gap:8px}
+#navigate .btnIcon{flex:0 0 auto;display:block}
+#navigate .navText{display:flex;flex-direction:column;align-items:flex-start;line-height:1.25}
+#navigate .navMain{display:block;font-size:14px}
+#navigate .navSub{display:block;font-size:10px;font-weight:400;opacity:.85}
+.secondaryBtn{background:var(--bg-input);border:1px solid var(--border-subtle)}
+#googleMaps{background:#ffffff;color:#1a73e8;border:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:center;gap:8px}
+#googleMaps .btnIcon{flex:0 0 auto;display:block}
+.suggest{position:absolute;left:0;right:0;top:100%;display:none;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:10px;max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;z-index:3000;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+.suggest div{padding:12px;border-bottom:1px solid var(--border-subtle);cursor:pointer;font-size:14px;color:var(--text-primary)}
+.suggest div:last-child{border-bottom:0}
+.suggest div:active,.suggest div:hover{background:var(--bg-input)}
+.selected{font-size:11px;color:var(--text-secondary);min-height:14px;margin-top:3px}
+.status{font-size:12px;margin:6px 0 0;padding:8px 10px;border-radius:8px;background:var(--bg-input)}
+.status.ok{background:var(--success-bg);color:var(--success-text)}
+.status.err{background:var(--err-bg);color:var(--err-text)}
+#info{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.routecard{background:var(--bg-input);border-radius:999px;padding:5px 9px;font-size:11px}
 
-  nav { display: flex; gap: 8px; padding: 12px 24px; border-bottom: 1px solid var(--border); }
-  nav button {
-    background: var(--panel); color: var(--text); border: 1px solid var(--border);
-    border-radius: 10px; padding: 10px 18px; font-size: 0.95rem; cursor: pointer;
-  }
-  nav button.active { background: var(--accent); border-color: var(--accent); }
+/* ---- Map + full-screen navigation mode ---- */
+.mapWrap{position:relative;flex:1 1 auto;min-height:160px;width:100%;overflow:hidden;background:#0b1220}
+#map{position:absolute;top:50%;left:50%;width:160%;height:160%;transform:translate(-50%,-50%) rotate(0deg);transform-origin:center center;transition:transform .35s linear}
+#map.no-anim{transition:none}
+.leaflet-tile-pane{transition:filter .3s ease}
+.map-dark .leaflet-tile-pane{filter:invert(92%) hue-rotate(180deg) brightness(0.94) contrast(0.92) saturate(0.9)}
+.nav-arrow-icon{background:transparent !important;border:none !important}
 
-  main { padding: 20px 24px; max-width: 900px; }
-  section { display: none; }
-  section.active { display: block; }
+/* Body-level state when actively navigating: hide the search panel + bottom
+   nav so the map (already flex:1) expands to fill the whole screen. */
+body.navigating .panel{display:none}
+body.navigating .navWrap{display:none}
+body.navigating header{padding:5px 12px}
+body.navigating header p{display:none}
 
-  .card {
-    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
-    padding: 18px; margin-bottom: 18px;
-  }
-  .card h2 { margin: 0 0 12px; font-size: 1.05rem; }
+.navOverlayTop{position:absolute;top:10px;left:10px;right:10px;z-index:950;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.navOverlayTop>*{pointer-events:auto}
 
-  label { display: block; font-size: 0.85rem; color: var(--muted); margin: 10px 0 4px; }
-  input, textarea, select {
-    width: 100%; background: var(--panel-2); border: 1px solid var(--border);
-    border-radius: 8px; padding: 10px; color: var(--text); font-size: 0.95rem;
-  }
-  textarea { min-height: 100px; resize: vertical; }
+.turnBanner{background:var(--bg-card);border:1px solid var(--border-strong);border-radius:12px;padding:10px 12px;display:none;flex-direction:column;gap:5px;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+.turnBanner.active{display:flex}
+.turnBanner .turnRow{display:flex;align-items:center;gap:8px}
+.turnBanner .turnArrowGlyph{font-size:20px;flex:0 0 auto}
+.turnBanner .turnMain{font-size:15px;font-weight:700;flex:1 1 auto}
+.turnBanner .turnSub{font-size:12px;color:var(--text-secondary)}
+.turnBanner .progressTrack{height:4px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:2px}
+.turnBanner .progressFill{height:100%;width:0%;background:var(--accent-blue);border-radius:2px;transition:width .4s ease}
 
-  .row { display: flex; gap: 12px; }
-  .row > div { flex: 1; }
+.navSummaryBar{display:none;align-items:center;justify-content:space-between;gap:8px;background:rgba(28,37,64,.92);border:1px solid var(--border-subtle);border-radius:10px;padding:7px 10px;font-size:12px;color:var(--text-secondary)}
+.navSummaryBar.active{display:flex}
+.navSummaryBar .etaVal{color:var(--text-primary);font-weight:700;font-size:13px}
+.navSummaryBar .speedPill{background:var(--bg-input);border-radius:999px;padding:4px 9px;font-weight:700;color:var(--text-primary)}
+.navSummaryBar .followBadge{background:rgba(59,91,253,.18);color:#8fa3ff;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:700;display:none}
+.navSummaryBar .followBadge.show{display:inline-block}
 
-  button.primary {
-    margin-top: 14px; background: var(--accent); border: none; border-radius: 10px;
-    color: white; padding: 11px 20px; font-size: 0.95rem; font-weight: 600; cursor: pointer;
-  }
-  button.primary:disabled { opacity: 0.5; cursor: default; }
-  button.secondary {
-    margin-top: 14px; margin-left: 8px; background: var(--panel-2); border: 1px solid var(--border);
-    border-radius: 10px; color: var(--text); padding: 11px 20px; font-size: 0.95rem; cursor: pointer;
-  }
-  button.danger {
-    margin-top: 14px; margin-left: 8px; background: transparent; border: 1px solid var(--accent);
-    border-radius: 10px; color: var(--accent); padding: 11px 20px; font-size: 0.95rem; cursor: pointer;
-  }
+.navControls{display:none;gap:6px;width:100%}
+.navControls.active{display:grid;grid-template-columns:1fr 1fr 1fr 1fr}
+.navControls button{font-size:11px;padding:9px 4px;background:var(--bg-input);border:1px solid var(--border-subtle);width:100%}
+.navControls button#navRecenter.due{border-color:var(--accent-blue);color:#8fa3ff}
 
-  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.88rem; }
-  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
-  th { color: var(--muted); font-weight: 500; }
+.recenterFab{position:absolute;right:14px;bottom:64px;width:40px;height:40px;border-radius:50%;background:var(--accent-blue);color:#fff;font-size:16px;display:none;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
+.recenterFab.show{display:flex}
 
-  .badge {
-    display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 0.75rem;
-    background: var(--panel-2); border: 1px solid var(--border);
-  }
-  .badge.delivered { color: var(--ok); border-color: var(--ok); }
-  .badge.in_transit, .badge.out_for_delivery { color: var(--warn); border-color: var(--warn); }
-  .badge.failed_delivery, .badge.returned, .badge.cancelled { color: var(--accent); border-color: var(--accent); }
-  .badge.paid { color: var(--ok); border-color: var(--ok); }
-  .badge.unpaid { color: var(--warn); border-color: var(--warn); }
+.startTripBtn{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);width:auto;display:none;align-items:center;gap:8px;background:#d7f2ff;color:#0f4c5c;font-weight:800;font-size:15px;padding:12px 26px;border-radius:999px;border:0;box-shadow:0 6px 18px rgba(0,0,0,.45);z-index:930}
+.startTripBtn.show{display:inline-flex}
 
-  .status-msg { font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
+.compassFab{position:absolute;right:14px;bottom:156px;width:38px;height:38px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
+.compassFab.locked circle{stroke:var(--accent-blue)}
+#compassNeedle{transform-origin:12px 12px;transition:transform .2s linear}
 
-  .tier-option {
-    display: flex; justify-content: space-between; align-items: center;
-    background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
-    padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
-  }
-  .tier-option.selected { border-color: var(--accent); background: #2a1f2f; }
-  .tier-option .tier-name { font-weight: 600; }
-  .tier-option .tier-eta { color: var(--muted); font-size: 0.8rem; }
-  .tier-option .tier-price { font-weight: 700; font-size: 1.05rem; }
+.satelliteFab{position:absolute;right:14px;bottom:110px;width:38px;height:38px;border-radius:50%;background:#fff;color:#111;font-size:16px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
+.satelliteFab.on{background:#0f4c5c;color:#fff}
 
-  .edit-block {
-    margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);
-  }
+.locateFab{position:absolute;right:14px;bottom:14px;width:44px;height:44px;border-radius:50%;background:#fff;color:#111;font-size:17px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
+.voiceFab{position:absolute;left:14px;bottom:14px;width:40px;height:40px;border-radius:50%;background:#fff;color:#111;font-size:16px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900;transition:opacity .15s}
+.voiceFab.muted{opacity:.45}
+.nightFab{position:absolute;left:14px;bottom:62px;width:36px;height:36px;border-radius:50%;background:#fff;color:#111;font-size:14px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900;transition:opacity .15s}
+.nightFab.on{background:#1c2540;color:#f5f7fb}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.active{display:flex}
+.modal-box{background:var(--bg-card);border-radius:14px;padding:16px;max-width:420px;width:100%;max-height:85vh;overflow:auto}
+.modal-box h3{margin:0 0 10px;font-size:15px}
+.modal-box textarea{min-height:70px;font-family:inherit;resize:vertical}
+.modal-box input[type=file]{padding:8px;border:1px dashed var(--border-subtle)}
+#modalStatus{font-size:12px;color:var(--text-secondary);min-height:16px;margin-top:6px}
+.modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.modal-actions button{background:var(--bg-input);border:1px solid var(--border-subtle)}
+#modalSubmit{background:var(--accent-blue);border:0}
+.navWrap{flex:0 0 auto;position:relative;background:var(--bg-header);border-top:1px solid var(--border-subtle)}
+.bottomNav{display:flex;justify-content:space-around;padding:6px 0 max(6px, env(safe-area-inset-bottom))}
+.navTab{background:none;border:0;color:var(--text-secondary);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;width:auto;padding:4px 8px}
+.navTab.active{color:var(--text-primary)}
+.navTab .tabIcon{font-size:17px}
+.reportMenu{position:absolute;left:10px;right:10px;bottom:100%;margin-bottom:8px;display:none;grid-template-columns:1fr 1fr 1fr;gap:6px;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:12px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.6);z-index:4000}
+.reportMenu button{background:var(--bg-input);border:1px solid var(--border-subtle);font-weight:600;font-size:11px;padding:9px 4px}
+.newsItem{display:block;background:var(--bg-input);border-radius:10px;padding:9px 10px;text-decoration:none;color:var(--text-primary)}
+.newsItem .newsTitle{font-size:13px;font-weight:600}
+.newsItem .newsSource{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.weatherCard{flex:0 0 auto;background:var(--bg-input);border-radius:10px;padding:8px 10px;text-align:center;min-width:58px}
+.weatherCard .wDay{font-size:11px;color:var(--text-secondary)}
+.weatherCard .wIcon{font-size:20px;margin:4px 0}
+.weatherCard .wHi{font-size:12px}
+.weatherCard .wLo{font-size:11px;color:var(--text-secondary)}
+input:disabled{opacity:.6}
+.authTab{width:auto;flex:1;padding:8px;background:var(--bg-input);border:1px solid var(--border-subtle);font-size:13px;font-weight:600;color:var(--text-secondary)}
+.authTab.active{background:var(--accent-blue);color:#fff;border-color:var(--accent-blue)}
+
+.tripItem{background:var(--bg-input);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.tripItem .tripDest{font-size:13px;font-weight:700}
+.tripItem .tripMeta{font-size:11px;color:var(--text-secondary);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap}
+.emptyState{font-size:12px;color:var(--text-secondary);text-align:center;padding:18px 8px}
 </style>
 </head>
 <body>
-
 <header>
-  <h1>UGAMAP Admin</h1>
-  <p>Mass mailing &amp; shipment management</p>
+<button class="icon-btn" id="menuBtn" aria-label="Menu">&#9776;</button>
+<div class="titleWrap">
+<h1>Uganda National Grid</h1>
+<p>Search, route and navigate across Uganda</p>
+</div>
+<button class="icon-btn" id="bellBtn" aria-label="Notifications">&#128276;</button>
 </header>
-
-<nav>
-  <button id="tabMailBtn" class="active" onclick="showTab('mail')">Mail</button>
-  <button id="tabShipBtn" onclick="showTab('ship')">Shipments</button>
-</nav>
-
-<main>
-
-  <!-- MAILING TAB -->
-  <section id="mail" class="active">
-    <div class="card">
-      <h2>Add subscriber</h2>
-      <label>Email</label>
-      <input id="subEmail" type="email" placeholder="name@example.com">
-      <div class="row">
-        <div><label>Name</label><input id="subName" type="text"></div>
-        <div><label>Region</label><input id="subRegion" type="text" placeholder="Kampala"></div>
-      </div>
-      <button class="primary" onclick="addSubscriber()">Add subscriber</button>
-      <div class="status-msg" id="subStatus"></div>
-    </div>
-
-    <div class="card">
-      <h2>New campaign</h2>
-      <label>Subject</label>
-      <input id="campSubject" type="text">
-      <label>Body (HTML)</label>
-      <textarea id="campBody" placeholder="&lt;p&gt;Hello!&lt;/p&gt;"></textarea>
-      <div class="row">
-        <div><label>Only this region (optional)</label><input id="campRegion" type="text"></div>
-        <div><label>Only this tag (optional)</label><input id="campTag" type="text"></div>
-      </div>
-      <button class="primary" onclick="sendCampaign()">Send campaign</button>
-      <div class="status-msg" id="campStatus"></div>
-    </div>
-
-    <div class="card">
-      <h2>Recent campaigns</h2>
-      <table>
-        <thead><tr><th>Subject</th><th>Status</th><th>Sent</th><th>Created</th></tr></thead>
-        <tbody id="campaignRows"></tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- SHIPMENTS TAB -->
-  <section id="ship">
-    <div class="card">
-      <h2>Get a quote</h2>
-      <div class="row">
-        <div><label>Sender grid ID / address</label><input id="quoteOrigin" type="text" placeholder="UG-ENT-000400"></div>
-        <div><label>Receiver grid ID / address</label><input id="quoteDest" type="text" placeholder="UG-ENT-000123"></div>
-      </div>
-      <label>Weight (kg)</label>
-      <input id="quoteWeight" type="number" step="0.1" placeholder="2.5">
-      <button class="primary" onclick="getQuote()">Get quote</button>
-      <div class="status-msg" id="quoteStatus"></div>
-      <div id="tierList" style="margin-top: 14px;"></div>
-    </div>
-
-    <div class="card">
-      <h2>New shipment</h2>
-      <p class="status-msg">Get a quote above first — it fills in the distance/weight/price automatically. Or fill this in manually and skip pricing.</p>
-      <div class="row">
-        <div>
-          <label>Sender name</label><input id="senderName" type="text">
-          <label>Sender phone</label><input id="senderPhone" type="text">
-          <label>Sender address / grid ID</label><input id="senderAddress" type="text" placeholder="UG-ENT-000400">
-        </div>
-        <div>
-          <label>Receiver name</label><input id="receiverName" type="text">
-          <label>Receiver phone</label><input id="receiverPhone" type="text">
-          <label>Receiver address / grid ID</label><input id="receiverAddress" type="text" placeholder="UG-ENT-000123">
-        </div>
-      </div>
-      <label>Description</label>
-      <input id="shipDesc" type="text" placeholder="Documents, 1 box">
-      <div class="status-msg" id="selectedTierMsg">No tier selected — shipment will be created without a price.</div>
-      <button class="primary" onclick="createShipment()">Create shipment</button>
-      <div class="status-msg" id="shipStatus"></div>
-    </div>
-
-    <div class="card">
-      <h2>Track / update / pay a shipment</h2>
-      <label>Tracking number</label>
-      <input id="trackInput" type="text" placeholder="UG-SHIP-000001">
-      <button class="primary" onclick="lookupShipment()">Look up</button>
-      <div id="trackResult"></div>
-    </div>
-
-    <div class="card">
-      <h2>All shipments</h2>
-      <table>
-        <thead><tr><th>Tracking #</th><th>Receiver</th><th>Status</th><th>Payment</th><th>Created</th></tr></thead>
-        <tbody id="shipmentRows"></tbody>
-      </table>
-    </div>
-  </section>
-
+<div class="contentScroll" id="contentScroll">
+<main class="panel">
+<div class="field">
+<label for="start">Start location</label>
+<input id="start" autocomplete="off" placeholder="Address, place or grid ID e.g. 1001 Lake Victoria Drive" />
+<button type="button" class="fieldIcon" id="startLocateBtn" aria-label="Use my location">&#8982;</button>
+<div id="ss" class="suggest"></div><div id="sr" class="selected"></div>
+</div>
+<div class="field">
+<label for="dest">Destination</label>
+<input id="dest" autocomplete="off" placeholder="Address, place or grid ID e.g. UG-ENT-000400" />
+<span class="fieldIcon">&#128205;</span>
+<div id="ds" class="suggest"></div><div id="dr" class="selected"></div>
+</div>
+<div class="row">
+<select id="mode" aria-label="Travel mode"><option value="driving">&#128664; Driving</option><option value="walking">&#128694; Walking</option><option value="cycling">&#128692; Cycling</option><option value="flight">&#9992;&#65039; Flight</option></select>
+<button id="navigate">
+<svg class="btnIcon" viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<path d="M12 2 L19 21 L12 17 L5 21 Z" fill="#ffffff"/>
+</svg>
+<span class="navText"><span class="navMain">UGAMAP</span><span class="navSub">Navigate</span></span>
+</button>
+</div>
+<div class="row">
+<button id="myLocation" class="secondaryBtn">My location</button>
+<button id="googleMaps">
+<svg class="btnIcon" width="18" height="18" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<path fill="#4285F4" d="M45.12 24.5c0-1.56-.14-3.06-.4-4.5H24v8.51h11.84c-.51 2.75-2.06 5.08-4.39 6.64v5.52h7.11c4.16-3.83 6.56-9.47 6.56-16.17z"/>
+<path fill="#34A853" d="M24 46c5.94 0 10.92-1.97 14.56-5.33l-7.11-5.52c-1.97 1.32-4.49 2.1-7.45 2.1-5.73 0-10.58-3.87-12.31-9.07H4.34v5.7C7.96 41.07 15.4 46 24 46z"/>
+<path fill="#FBBC05" d="M11.69 28.18C11.25 26.86 11 25.45 11 24s.25-2.86.69-4.18v-5.7H4.34C2.85 17.09 2 20.45 2 24s.85 6.91 2.34 9.88l7.35-5.7z"/>
+<path fill="#EA4335" d="M24 10.75c3.23 0 6.13 1.11 8.41 3.29l6.31-6.31C34.91 4.18 29.93 2 24 2 15.4 2 7.96 6.93 4.34 14.12l7.35 5.7c1.73-5.2 6.58-9.07 12.31-9.07z"/>
+</svg>
+Google Maps
+</button>
+</div>
+<div id="status" class="status">Loading...</div>
+<div id="info"></div>
 </main>
+<div class="mapWrap">
+<div id="map"></div>
 
+<div class="navOverlayTop">
+<div id="turnBanner" class="turnBanner">
+<div class="turnRow">
+<span id="turnArrowGlyph" class="turnArrowGlyph">&#8593;</span>
+<span id="turnMain" class="turnMain"></span>
+</div>
+<span id="turnSub" class="turnSub"></span>
+<div class="progressTrack"><div id="turnProgressFill" class="progressFill"></div></div>
+</div>
+<div id="navSummaryBar" class="navSummaryBar">
+<span id="navEta">ETA <span class="etaVal">--:--</span></span>
+<span id="navSpeedPill" class="speedPill">-- km/h</span>
+<span id="followBadge" class="followBadge">Following</span>
+</div>
+<div id="navControls" class="navControls">
+<button id="navRecenter">Recenter</button>
+<button id="navPause">Pause</button>
+<button id="navShare">Share ETA</button>
+<button id="navCancel">Cancel</button>
+</div>
+</div>
+
+<button class="startTripBtn" id="startTripBtn" type="button">
+<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2 L19 21 L12 17 L5 21 Z" fill="#0f4c5c"/></svg>
+Start
+</button>
+
+<button class="compassFab" id="compassBtn" aria-label="Reset to north">
+<svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<circle cx="12" cy="12" r="10" fill="none" stroke="#c9ced9" stroke-width="1.5"/>
+<g id="compassNeedle">
+<path d="M12 3 L15 12 L12 10.5 L9 12 Z" fill="#e0332f"/>
+<path d="M12 21 L9 12 L12 13.5 L15 12 Z" fill="#9aa4bd"/>
+</g>
+</svg>
+</button>
+<button class="satelliteFab" id="satelliteToggle" aria-label="Toggle satellite view">&#128758;</button>
+<button class="recenterFab" id="recenterFab" aria-label="Recenter">&#8982;</button>
+<button class="nightFab" id="nightToggle" aria-label="Toggle night mode" aria-pressed="false">&#127769;</button>
+<button class="voiceFab" id="voiceToggle" aria-label="Toggle voice guidance" aria-pressed="false">&#128266;</button>
+<button class="locateFab" id="mapLocateBtn" aria-label="Locate me">&#8982;</button>
+</div>
+</div>
+<div id="reportModalOverlay" class="modal-overlay">
+<div class="modal-box">
+<h3 id="modalTitle">Report</h3>
+<div class="field">
+<label for="reportNote">Message (optional)</label>
+<textarea id="reportNote" placeholder="Add details..."></textarea>
+</div>
+<div class="field">
+<label for="reportFile">Photo or video (optional)</label>
+<input type="file" id="reportFile" accept="image/*,video/*" />
+</div>
+<div id="modalStatus"></div>
+<div class="modal-actions">
+<button id="modalCancel" type="button">Cancel</button>
+<button id="modalSubmit" type="button">Submit</button>
+</div>
+</div>
+</div>
+<div id="profileOverlay" class="modal-overlay">
+<div class="modal-box">
+<h3 id="profileTitle">Account</h3>
+<div id="authTabs" style="display:flex;gap:6px;margin-bottom:10px;">
+<button type="button" id="tabLogin" class="authTab active">Log in</button>
+<button type="button" id="tabSignup" class="authTab">Sign up</button>
+</div>
+<div id="loginForm">
+<div class="field">
+<label for="loginEmail">Email</label>
+<input id="loginEmail" type="email" placeholder="you@example.com" />
+</div>
+<div class="field">
+<label for="loginPassword">Password</label>
+<input id="loginPassword" type="password" placeholder="Password" />
+</div>
+</div>
+<div id="signupForm" style="display:none;">
+<div class="field">
+<label for="suName">Name</label>
+<input id="suName" placeholder="Full name" />
+</div>
+<div class="field">
+<label for="suEmail">Email</label>
+<input id="suEmail" type="email" placeholder="you@example.com" />
+</div>
+<div class="field">
+<label for="suPassword">Password</label>
+<input id="suPassword" type="password" placeholder="At least 6 characters" />
+</div>
+<div class="field">
+<label for="suPhone">Phone number</label>
+<input id="suPhone" placeholder="+256 7xx xxx xxx" />
+</div>
+<div class="field">
+<label for="suAddress">Location address</label>
+<input id="suAddress" placeholder="Address, place or grid ID" />
+</div>
+</div>
+<div id="accountView" style="display:none;">
+<div class="field">
+<label for="accName">Name</label>
+<input id="accName" placeholder="Full name" />
+</div>
+<div class="field">
+<label for="accEmail">Email</label>
+<input id="accEmail" disabled />
+</div>
+<div class="field">
+<label for="accPhone">Phone number</label>
+<input id="accPhone" placeholder="+256 7xx xxx xxx" />
+</div>
+<div class="field">
+<label for="accAddress">Location address</label>
+<input id="accAddress" placeholder="Address, place or grid ID" />
+</div>
+</div>
+<div id="profileStatus" style="font-size:12px;color:var(--text-secondary);min-height:16px;margin-top:4px;"></div>
+<div class="modal-actions" id="authActions">
+<button id="profileCancel" type="button">Close</button>
+<button id="profileSubmit" type="button" style="background:var(--accent-blue);border:0;">Log in</button>
+</div>
+<div class="modal-actions" id="accountActions" style="display:none;">
+<button id="profileLogout" type="button">Log out</button>
+<button id="profileSave" type="button" style="background:var(--accent-blue);border:0;">Save</button>
+</div>
+</div>
+</div>
+<div id="moreOverlay" class="modal-overlay">
+<div class="modal-box" style="max-width:480px;">
+<h3>More</h3>
+<div class="field">
+<label for="weatherRegion">Weather region</label>
+<select id="weatherRegion">
+<option>Kampala</option>
+<option>Entebbe</option>
+<option>Jinja</option>
+<option>Mbarara</option>
+<option>Gulu</option>
+<option>Mbale</option>
+<option>Fort Portal</option>
+<option>Arua</option>
+<option>Masaka</option>
+<option>Lira</option>
+</select>
+</div>
+<div id="weatherForecast" style="display:flex;gap:6px;overflow-x:auto;padding:4px 0;"></div>
+<h3 style="margin-top:16px;">Trending in Uganda</h3>
+<div id="newsList" style="display:flex;flex-direction:column;gap:8px;"></div>
+<div class="modal-actions">
+<button id="moreClose" type="button" style="grid-column:1 / -1;">Close</button>
+</div>
+</div>
+</div>
+<div id="tripsOverlay" class="modal-overlay">
+<div class="modal-box" style="max-width:480px;">
+<h3>Recent trips</h3>
+<div id="tripsList"></div>
+<div class="modal-actions">
+<button id="tripsClose" type="button" style="grid-column:1 / -1;">Close</button>
+</div>
+</div>
+</div>
+<div class="navWrap">
+<div id="reportMenu" class="reportMenu">
+<button class="reportType" data-category="police">Police</button>
+<button class="reportType" data-category="accident">Accident</button>
+<button class="reportType" data-category="road_closure">Closure</button>
+<button class="reportType" data-category="bridge">Bridge</button>
+<button class="reportType" data-category="traffic">Traffic</button>
+<button class="reportType" data-category="weather">Weather</button>
+</div>
+<nav class="bottomNav">
+<button class="navTab active" id="tabHome"><span class="tabIcon">&#8962;</span>Home</button>
+<button class="navTab" id="tabAddress"><span class="tabIcon">&#128205;</span>Address</button>
+<button class="navTab" id="tabSaved"><span class="tabIcon">&#128278;</span>Saved</button>
+<button class="navTab" id="reportBtn"><span class="tabIcon">&#9888;</span>Report</button>
+<button class="navTab" id="tabMore"><span class="tabIcon">&#8943;</span>More</button>
+</nav>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/app.js?v=7"></script>
 <script>
-  const API = "";
-  let selectedQuote = null;
-  let editQuote = null;
-  let currentTrackingNumber = null;
+(function () {
+function setVH() {
+document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px');
+}
+setVH();
+window.addEventListener('resize', setVH);
 
-  function showTab(name) {
-    document.getElementById('mail').classList.toggle('active', name === 'mail');
-    document.getElementById('ship').classList.toggle('active', name === 'ship');
-    document.getElementById('tabMailBtn').classList.toggle('active', name === 'mail');
-    document.getElementById('tabShipBtn').classList.toggle('active', name === 'ship');
-    if (name === 'mail') loadCampaigns(); else loadShipments();
-  }
+var tabs = ['tabHome','tabAddress','tabSaved','reportBtn','tabMore'];
+function setActiveTab(id) {
+tabs.forEach(function (t) {
+var el = document.getElementById(t);
+if (el) el.classList.toggle('active', t === id);
+});
+}
 
-  async function addSubscriber() {
-    const email = document.getElementById('subEmail').value.trim();
-    const name = document.getElementById('subName').value.trim();
-    const region = document.getElementById('subRegion').value.trim();
-    const statusEl = document.getElementById('subStatus');
-    if (!email) { statusEl.textContent = 'Email is required.'; return; }
-    try {
-      const res = await fetch(`${API}/api/mail/subscribers`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name: name || null, region: region || null, tags: [] })
-      });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed');
-      statusEl.textContent = `Added ${email}.`;
-      document.getElementById('subEmail').value = '';
-      document.getElementById('subName').value = '';
-      document.getElementById('subRegion').value = '';
-    } catch (e) { statusEl.textContent = `Error: ${e.message}`; }
-  }
+var homeBtn = document.getElementById('tabHome');
+if (homeBtn) homeBtn.addEventListener('click', function () { setActiveTab('tabHome'); });
 
-  async function sendCampaign() {
-    const subject = document.getElementById('campSubject').value.trim();
-    const body_html = document.getElementById('campBody').value.trim();
-    const segment_region = document.getElementById('campRegion').value.trim() || null;
-    const segment_tag = document.getElementById('campTag').value.trim() || null;
-    const statusEl = document.getElementById('campStatus');
-    if (!subject || !body_html) { statusEl.textContent = 'Subject and body are required.'; return; }
-    try {
-      const res = await fetch(`${API}/api/mail/campaigns`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject, body_html, segment_region, segment_tag })
-      });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed');
-      statusEl.textContent = 'Campaign is sending in the background.';
-      loadCampaigns();
-    } catch (e) { statusEl.textContent = `Error: ${e.message}`; }
-  }
+var addressBtn = document.getElementById('tabAddress');
+if (addressBtn) addressBtn.addEventListener('click', function () {
+window.location.href = '/submit';
+});
 
-  async function loadCampaigns() {
-    try {
-      const res = await fetch(`${API}/api/mail/campaigns`);
-      const campaigns = await res.json();
-      const rows = campaigns.slice().reverse().map(c => `
-        <tr>
-          <td>${escapeHtml(c.subject)}</td>
-          <td><span class="badge">${c.status}</span></td>
-          <td>${c.sent_count ?? '—'}</td>
-          <td>${new Date(c.created_at).toLocaleString()}</td>
-        </tr>`).join('');
-      document.getElementById('campaignRows').innerHTML = rows || '<tr><td colspan="4">No campaigns yet.</td></tr>';
-    } catch (e) { }
-  }
+var savedBtn = document.getElementById('tabSaved');
+if (savedBtn) savedBtn.addEventListener('click', function () {
+setActiveTab('tabSaved');
+if (window.UGAMAP && window.UGAMAP.openTrips) window.UGAMAP.openTrips();
+});
 
-  async function getQuote() {
-    const origin = document.getElementById('quoteOrigin').value.trim();
-    const destination = document.getElementById('quoteDest').value.trim();
-    const weight = parseFloat(document.getElementById('quoteWeight').value);
-    const statusEl = document.getElementById('quoteStatus');
-    const tierListEl = document.getElementById('tierList');
-    selectedQuote = null;
-    updateSelectedTierMsg();
+var moreBtn = document.getElementById('tabMore');
+if (moreBtn) moreBtn.addEventListener('click', function () { setActiveTab('tabMore'); });
 
-    if (!origin || !destination || !weight) {
-      statusEl.textContent = 'Fill in both addresses and a weight first.';
-      return;
-    }
-    statusEl.textContent = 'Getting quote...';
-    tierListEl.innerHTML = '';
-    try {
-      const res = await fetch(`${API}/api/shipments/quote`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin, destination, weight_kg: weight })
-      });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed to get quote');
-      const quotes = await res.json();
-      statusEl.textContent = `${quotes[0].distance_km} km road distance. Tap a tier to select it.`;
-      tierListEl.innerHTML = quotes.map((q, i) => `
-        <div class="tier-option" id="tier-${q.speed}" onclick="selectTier(${i}, ${JSON.stringify(quotes).replace(/"/g, '&quot;')})">
-          <div>
-            <div class="tier-name">${q.speed_label}</div>
-            <div class="tier-eta">${q.eta_days === 0 ? 'Same day' : q.eta_days + ' day' + (q.eta_days > 1 ? 's' : '')}</div>
-          </div>
-          <div class="tier-price">${q.total.toLocaleString()} ${q.currency}</div>
-        </div>
-      `).join('');
-      document.getElementById('senderAddress').value = origin;
-      document.getElementById('receiverAddress').value = destination;
-    } catch (e) {
-      statusEl.textContent = `Error: ${e.message}`;
-    }
-  }
+var reportBtn = document.getElementById('reportBtn');
+var reportMenu = document.getElementById('reportMenu');
+if (reportBtn && reportMenu) {
+reportBtn.addEventListener('click', function (e) {
+e.stopPropagation();
+var isOpen = reportMenu.style.display === 'grid';
+reportMenu.style.display = isOpen ? 'none' : 'grid';
+setActiveTab(isOpen ? 'tabHome' : 'reportBtn');
+});
+document.addEventListener('click', function (e) {
+if (reportMenu.style.display !== 'grid') return;
+if (reportMenu.contains(e.target) || reportBtn.contains(e.target)) return;
+reportMenu.style.display = 'none';
+});
+}
 
-  function selectTier(index, quotes) {
-    selectedQuote = quotes[index];
-    document.querySelectorAll('#tierList .tier-option').forEach(el => el.classList.remove('selected'));
-    document.getElementById(`tier-${selectedQuote.speed}`).classList.add('selected');
-    updateSelectedTierMsg();
-  }
+var mapLocateBtn = document.getElementById('mapLocateBtn');
+if (mapLocateBtn) mapLocateBtn.addEventListener('click', function () {
+var ml = document.getElementById('myLocation');
+if (ml) ml.click();
+});
 
-  function updateSelectedTierMsg() {
-    const el = document.getElementById('selectedTierMsg');
-    if (selectedQuote) {
-      el.textContent = `Selected: ${selectedQuote.speed_label} — ${selectedQuote.total.toLocaleString()} ${selectedQuote.currency}`;
-    } else {
-      el.textContent = 'No tier selected — shipment will be created without a price.';
-    }
-  }
+var startLocateBtn = document.getElementById('startLocateBtn');
+if (startLocateBtn) startLocateBtn.addEventListener('click', function () {
+var ml = document.getElementById('myLocation');
+if (ml) ml.click();
+});
 
-  async function createShipment() {
-    const payload = {
-      sender: {
-        name: document.getElementById('senderName').value.trim(),
-        phone: document.getElementById('senderPhone').value.trim() || null,
-        address: document.getElementById('senderAddress').value.trim(),
-      },
-      receiver: {
-        name: document.getElementById('receiverName').value.trim(),
-        phone: document.getElementById('receiverPhone').value.trim() || null,
-        address: document.getElementById('receiverAddress').value.trim(),
-      },
-      description: document.getElementById('shipDesc').value.trim() || null,
-      weight_kg: selectedQuote ? selectedQuote.weight_kg : null,
-      speed: selectedQuote ? selectedQuote.speed : null,
-      price: selectedQuote ? selectedQuote.total : null,
-      currency: selectedQuote ? selectedQuote.currency : null,
-    };
-    const statusEl = document.getElementById('shipStatus');
-    if (!payload.sender.name || !payload.sender.address || !payload.receiver.name || !payload.receiver.address) {
-      statusEl.textContent = 'Sender/receiver name and address are required.';
-      return;
-    }
-    try {
-      const res = await fetch(`${API}/api/shipments`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed');
-      const created = await res.json();
-      statusEl.textContent = `Created ${created.tracking_number}.`;
-      selectedQuote = null;
-      updateSelectedTierMsg();
-      document.getElementById('tierList').innerHTML = '';
-      loadShipments();
-    } catch (e) { statusEl.textContent = `Error: ${e.message}`; }
-  }
-
-  async function lookupShipment() {
-    const tn = document.getElementById('trackInput').value.trim();
-    const resultEl = document.getElementById('trackResult');
-    if (!tn) return;
-    currentTrackingNumber = tn;
-    editQuote = null;
-    try {
-      const res = await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}`);
-      if (!res.ok) throw new Error('Not found');
-      const s = await res.json();
-      const history = s.history.map(h => `<li>${h.status}${h.note ? ' — ' + escapeHtml(h.note) : ''} <span style="color:var(--muted)">(${new Date(h.at).toLocaleString()})</span></li>`).join('');
-      const priceLine = s.price
-        ? `<p>Price: <strong>${s.price.toLocaleString()} ${s.currency}</strong> (${s.speed_label || s.speed}) — <span class="badge ${s.payment_status}">${s.payment_status}</span></p>`
-        : `<p class="status-msg">No price set for this shipment.</p>`;
-      const isPaid = s.payment_status === 'paid';
-      const isCancelled = s.status === 'cancelled';
-      const payButton = (s.price && !isPaid && !isCancelled)
-        ? `<button class="primary" onclick="payShipment('${s.tracking_number}')">Pay now</button>`
-        : '';
-      const receiptButton = `<button class="secondary" onclick="window.open('${API}/api/shipments/${encodeURIComponent(s.tracking_number)}/receipt', '_blank')">View / print receipt</button>`;
-
-      let editBlock = '';
-      if (!isPaid && !isCancelled) {
-        editBlock = `
-          <div class="edit-block">
-            <h2 style="font-size:0.95rem;">Edit shipment</h2>
-            <label>Description</label>
-            <input id="editDesc" type="text" value="${escapeHtml(s.description || '')}">
-            <div class="row">
-              <div>
-                <label>Re-quote — sender address / grid ID</label>
-                <input id="editOrigin" type="text" value="${escapeHtml(s.sender.address)}">
-              </div>
-              <div>
-                <label>Re-quote — receiver address / grid ID</label>
-                <input id="editDest" type="text" value="${escapeHtml(s.receiver.address)}">
-              </div>
-            </div>
-            <label>Weight (kg)</label>
-            <input id="editWeight" type="number" step="0.1" value="${s.weight_kg ?? ''}">
-            <button class="secondary" onclick="getEditQuote('${s.tracking_number}')">Get new quote</button>
-            <div class="status-msg" id="editQuoteStatus"></div>
-            <div id="editTierList" style="margin-top: 10px;"></div>
-            <div class="status-msg" id="editSelectedTierMsg">No new tier selected — description/weight changes only.</div>
-            <button class="primary" onclick="saveShipmentEdit('${s.tracking_number}')">Save changes</button>
-            <button class="danger" onclick="cancelShipment('${s.tracking_number}')">Cancel shipment</button>
-          </div>
-        `;
-      } else if (isPaid) {
-        editBlock = `<p class="status-msg">This shipment is paid and can no longer be edited or cancelled.</p>`;
-      } else if (isCancelled) {
-        editBlock = `<p class="status-msg">This shipment has been cancelled.</p>`;
-      }
-
-      resultEl.innerHTML = `
-        <p><strong>${s.tracking_number}</strong> — <span class="badge ${s.status}">${s.status}</span></p>
-        <p style="color:var(--muted)">To: ${escapeHtml(s.receiver.name)}, ${escapeHtml(s.receiver.address)}</p>
-        ${priceLine}
-        <label>Update status</label>
-        <select id="newStatus">
-          ${['created','picked_up','in_transit','out_for_delivery','delivered','failed_delivery','returned','cancelled']
-            .map(st => `<option value="${st}" ${st === s.status ? 'selected' : ''}>${st}</option>`).join('')}
-        </select>
-        <button class="primary" onclick="updateStatus('${s.tracking_number}')">Update status</button>
-        ${payButton}
-        ${receiptButton}
-        ${editBlock}
-        <ul>${history}</ul>
-      `;
-    } catch (e) {
-      resultEl.innerHTML = `<p class="status-msg">${e.message}</p>`;
-    }
-  }
-
-  async function getEditQuote(tn) {
-    const origin = document.getElementById('editOrigin').value.trim();
-    const destination = document.getElementById('editDest').value.trim();
-    const weight = parseFloat(document.getElementById('editWeight').value);
-    const statusEl = document.getElementById('editQuoteStatus');
-    const tierListEl = document.getElementById('editTierList');
-    editQuote = null;
-    updateEditSelectedTierMsg();
-
-    if (!origin || !destination || !weight) {
-      statusEl.textContent = 'Fill in both addresses and a weight first.';
-      return;
-    }
-    statusEl.textContent = 'Getting quote...';
-    tierListEl.innerHTML = '';
-    try {
-      const res = await fetch(`${API}/api/shipments/quote`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin, destination, weight_kg: weight })
-      });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed to get quote');
-      const quotes = await res.json();
-      statusEl.textContent = `${quotes[0].distance_km} km road distance. Tap a tier to select it.`;
-      tierListEl.innerHTML = quotes.map((q, i) => `
-        <div class="tier-option" id="edit-tier-${q.speed}" onclick="selectEditTier(${i}, ${JSON.stringify(quotes).replace(/"/g, '&quot;')})">
-          <div>
-            <div class="tier-name">${q.speed_label}</div>
-            <div class="tier-eta">${q.eta_days === 0 ? 'Same day' : q.eta_days + ' day' + (q.eta_days > 1 ? 's' : '')}</div>
-          </div>
-          <div class="tier-price">${q.total.toLocaleString()} ${q.currency}</div>
-        </div>
-      `).join('');
-    } catch (e) {
-      statusEl.textContent = `Error: ${e.message}`;
-    }
-  }
-
-  function selectEditTier(index, quotes) {
-    editQuote = quotes[index];
-    document.querySelectorAll('#editTierList .tier-option').forEach(el => el.classList.remove('selected'));
-    document.getElementById(`edit-tier-${editQuote.speed}`).classList.add('selected');
-    updateEditSelectedTierMsg();
-  }
-
-  function updateEditSelectedTierMsg() {
-    const el = document.getElementById('editSelectedTierMsg');
-    if (!el) return;
-    if (editQuote) {
-      el.textContent = `New tier selected: ${editQuote.speed_label} — ${editQuote.total.toLocaleString()} ${editQuote.currency}`;
-    } else {
-      el.textContent = 'No new tier selected — description/weight changes only.';
-    }
-  }
-
-  async function saveShipmentEdit(tn) {
-    const payload = {
-      description: document.getElementById('editDesc').value.trim() || null,
-    };
-    if (editQuote) {
-      payload.weight_kg = editQuote.weight_kg;
-      payload.speed = editQuote.speed;
-      payload.price = editQuote.total;
-      payload.currency = editQuote.currency;
-    } else {
-      const weightVal = parseFloat(document.getElementById('editWeight').value);
-      if (!isNaN(weightVal)) payload.weight_kg = weightVal;
-    }
-    try {
-      const res = await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}`, {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed to save changes');
-      editQuote = null;
-      lookupShipment();
-      loadShipments();
-    } catch (e) {
-      document.getElementById('editQuoteStatus').textContent = `Error: ${e.message}`;
-    }
-  }
-
-  async function cancelShipment(tn) {
-    if (!confirm(`Cancel shipment ${tn}? This cannot be undone.`)) return;
-    try {
-      const res = await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}/cancel`, { method: 'POST' });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed to cancel');
-      lookupShipment();
-      loadShipments();
-    } catch (e) {
-      alert(`Error: ${e.message}`);
-    }
-  }
-
-  async function payShipment(tn) {
-    const statusEl = document.getElementById('trackResult');
-    try {
-      const res = await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}/pay`, { method: 'POST' });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed to start payment');
-      const data = await res.json();
-      window.location.href = data.payment_link;
-    } catch (e) {
-      statusEl.insertAdjacentHTML('beforeend', `<p class="status-msg">Payment error: ${e.message}</p>`);
-    }
-  }
-
-  async function updateStatus(tn) {
-    const status = document.getElementById('newStatus').value;
-    await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}/status`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
-    });
-    lookupShipment();
-    loadShipments();
-  }
-
-  async function loadShipments() {
-    try {
-      const res = await fetch(`${API}/api/shipments`);
-      const shipments = await res.json();
-      const rows = shipments.slice().reverse().map(s => `
-        <tr>
-          <td>${s.tracking_number}</td>
-          <td>${escapeHtml(s.receiver.name)}</td>
-          <td><span class="badge ${s.status}">${s.status}</span></td>
-          <td><span class="badge ${s.payment_status || 'unpaid'}">${s.payment_status || (s.price ? 'unpaid' : '—')}</span></td>
-          <td>${new Date(s.created_at).toLocaleString()}</td>
-        </tr>`).join('');
-      document.getElementById('shipmentRows').innerHTML = rows || '<tr><td colspan="5">No shipments yet.</td></tr>';
-    } catch (e) { }
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str ?? '';
-    return div.innerHTML;
-  }
-
-  loadCampaigns();
-  loadShipments();
+if ('serviceWorker' in navigator) {
+window.addEventListener('load', function () {
+navigator.serviceWorker.register('/sw.js').catch(function () {});
+});
+}
+})();
 </script>
-
 </body>
 </html>
