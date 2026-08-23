@@ -291,12 +291,17 @@
           return;
         }
         status.textContent = 'Choose a delivery speed:';
-        Object.keys(data).forEach(function (key) {
-          var tier = data[key];
-          var label = (tier && tier.label) || key;
-          var price = tier && (tier.price !== undefined ? tier.price : tier.amount);
-          var currency = (tier && tier.currency) || 'UGX';
-          var eta = tier && (tier.eta || tier.delivery_time || tier.days);
+        // The domestic quote endpoint returns a LIST of tier objects
+        // (see rates.py: quote_all_tiers), each shaped like
+        // { speed, speed_label, total, currency, eta_days, ... } —
+        // not an object keyed by tier name.
+        data.forEach(function (tier) {
+          var label = tier.speed_label || tier.speed;
+          var price = tier.total;
+          var currency = tier.currency || 'UGX';
+          var eta = (tier.eta_days !== undefined && tier.eta_days !== null)
+            ? (tier.eta_days === 0 ? 'Same day' : tier.eta_days + ' day' + (tier.eta_days === 1 ? '' : 's'))
+            : '';
           var el = document.createElement('div');
           el.className = 'rateOption';
           el.innerHTML =
@@ -304,7 +309,7 @@
             '<div class="rPrice">' + money(price, currency) + '</div>' +
             (eta ? '<div class="rMeta">' + eta + '</div>' : '');
           el.addEventListener('click', function () {
-            state.selectedTier = { key: key, label: label, price: price, currency: currency, weight: weight };
+            state.selectedTier = { key: tier.speed, label: label, price: price, currency: currency, weight: weight };
             document.getElementById('selectedRateSummary').textContent = label + ' — ' + money(price, currency);
             document.getElementById('intlBadge').classList.add('hidden');
             document.getElementById('receiverCountryField').classList.add('hidden');
@@ -314,7 +319,7 @@
           });
           ratesDiv.appendChild(el);
         });
-        if (!Object.keys(data).length) status.textContent = 'No rates returned for that route.';
+        if (!data.length) status.textContent = 'No rates returned for that route.';
       } catch (e) {
         status.textContent = 'Network error — could not reach the server.';
       }
