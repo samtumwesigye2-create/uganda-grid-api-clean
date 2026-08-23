@@ -1,25 +1,24 @@
 """
 Shipping rate calculation for UGAMAP shipments.
 Distance component uses real road km via Valhalla (the same routing
-engine your nav app already calls — no new API key needed). Weight
-component is a flat per-kg charge. Speed tiers apply a multiplier.
+engine your nav app already calls). Weight component is a flat
+per-kg charge. Speed tiers apply a multiplier.
 
-⚠️ resolve_coordinates() guesses at your entebbe_database.json shape.
-If grid-ID lookups return None when they shouldn't, tell me the actual
-structure of that file (a sample entry) and I'll fix the field names.
+resolve_coordinates() reuses your existing /search endpoint (the same
+one app.js calls) rather than reading entebbe_database.json directly —
+so it stays correct even if that file's internal shape changes.
+
+Env var needed:
+    PUBLIC_BASE_URL - e.g. https://uganda-grid-api-clean-production.up.railway.app
 """
-import json
-from pathlib import Path
+import os
 from typing import Optional, Tuple
 
 import requests
 
 VALHALLA_URL = "https://valhalla1.openstreetmap.de/route"
-GRID_DB_PATH = Path(__file__).parent / "entebbe_database.json"
 CURRENCY = "UGX"
 
-# total = (BASE_FEE + PER_KM * distance_km + PER_KG * weight_kg) * tier_multiplier
-# Tune these three to your real costs.
 BASE_FEE = 3000     # UGX flat handling fee
 PER_KM = 150        # UGX per road km
 PER_KG = 500        # UGX per kg
@@ -34,25 +33,24 @@ SPEED_TIERS = {
 }
 
 
-def _load_grid_db():
-    if not GRID_DB_PATH.exists():
-        return {}
-    return json.loads(GRID_DB_PATH.read_text())
-
-
 def resolve_coordinates(address_or_grid_id: str) -> Optional[Tuple[float, float]]:
-    """Look up (lat, lon) for a grid ID like 'UG-ENT-000001'."""
-    db = _load_grid_db()
-    if isinstance(db, dict):
-        entry = db.get(address_or_grid_id)
-        if entry and "lat" in entry and "lon" in entry:
-            return float(entry["lat"]), float(entry["lon"])
-    if isinstance(db, list):
-        for row in db:
-            if row.get("grid_id") == address_or_grid_id or row.get("id") == address_or_grid_id:
-                if "lat" in row and "lon" in row:
-                    return float(row["lat"]), float(row["lon"])
-    return None
+    """Look up (lat, lon) for a grid ID like 'UG-ENT-000001' via the
+    app's own /search endpoint — same one app.js already uses."""
+    base_url = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
+    try:
+        resp = requests.get(
+            f"{base_url}/search",
+            params={"q": address_or_grid_id},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        results = resp.json().get("results", [])
+        if not results:
+            return None
+        first = results[0]
+        return float(first["latitude"]), float(first["longitude"])
+    except Exception:
+        return None
 
 
 def road_distance_km(origin: Tuple[float, float], destination: Tuple[float, float]) -> float:
