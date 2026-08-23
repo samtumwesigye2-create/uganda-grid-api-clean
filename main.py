@@ -465,3 +465,13 @@ def get_news(region: str = Query(default="Uganda")):
             "message": "Unable to fetch news right now. Try again shortly.",
             "articles": [],
         }
+from mailing import router as mailing_router
+from shipments import router as shipments_router
+from fastapi.responses import FileResponse
+
+app.include_router(mailing_router)
+app.include_router(shipments_router)
+
+@app.get("/admin")
+def admin_page():
+    return FileResponse("admin.html")
