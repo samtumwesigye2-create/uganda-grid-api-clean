@@ -213,4 +213,71 @@
 })();
 </script>
 </body>
+ <!-- ===== Pay a shipment ===== -->
+<div style="margin-top:24px;padding:16px;border-radius:12px;background:#1a2035;border:1px solid #2a3150;">
+  <h3 style="margin:0 0 12px;color:#fff;">Pay a shipment</h3>
+
+  <label style="display:block;font-size:13px;color:#9ca3af;margin-bottom:6px;">Tracking number</label>
+  <input
+    type="text"
+    id="payTrackingInput"
+    placeholder="UG-SHIP-000002"
+    style="width:100%;padding:12px;border-radius:8px;border:1px solid #2a3150;background:#111527;color:#fff;font-size:16px;margin-bottom:10px;"
+  />
+
+  <button
+    type="button"
+    id="payButton"
+    style="width:100%;padding:14px;border:0;border-radius:8px;background:#e15b4d;color:#fff;font-weight:700;font-size:16px;cursor:pointer;"
+  >
+    Get payment link
+  </button>
+
+  <div id="payStatus" style="margin-top:12px;font-size:14px;color:#9ca3af;"></div>
+</div>
+
+<script>
+(function () {
+  var API_BASE = "https://uganda-grid-api-clean-production.up.railway.app";
+
+  var input = document.getElementById("payTrackingInput");
+  var button = document.getElementById("payButton");
+  var status = document.getElementById("payStatus");
+
+  button.addEventListener("click", async function () {
+    var tracking = input.value.trim();
+    if (!tracking) {
+      status.textContent = "Enter a tracking number first.";
+      status.style.color = "#f87171";
+      return;
+    }
+
+    button.disabled = true;
+    status.textContent = "Requesting payment link...";
+    status.style.color = "#9ca3af";
+
+    try {
+      var resp = await fetch(
+        API_BASE + "/api/shipments/" + encodeURIComponent(tracking) + "/pay",
+        { method: "POST" }
+      );
+      var data = await resp.json();
+
+      if (!resp.ok) {
+        throw new Error(data.detail || "Payment request failed");
+      }
+
+      status.textContent = "Opening checkout...";
+      status.style.color = "#34d399";
+      window.open(data.payment_link, "_blank");
+    } catch (err) {
+      status.textContent = "Error: " + err.message;
+      status.style.color = "#f87171";
+    } finally {
+      button.disabled = false;
+    }
+  });
+})();
+</script>
+
 </html>
