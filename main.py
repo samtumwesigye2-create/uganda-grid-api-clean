@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form, Header
+from fastapi import FastAPI,from auth_middleware import PasscodeMiddleware
+ Query, HTTPException, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
