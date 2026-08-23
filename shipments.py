@@ -12,7 +12,7 @@ Also add to main.py, near your other imports, if not already present:
     from fastapi.responses import HTMLResponse
 
 New in this version: rate quoting (rates.py), Flutterwave payment
-(payments.py), and a printable HTML receipt.
+(payments.py), a printable HTML receipt, and shipment editing/cancellation.
 
 Env vars needed (Railway/Render → Variables):
     FLW_SECRET_KEY   - your Flutterwave secret key
@@ -40,7 +40,7 @@ DB_PATH = Path(__file__).parent / "shipments_database.json"
 
 STATUS_FLOW = [
     "created", "picked_up", "in_transit", "out_for_delivery",
-    "delivered", "failed_delivery", "returned",
+    "delivered", "failed_delivery", "returned", "cancelled",
 ]
 
 
@@ -80,6 +80,14 @@ class Party(BaseModel):
 class ShipmentCreate(BaseModel):
     sender: Party
     receiver: Party
+    description: Optional[str] = None
+    weight_kg: Optional[float] = None
+    speed: Optional[str] = None      # one of rates.SPEED_TIERS keys
+    price: Optional[float] = None
+    currency: Optional[str] = None
+
+
+class ShipmentEdit(BaseModel):
     description: Optional[str] = None
     weight_kg: Optional[float] = None
     speed: Optional[str] = None      # one of rates.SPEED_TIERS keys
@@ -189,6 +197,69 @@ def update_status(tracking_number: str, update: StatusUpdate):
         "status": update.status,
         "note": update.note,
         "location": update.location,
+        "at": datetime.now(timezone.utc).isoformat(),
+    })
+    _save(data)
+    return s
+
+
+@router.patch("/{tracking_number}")
+def edit_shipment(tracking_number: str, edit: ShipmentEdit):
+    """Edit description/weight/tier/price on a shipment that hasn't been paid yet."""
+    data = _load()
+    s = _find(data, tracking_number)
+    if not s:
+        raise HTTPException(404, "No shipment found with that tracking number")
+    if s.get("payment_status") == "paid":
+        raise HTTPException(400, "Cannot edit a shipment that has already been paid.")
+
+    changed = []
+    if edit.description is not None:
+        s["description"] = edit.description
+        changed.append("description")
+    if edit.weight_kg is not None:
+        s["weight_kg"] = edit.weight_kg
+        changed.append("weight_kg")
+    if edit.speed is not None:
+        if edit.speed not in rates.SPEED_TIERS:
+            raise HTTPException(400, f"speed must be one of {list(rates.SPEED_TIERS.keys())}")
+        s["speed"] = edit.speed
+        s["speed_label"] = rates.SPEED_TIERS[edit.speed]["label"]
+        changed.append("speed")
+    if edit.price is not None:
+        s["price"] = edit.price
+        s["payment_status"] = "unpaid"
+        changed.append("price")
+    if edit.currency is not None:
+        s["currency"] = edit.currency
+        changed.append("currency")
+
+    if changed:
+        s["history"].append({
+            "status": s["status"],
+            "note": f"Updated: {', '.join(changed)}",
+            "at": datetime.now(timezone.utc).isoformat(),
+        })
+        _save(data)
+    return s
+
+
+@router.post("/{tracking_number}/cancel")
+def cancel_shipment(tracking_number: str, note: Optional[str] = None):
+    """Cancel a shipment that hasn't been paid yet."""
+    data = _load()
+    s = _find(data, tracking_number)
+    if not s:
+        raise HTTPException(404, "No shipment found with that tracking number")
+    if s.get("payment_status") == "paid":
+        raise HTTPException(400, "Cannot cancel a paid shipment — contact support for a refund instead.")
+    if s["status"] == "cancelled":
+        raise HTTPException(400, "Shipment is already cancelled.")
+
+    s["status"] = "cancelled"
+    s["history"].append({
+        "status": "cancelled",
+        "note": note or "Cancelled",
         "at": datetime.now(timezone.utc).isoformat(),
     })
     _save(data)
