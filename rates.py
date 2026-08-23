@@ -4,14 +4,12 @@ Distance component uses real road km via Valhalla (the same routing
 engine your nav app already calls). Weight component is a flat
 per-kg charge. Speed tiers apply a multiplier.
 
-resolve_coordinates() reuses your existing /search endpoint (the same
-one app.js calls) rather than reading entebbe_database.json directly —
-so it stays correct even if that file's internal shape changes.
-
-Env var needed:
-    PUBLIC_BASE_URL - e.g. https://uganda-grid-api-clean-production.up.railway.app
+resolve_coordinates() reads entebbe_database.json directly, using the
+same case-insensitive substring match on grid_id/address as main.py's
+/search endpoint. No PUBLIC_BASE_URL or self-HTTP-call needed.
 """
-import os
+import json
+from pathlib import Path
 from typing import Optional, Tuple
 
 import requests
@@ -32,25 +30,36 @@ SPEED_TIERS = {
     "express":   {"label": "Express (same day)", "multiplier": 3.5, "eta_days": 0},
 }
 
+_DB_PATH = Path(__file__).parent / "entebbe_database.json"
+_cache = None
+
+
+def _addresses():
+    global _cache
+    if _cache is None:
+        try:
+            _cache = json.loads(_DB_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            _cache = []
+    return _cache
+
 
 def resolve_coordinates(address_or_grid_id: str) -> Optional[Tuple[float, float]]:
-    """Look up (lat, lon) for a grid ID like 'UG-ENT-000001' via the
-    app's own /search endpoint — same one app.js already uses."""
-    base_url = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
-    try:
-        resp = requests.get(
-            f"{base_url}/search",
-            params={"q": address_or_grid_id},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        results = resp.json().get("results", [])
-        if not results:
-            return None
-        first = results[0]
-        return float(first["latitude"]), float(first["longitude"])
-    except Exception:
+    """Look up (lat, lon) for a grid ID or address by matching directly
+    against the local database — same matching rule as main.py's
+    /search endpoint (case-insensitive substring on grid_id or address)."""
+    query = address_or_grid_id.strip().lower()
+    if not query:
         return None
+    for item in _addresses():
+        grid_id = str(item.get("grid_id", "")).strip().lower()
+        address = str(item.get("address", "")).strip().lower()
+        if query in grid_id or query in address:
+            try:
+                return float(item["latitude"]), float(item["longitude"])
+            except (KeyError, ValueError, TypeError):
+                continue
+    return None
 
 
 def road_distance_km(origin: Tuple[float, float], destination: Tuple[float, float]) -> float:
