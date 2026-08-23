@@ -35,6 +35,10 @@
   .linkBtn{display:block;text-align:center;color:#e15b4d;text-decoration:none;font-size:14px;margin-top:10px}
   h3{margin:0 0 12px;color:#fff;font-size:16px}
   .hidden{display:none}
+  .modeTabs{display:flex;gap:8px;margin-bottom:14px}
+  .modeBtn{flex:1;padding:10px;border-radius:8px;border:1px solid #2a3150;background:#111527;color:#9ca3af;font-size:13px;font-weight:600;cursor:pointer;margin-top:0}
+  .modeBtn.active{background:#2563eb;color:#fff;border-color:#2563eb}
+  .badge{display:inline-block;background:#1e3a5f;color:#93c5fd;border-radius:999px;padding:3px 10px;font-size:12px;margin-bottom:8px}
 </style>
 </head>
 <body>
@@ -55,10 +59,28 @@
 
     <div class="card" id="quoteCard">
       <h3>Get a rate</h3>
-      <label>Pickup (address or grid ID)</label>
-      <input id="quoteOrigin" placeholder="e.g. UG-ENT-000001" />
-      <label>Delivery (address or grid ID)</label>
-      <input id="quoteDestination" placeholder="e.g. UG-ENT-000400" />
+
+      <div class="modeTabs">
+        <button class="modeBtn active" data-mode="domestic" type="button">Domestic (Uganda)</button>
+        <button class="modeBtn" data-mode="international" type="button">International</button>
+      </div>
+
+      <!-- Domestic fields -->
+      <div id="domesticFields">
+        <label>Pickup (address or grid ID)</label>
+        <input id="quoteOrigin" placeholder="e.g. UG-ENT-000001" />
+        <label>Delivery (address or grid ID)</label>
+        <input id="quoteDestination" placeholder="e.g. UG-ENT-000400" />
+      </div>
+
+      <!-- International fields -->
+      <div id="internationalFields" class="hidden">
+        <label>Destination country</label>
+        <input id="quoteCountry" placeholder="e.g. Kenya, United Kingdom" />
+        <label>Shipping zone</label>
+        <select id="quoteZone"><option value="">Loading zones...</option></select>
+      </div>
+
       <label>Weight (kg)</label>
       <input id="quoteWeight" type="number" min="0.1" step="0.1" placeholder="e.g. 2.5" />
       <button id="getRatesBtn">Get Rates</button>
@@ -68,6 +90,7 @@
 
     <div class="card hidden" id="detailsCard">
       <h3>Sender &amp; Receiver</h3>
+      <div id="intlBadge" class="badge hidden">International shipment</div>
       <label>Selected service</label>
       <div id="selectedRateSummary" class="status"></div>
 
@@ -84,9 +107,29 @@
       <input id="receiverPhone" />
       <label>Receiver address</label>
       <input id="receiverAddress" />
+      <div id="receiverCountryField" class="hidden">
+        <label>Receiver country</label>
+        <input id="receiverCountry" placeholder="e.g. Kenya" />
+      </div>
 
       <label>Package description (optional)</label>
       <input id="packageDescription" placeholder="e.g. Documents, clothes..." />
+
+      <div id="customsFields" class="hidden">
+        <label>Declared value</label>
+        <input id="customsValue" type="number" min="0" step="0.01" placeholder="e.g. 50" />
+        <label>Value currency</label>
+        <select id="customsCurrency">
+          <option value="USD">USD</option>
+          <option value="UGX">UGX</option>
+          <option value="EUR">EUR</option>
+          <option value="GBP">GBP</option>
+        </select>
+        <label>Customs description (required for international)</label>
+        <input id="customsDescription" placeholder="e.g. Used clothing, gift" />
+        <label>HS code (optional)</label>
+        <input id="customsHsCode" placeholder="e.g. 6109.10" />
+      </div>
 
       <button id="createShipmentBtn">Create Shipment</button>
       <button class="secondary" id="backToQuoteBtn">Back</button>
@@ -170,7 +213,7 @@
   });
 
   // ---------- ship flow state ----------
-  var state = { base: null, selectedTier: null, tracking: null };
+  var state = { base: null, selectedTier: null, tracking: null, mode: 'domestic' };
 
   var quoteCard = document.getElementById('quoteCard');
   var detailsCard = document.getElementById('detailsCard');
@@ -183,61 +226,144 @@
     return n.toLocaleString() + ' ' + (currency || 'UGX');
   }
 
+  // ---------- shipping mode toggle ----------
+  document.querySelectorAll('.modeBtn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      document.querySelectorAll('.modeBtn').forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      state.mode = btn.dataset.mode;
+      document.getElementById('domesticFields').classList.toggle('hidden', state.mode !== 'domestic');
+      document.getElementById('internationalFields').classList.toggle('hidden', state.mode !== 'international');
+      document.getElementById('rateOptions').innerHTML = '';
+      document.getElementById('quoteStatus').textContent = '';
+    });
+  });
+
+  // Load available international zones on page load
+  (async function loadZones() {
+    var select = document.getElementById('quoteZone');
+    try {
+      var result = await apiFetch('/api/shipments/zones');
+      if (!result.res.ok) { select.innerHTML = '<option value="">Could not load zones</option>'; return; }
+      var zones = await result.res.json();
+      state.base = state.base || result.base;
+      select.innerHTML = '';
+      Object.keys(zones).forEach(function (key) {
+        var opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = zones[key].label + ' (' + zones[key].eta_days + ' days)';
+        select.appendChild(opt);
+      });
+    } catch (e) {
+      select.innerHTML = '<option value="">Could not load zones</option>';
+    }
+  })();
+
   document.getElementById('getRatesBtn').addEventListener('click', async function () {
-    var origin = document.getElementById('quoteOrigin').value.trim();
-    var destination = document.getElementById('quoteDestination').value.trim();
     var weight = parseFloat(document.getElementById('quoteWeight').value);
     var status = document.getElementById('quoteStatus');
     var ratesDiv = document.getElementById('rateOptions');
     ratesDiv.innerHTML = '';
 
-    if (!origin || !destination || !weight) {
-      status.textContent = 'Fill in pickup, delivery, and weight.';
+    if (!weight) {
+      status.textContent = 'Enter the package weight.';
       return;
     }
 
-    status.textContent = 'Getting rates...';
-    try {
-      var result = await apiFetch('/api/shipments/quote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin: origin, destination: destination, weight_kg: weight })
-      });
-      state.base = result.base;
-      var data = await result.res.json();
-      if (!result.res.ok) {
-        status.textContent = data.detail || 'Could not get a quote for that route.';
+    if (state.mode === 'domestic') {
+      var origin = document.getElementById('quoteOrigin').value.trim();
+      var destination = document.getElementById('quoteDestination').value.trim();
+      if (!origin || !destination) {
+        status.textContent = 'Fill in pickup and delivery.';
         return;
       }
-      status.textContent = 'Choose a delivery speed:';
+      status.textContent = 'Getting rates...';
+      try {
+        var result = await apiFetch('/api/shipments/quote', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ origin: origin, destination: destination, weight_kg: weight })
+        });
+        state.base = result.base;
+        var data = await result.res.json();
+        if (!result.res.ok) {
+          status.textContent = data.detail || 'Could not get a quote for that route.';
+          return;
+        }
+        status.textContent = 'Choose a delivery speed:';
+        Object.keys(data).forEach(function (key) {
+          var tier = data[key];
+          var label = (tier && tier.label) || key;
+          var price = tier && (tier.price !== undefined ? tier.price : tier.amount);
+          var currency = (tier && tier.currency) || 'UGX';
+          var eta = tier && (tier.eta || tier.delivery_time || tier.days);
+          var el = document.createElement('div');
+          el.className = 'rateOption';
+          el.innerHTML =
+            '<div class="rTitle">' + label + '</div>' +
+            '<div class="rPrice">' + money(price, currency) + '</div>' +
+            (eta ? '<div class="rMeta">' + eta + '</div>' : '');
+          el.addEventListener('click', function () {
+            state.selectedTier = { key: key, label: label, price: price, currency: currency, weight: weight };
+            document.getElementById('selectedRateSummary').textContent = label + ' — ' + money(price, currency);
+            document.getElementById('intlBadge').classList.add('hidden');
+            document.getElementById('receiverCountryField').classList.add('hidden');
+            document.getElementById('customsFields').classList.add('hidden');
+            quoteCard.classList.add('hidden');
+            detailsCard.classList.remove('hidden');
+          });
+          ratesDiv.appendChild(el);
+        });
+        if (!Object.keys(data).length) status.textContent = 'No rates returned for that route.';
+      } catch (e) {
+        status.textContent = 'Network error — could not reach the server.';
+      }
 
-      Object.keys(data).forEach(function (key) {
-        var tier = data[key];
-        var label = (tier && tier.label) || key;
-        var price = tier && (tier.price !== undefined ? tier.price : tier.amount);
-        var currency = (tier && tier.currency) || 'UGX';
-        var eta = tier && (tier.eta || tier.delivery_time || tier.days);
+    } else {
+      // international
+      var country = document.getElementById('quoteCountry').value.trim();
+      var zone = document.getElementById('quoteZone').value;
+      if (!country) { status.textContent = 'Enter the destination country.'; return; }
+      if (!zone) { status.textContent = 'Choose a shipping zone.'; return; }
 
+      status.textContent = 'Getting rate...';
+      try {
+        var result = await apiFetch('/api/shipments/quote/international', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ zone: zone, weight_kg: weight })
+        });
+        state.base = result.base;
+        var data = await result.res.json();
+        if (!result.res.ok) {
+          status.textContent = data.detail || 'Could not get an international quote.';
+          return;
+        }
+        status.textContent = 'Confirm your service:';
         var el = document.createElement('div');
         el.className = 'rateOption';
         el.innerHTML =
-          '<div class="rTitle">' + label + '</div>' +
-          '<div class="rPrice">' + money(price, currency) + '</div>' +
-          (eta ? '<div class="rMeta">' + eta + '</div>' : '');
+          '<div class="rTitle">' + data.zone_label + '</div>' +
+          '<div class="rPrice">' + money(data.total, data.currency) + '</div>' +
+          '<div class="rMeta">Est. ' + data.eta_days + ' days</div>';
         el.addEventListener('click', function () {
-          state.selectedTier = { key: key, label: label, price: price, currency: currency, weight: weight };
-          document.getElementById('selectedRateSummary').textContent = label + ' — ' + money(price, currency);
+          state.selectedTier = {
+            key: 'international', label: data.zone_label, price: data.total,
+            currency: data.currency, weight: weight, zone: zone
+          };
+          state.receiverCountry = country;
+          document.getElementById('selectedRateSummary').textContent = data.zone_label + ' — ' + money(data.total, data.currency);
+          document.getElementById('intlBadge').classList.remove('hidden');
+          document.getElementById('receiverCountryField').classList.remove('hidden');
+          document.getElementById('receiverCountry').value = country;
+          document.getElementById('customsFields').classList.remove('hidden');
           quoteCard.classList.add('hidden');
           detailsCard.classList.remove('hidden');
         });
         ratesDiv.appendChild(el);
-      });
-
-      if (!Object.keys(data).length) {
-        status.textContent = 'No rates returned for that route.';
+      } catch (e) {
+        status.textContent = 'Network error — could not reach the server.';
       }
-    } catch (e) {
-      status.textContent = 'Network error — could not reach the server.';
     }
   });
 
@@ -265,17 +391,34 @@
       return;
     }
 
-    status.textContent = 'Creating shipment...';
     var payload = {
       sender: { name: senderName, phone: senderPhone, address: senderAddress },
       receiver: { name: receiverName, phone: receiverPhone, address: receiverAddress },
       description: description,
       weight_kg: state.selectedTier.weight,
-      speed: state.selectedTier.key,
       price: state.selectedTier.price,
       currency: state.selectedTier.currency
     };
 
+    if (state.mode === 'international') {
+      var receiverCountry = document.getElementById('receiverCountry').value.trim();
+      var customsDescription = document.getElementById('customsDescription').value.trim();
+      if (!receiverCountry) { status.textContent = 'Receiver country is required for international shipments.'; return; }
+      if (!customsDescription) { status.textContent = 'Customs description is required for international shipments.'; return; }
+
+      payload.receiver.country = receiverCountry;
+      payload.zone = state.selectedTier.zone;
+      payload.customs = {
+        declared_value: parseFloat(document.getElementById('customsValue').value) || null,
+        declared_value_currency: document.getElementById('customsCurrency').value,
+        description: customsDescription,
+        hs_code: document.getElementById('customsHsCode').value.trim() || null
+      };
+    } else {
+      payload.speed = state.selectedTier.key;
+    }
+
+    status.textContent = 'Creating shipment...';
     try {
       var result = await apiFetch('/api/shipments', {
         method: 'POST',
@@ -318,14 +461,15 @@
   });
 
   document.getElementById('shipAnotherBtn').addEventListener('click', function () {
-    state = { base: state.base, selectedTier: null, tracking: null };
+    state = { base: state.base, selectedTier: null, tracking: null, mode: state.mode };
     confirmCard.classList.add('hidden');
     quoteCard.classList.remove('hidden');
     document.getElementById('rateOptions').innerHTML = '';
     document.getElementById('quoteStatus').textContent = '';
-    ['quoteOrigin', 'quoteDestination', 'quoteWeight', 'senderName', 'senderPhone',
-     'senderAddress', 'receiverName', 'receiverPhone', 'receiverAddress', 'packageDescription']
-      .forEach(function (id) { document.getElementById(id).value = ''; });
+    ['quoteOrigin', 'quoteDestination', 'quoteCountry', 'quoteWeight', 'senderName', 'senderPhone',
+     'senderAddress', 'receiverName', 'receiverPhone', 'receiverAddress', 'receiverCountry',
+     'packageDescription', 'customsValue', 'customsDescription', 'customsHsCode']
+      .forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ''; });
   });
 
   // ---------- track tab ----------
@@ -360,8 +504,9 @@
         rows.appendChild(d);
       }
       row('From', data.sender ? data.sender.name : '—');
-      row('To', data.receiver ? data.receiver.name : '—');
-      row('Service', data.speed_label || data.speed || '—');
+      row('To', data.receiver ? data.receiver.name + (data.receiver.country && data.receiver.country !== 'Uganda' ? ' (' + data.receiver.country + ')' : '') : '—');
+      row('Service', data.speed_label || data.zone_label || data.speed || data.zone || '—');
+      if (data.international) row('Type', 'International');
       if (data.price) row('Price', money(data.price, data.currency));
       row('Payment', data.payment_status || 'unpaid');
 
