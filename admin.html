@@ -11,28 +11,25 @@
   header h1{margin:0;font-size:20px}
   main{max-width:720px;margin:0 auto;padding:16px}
 
-  /* Login */
   .loginBox{background:#161b22;border-radius:12px;padding:24px;border:1px solid #2a3150;margin-top:24px}
-  label{display:block;font-weight:700;font-size:13px;margin-bottom:8px}
+  label{display:block;font-weight:700;font-size:13px;margin-bottom:6px}
   input,button,select,textarea{width:100%;font-size:16px;border-radius:8px;padding:12px;border:1px solid #2a3150;box-sizing:border-box}
   input,select,textarea{background:#0d1117;color:#e6edf3;margin-bottom:10px;font-family:inherit}
+  textarea{min-height:120px;resize:vertical}
   button{border:0;font-weight:700;cursor:pointer;background:#2563eb;color:#fff}
   button:disabled{opacity:.5;cursor:default}
   #loginStatus{font-size:13px;margin-top:10px;color:#9ca3af}
 
-  /* Panel */
   #panel{display:none}
   #logoutBar{display:flex;justify-content:space-between;align-items:center;margin:16px 0}
   #logoutBar button{width:auto;background:#374151;padding:8px 14px;font-size:13px}
 
-  /* Tabs */
   .tabs{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px}
   .tabBtn{width:auto;flex-shrink:0;background:#161b22;color:#9ca3af;border:1px solid #2a3150;padding:10px 14px;font-size:13px}
   .tabBtn.active{background:#2563eb;color:#fff;border-color:#2563eb}
   .tabPane{display:none}
   .tabPane.active{display:block}
 
-  /* Cards */
   .row{background:#161b22;border:1px solid #2a3150;border-radius:12px;padding:16px;margin-bottom:12px}
   .row h3{margin:0 0 8px;font-size:15px}
   .tag{display:inline-block;background:#1f2937;color:#9ca3af;border-radius:999px;padding:4px 10px;font-size:12px;margin:0 6px 6px 0}
@@ -47,7 +44,32 @@
   .emptyMsg{color:#6b7280;font-size:14px;text-align:center;padding:24px 0}
   .refreshBtn{width:auto;background:#1f2937;color:#e6edf3;padding:8px 14px;font-size:13px;margin-bottom:12px}
 
-  /* Placeholder for sections not yet wired */
+  .sectionTitle{font-size:14px;font-weight:700;margin:20px 0 10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.03em}
+  .sectionTitle:first-child{margin-top:0}
+
+  .filterRow{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .filterRow select,.filterRow input{width:auto;flex:1;min-width:120px;margin-bottom:0}
+
+  .subRow{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2a3150;font-size:13px}
+  .subRow:last-child{border-bottom:none}
+  .subEmail{font-weight:700}
+  .subMeta{color:#6b7280;font-size:12px}
+  .campaignStatus{font-size:11px;padding:3px 8px;border-radius:999px;background:#1f2937;color:#9ca3af}
+  .campaignStatus.sent{background:#064e3b;color:#34d399}
+  .campaignStatus.sending{background:#78350f;color:#fbbf24}
+
+  .shipHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .trackingNum{font-family:monospace;font-size:14px;font-weight:700;color:#93c5fd}
+  .statusPill{font-size:11px;padding:3px 8px;border-radius:999px;background:#1f2937;color:#e6edf3;white-space:nowrap}
+  .payPill{font-size:11px;padding:3px 8px;border-radius:999px}
+  .payPill.paid{background:#064e3b;color:#34d399}
+  .payPill.unpaid{background:#3f1d1d;color:#f87171}
+  .actionRow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .actionRow button{width:auto;font-size:12px;padding:8px 12px}
+  .linkBtn{background:#1f2937;color:#93c5fd;text-decoration:none;display:inline-block;text-align:center;padding:8px 12px;border-radius:8px;font-size:12px}
+  .statusForm{margin-top:10px;display:none;background:#0d1117;border-radius:8px;padding:10px;border:1px solid #2a3150}
+  .statusForm.active{display:block}
+
   .placeholder{border:1px dashed #374151;border-radius:12px;padding:20px;color:#6b7280;font-size:14px;text-align:center}
 </style>
 </head>
@@ -86,15 +108,49 @@
     </div>
 
     <div id="tab-mailing" class="tabPane">
-      <div class="placeholder">
-        Mailing admin controls aren't wired up here yet — send over mailing.py and I'll build this tab out.
+      <div class="sectionTitle">New Campaign</div>
+      <div class="row">
+        <label>Subject</label>
+        <input type="text" id="campSubject" placeholder="e.g. Road closure update — Kampala Road" />
+        <label>Message (HTML allowed)</label>
+        <textarea id="campBody" placeholder="Write your message..."></textarea>
+        <label>Limit to region (optional)</label>
+        <input type="text" id="campRegion" placeholder="e.g. Entebbe" />
+        <label>Limit to tag (optional)</label>
+        <input type="text" id="campTag" placeholder="e.g. business-owners" />
+        <button id="sendCampaignBtn">Send Campaign</button>
+        <div class="statusMsg" id="campaignStatusMsg"></div>
       </div>
+
+      <div class="sectionTitle">Past Campaigns</div>
+      <button class="refreshBtn" data-refresh="campaigns">Refresh</button>
+      <div id="campaignsList"></div>
+
+      <div class="sectionTitle">Subscribers</div>
+      <div class="filterRow">
+        <input type="text" id="subRegionFilter" placeholder="Filter by region" />
+        <input type="text" id="subTagFilter" placeholder="Filter by tag" />
+        <button class="refreshBtn" style="width:auto;flex:0 0 auto" data-refresh="subscribers">Go</button>
+      </div>
+      <div id="subscribersList"></div>
     </div>
 
     <div id="tab-shipments" class="tabPane">
-      <div class="placeholder">
-        Shipment admin controls aren't wired up here yet — send over shipments.py and I'll build this tab out.
+      <div class="filterRow">
+        <select id="shipStatusFilter">
+          <option value="">All statuses</option>
+          <option value="created">Created</option>
+          <option value="picked_up">Picked up</option>
+          <option value="in_transit">In transit</option>
+          <option value="out_for_delivery">Out for delivery</option>
+          <option value="delivered">Delivered</option>
+          <option value="failed_delivery">Failed delivery</option>
+          <option value="returned">Returned</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <button class="refreshBtn" style="width:auto;flex:0 0 auto" data-refresh="shipments">Go</button>
       </div>
+      <div id="shipmentsList"></div>
     </div>
   </div>
 </main>
@@ -103,6 +159,7 @@
 (function () {
   var passcode = '';
   var API_BASE = location.origin;
+  var STATUS_FLOW = ["created","picked_up","in_transit","out_for_delivery","delivered","failed_delivery","returned","cancelled"];
 
   var passcodeInput = document.getElementById('passcodeInput');
   var unlockBtn = document.getElementById('unlockBtn');
@@ -112,21 +169,12 @@
   var lockBtn = document.getElementById('lockBtn');
 
   var BUILDING_LABELS = {
-    hospital: 'Hospital / Health Facility',
-    police: 'Police Station',
-    government: 'Government Office',
-    residence: 'Home / Residence',
-    business: 'Business',
-    other: 'Other'
+    hospital: 'Hospital / Health Facility', police: 'Police Station', government: 'Government Office',
+    residence: 'Home / Residence', business: 'Business', other: 'Other'
   };
-
   var CATEGORY_LABELS = {
-    police: 'Police',
-    accident: 'Accident',
-    road_closure: 'Road Closure',
-    bridge: 'Bridge',
-    traffic: 'Traffic',
-    weather: 'Weather'
+    police: 'Police', accident: 'Accident', road_closure: 'Road Closure',
+    bridge: 'Bridge', traffic: 'Traffic', weather: 'Weather'
   };
 
   function escapeHtml(v) {
@@ -142,27 +190,28 @@
     return fetch(API_BASE + path, opts);
   }
 
-  // ---------- Login ----------
+  function authedJsonFetch(path, method, bodyObj) {
+    return authedFetch(path, {
+      method: method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyObj)
+    });
+  }
+
   async function tryUnlock() {
     passcode = passcodeInput.value;
-    if (!passcode) {
-      loginStatus.textContent = 'Enter a passcode first.';
-      return;
-    }
+    if (!passcode) { loginStatus.textContent = 'Enter a passcode first.'; return; }
     unlockBtn.disabled = true;
     loginStatus.textContent = 'Checking...';
-
     try {
       var r = await authedFetch('/submissions?status=pending');
       if (r.status === 401) {
         loginStatus.textContent = 'Incorrect passcode — rejected by server.';
-        unlockBtn.disabled = false;
-        return;
+        unlockBtn.disabled = false; return;
       }
       if (!r.ok) {
         loginStatus.textContent = 'Server error (' + r.status + '). Try again.';
-        unlockBtn.disabled = false;
-        return;
+        unlockBtn.disabled = false; return;
       }
       loginSection.style.display = 'none';
       panel.style.display = 'block';
@@ -172,39 +221,41 @@
       unlockBtn.disabled = false;
     }
   }
-
   unlockBtn.addEventListener('click', tryUnlock);
-  passcodeInput.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter') tryUnlock();
-  });
-
+  passcodeInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryUnlock(); });
   lockBtn.addEventListener('click', function () {
-    passcode = '';
-    passcodeInput.value = '';
-    loginStatus.textContent = '';
-    unlockBtn.disabled = false;
-    panel.style.display = 'none';
-    loginSection.style.display = 'block';
+    passcode = ''; passcodeInput.value = ''; loginStatus.textContent = ''; unlockBtn.disabled = false;
+    panel.style.display = 'none'; loginSection.style.display = 'block';
   });
 
-  // ---------- Tabs ----------
+  var loadedOnce = {};
   document.querySelectorAll('.tabBtn').forEach(function (btn) {
     btn.addEventListener('click', function () {
       document.querySelectorAll('.tabBtn').forEach(function (b) { b.classList.remove('active'); });
       document.querySelectorAll('.tabPane').forEach(function (p) { p.classList.remove('active'); });
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      var t = btn.dataset.tab;
+      if (!loadedOnce[t]) {
+        loadedOnce[t] = true;
+        if (t === 'reports') loadReports();
+        if (t === 'mailing') { loadCampaigns(); loadSubscribers(); }
+        if (t === 'shipments') loadShipments();
+      }
     });
   });
 
   document.querySelectorAll('[data-refresh]').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      if (btn.dataset.refresh === 'submissions') loadSubmissions();
-      if (btn.dataset.refresh === 'reports') loadReports();
+      var r = btn.dataset.refresh;
+      if (r === 'submissions') loadSubmissions();
+      if (r === 'reports') loadReports();
+      if (r === 'campaigns') loadCampaigns();
+      if (r === 'subscribers') loadSubscribers();
+      if (r === 'shipments') loadShipments();
     });
   });
 
-  // ---------- Submissions ----------
   async function loadSubmissions() {
     var list = document.getElementById('submissionsList');
     list.innerHTML = '<div class="emptyMsg">Loading...</div>';
@@ -213,18 +264,13 @@
       if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load submissions.</div>'; return; }
       var data = await r.json();
       renderSubmissions(data.results || []);
-    } catch (e) {
-      list.innerHTML = '<div class="emptyMsg">Network error.</div>';
-    }
+    } catch (e) { list.innerHTML = '<div class="emptyMsg">Network error.</div>'; }
   }
 
   function renderSubmissions(items) {
     var list = document.getElementById('submissionsList');
     list.innerHTML = '';
-    if (!items.length) {
-      list.innerHTML = '<div class="emptyMsg">No pending submissions.</div>';
-      return;
-    }
+    if (!items.length) { list.innerHTML = '<div class="emptyMsg">No pending submissions.</div>'; return; }
     items.forEach(function (sub) {
       var card = document.createElement('div');
       card.className = 'row card';
@@ -232,14 +278,12 @@
       if (sub.media_url) {
         var url = API_BASE + sub.media_url;
         mediaHtml = (sub.media_type && sub.media_type.indexOf('video') === 0)
-          ? '<video src="' + url + '" controls></video>'
-          : '<img src="' + url + '" />';
+          ? '<video src="' + url + '" controls></video>' : '<img src="' + url + '" />';
       }
       card.innerHTML =
         '<span class="tag">' + escapeHtml(BUILDING_LABELS[sub.building_type] || sub.building_type) + '</span>' +
         '<span class="tag">' + sub.lat.toFixed(6) + ', ' + sub.lon.toFixed(6) + '</span>' +
-        (sub.note ? '<p>' + escapeHtml(sub.note) + '</p>' : '') +
-        mediaHtml +
+        (sub.note ? '<p>' + escapeHtml(sub.note) + '</p>' : '') + mediaHtml +
         '<div class="decisionRow">' +
           '<button class="toggleApproveBtn" data-id="' + sub.id + '">Approve</button>' +
           '<button class="denyBtn" data-id="' + sub.id + '">Deny</button>' +
@@ -252,11 +296,8 @@
         '<div class="statusMsg" id="msg-' + sub.id + '"></div>';
       list.appendChild(card);
     });
-
     document.querySelectorAll('.toggleApproveBtn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        document.getElementById('approveForm-' + btn.dataset.id).classList.toggle('active');
-      });
+      btn.addEventListener('click', function () { document.getElementById('approveForm-' + btn.dataset.id).classList.toggle('active'); });
     });
     document.querySelectorAll('.denyBtn').forEach(function (btn) {
       btn.addEventListener('click', function () { decideSubmission(btn.dataset.id, 'deny', '', ''); });
@@ -266,10 +307,7 @@
         var id = btn.dataset.id;
         var gridId = document.getElementById('gridId-' + id).value.trim();
         var address = document.getElementById('address-' + id).value.trim();
-        if (!gridId || !address) {
-          document.getElementById('msg-' + id).textContent = 'Grid ID and address are required';
-          return;
-        }
+        if (!gridId || !address) { document.getElementById('msg-' + id).textContent = 'Grid ID and address are required'; return; }
         decideSubmission(id, 'approve', gridId, address);
       });
     });
@@ -279,22 +317,13 @@
     var msg = document.getElementById('msg-' + id);
     if (msg) msg.textContent = 'Saving...';
     var formData = new FormData();
-    formData.append('action', action);
-    formData.append('grid_id', gridId);
-    formData.append('address', address);
+    formData.append('action', action); formData.append('grid_id', gridId); formData.append('address', address);
     try {
       var r = await authedFetch('/submissions/' + id + '/decision', { method: 'POST', body: formData });
-      if (r.ok) {
-        loadSubmissions();
-      } else if (msg) {
-        msg.textContent = 'Failed to save decision';
-      }
-    } catch (e) {
-      if (msg) msg.textContent = 'Network error';
-    }
+      if (r.ok) loadSubmissions(); else if (msg) msg.textContent = 'Failed to save decision';
+    } catch (e) { if (msg) msg.textContent = 'Network error'; }
   }
 
-  // ---------- Reports ----------
   async function loadReports() {
     var list = document.getElementById('reportsList');
     list.innerHTML = '<div class="emptyMsg">Loading...</div>';
@@ -303,18 +332,13 @@
       if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load reports.</div>'; return; }
       var data = await r.json();
       renderReports(data.results || []);
-    } catch (e) {
-      list.innerHTML = '<div class="emptyMsg">Network error.</div>';
-    }
+    } catch (e) { list.innerHTML = '<div class="emptyMsg">Network error.</div>'; }
   }
 
   function renderReports(items) {
     var list = document.getElementById('reportsList');
     list.innerHTML = '';
-    if (!items.length) {
-      list.innerHTML = '<div class="emptyMsg">No active reports.</div>';
-      return;
-    }
+    if (!items.length) { list.innerHTML = '<div class="emptyMsg">No active reports.</div>'; return; }
     items.sort(function (a, b) { return b.created_at - a.created_at; });
     items.forEach(function (rep) {
       var card = document.createElement('div');
@@ -323,18 +347,209 @@
       if (rep.media_url) {
         var url = API_BASE + rep.media_url;
         mediaHtml = (rep.media_type && rep.media_type.indexOf('video') === 0)
-          ? '<video src="' + url + '" controls></video>'
-          : '<img src="' + url + '" />';
+          ? '<video src="' + url + '" controls></video>' : '<img src="' + url + '" />';
       }
       var age = Math.max(0, Math.round((Date.now() / 1000 - rep.created_at) / 60));
       card.innerHTML =
         '<span class="tag">' + escapeHtml(CATEGORY_LABELS[rep.category] || rep.category) + '</span>' +
         '<span class="tag">' + rep.lat.toFixed(6) + ', ' + rep.lon.toFixed(6) + '</span>' +
         '<span class="tag">' + age + ' min ago</span>' +
-        (rep.note ? '<p>' + escapeHtml(rep.note) + '</p>' : '') +
-        mediaHtml;
+        (rep.note ? '<p>' + escapeHtml(rep.note) + '</p>' : '') + mediaHtml;
       list.appendChild(card);
     });
+  }
+
+  document.getElementById('sendCampaignBtn').addEventListener('click', async function () {
+    var subject = document.getElementById('campSubject').value.trim();
+    var body = document.getElementById('campBody').value.trim();
+    var region = document.getElementById('campRegion').value.trim();
+    var tag = document.getElementById('campTag').value.trim();
+    var msg = document.getElementById('campaignStatusMsg');
+    if (!subject || !body) { msg.textContent = 'Subject and message are required.'; return; }
+    var payload = { subject: subject, body_html: body };
+    if (region) payload.segment_region = region;
+    if (tag) payload.segment_tag = tag;
+    msg.textContent = 'Sending...';
+    try {
+      var r = await authedJsonFetch('/api/mail/campaigns', 'POST', payload);
+      if (r.ok) {
+        msg.textContent = 'Campaign queued and sending in the background.';
+        document.getElementById('campSubject').value = '';
+        document.getElementById('campBody').value = '';
+        document.getElementById('campRegion').value = '';
+        document.getElementById('campTag').value = '';
+        loadCampaigns();
+      } else {
+        var err = await r.json().catch(function(){return {};});
+        msg.textContent = 'Failed: ' + (err.detail || r.status);
+      }
+    } catch (e) { msg.textContent = 'Network error.'; }
+  });
+
+  async function loadCampaigns() {
+    var list = document.getElementById('campaignsList');
+    list.innerHTML = '<div class="emptyMsg">Loading...</div>';
+    try {
+      var r = await authedFetch('/api/mail/campaigns');
+      if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load campaigns.</div>'; return; }
+      var data = await r.json();
+      renderCampaigns(data || []);
+    } catch (e) { list.innerHTML = '<div class="emptyMsg">Network error.</div>'; }
+  }
+
+  function renderCampaigns(items) {
+    var list = document.getElementById('campaignsList');
+    list.innerHTML = '';
+    if (!items.length) { list.innerHTML = '<div class="emptyMsg">No campaigns sent yet.</div>'; return; }
+    items.slice().reverse().forEach(function (c) {
+      var row = document.createElement('div');
+      row.className = 'row';
+      var statusClass = c.status === 'sent' ? 'sent' : (c.status === 'sending' ? 'sending' : '');
+      row.innerHTML =
+        '<div class="shipHeader"><h3>' + escapeHtml(c.subject) + '</h3>' +
+        '<span class="campaignStatus ' + statusClass + '">' + escapeHtml(c.status) + '</span></div>' +
+        (c.segment_region ? '<span class="tag">Region: ' + escapeHtml(c.segment_region) + '</span>' : '') +
+        (c.segment_tag ? '<span class="tag">Tag: ' + escapeHtml(c.segment_tag) + '</span>' : '') +
+        (c.sent_count !== undefined ? '<span class="tag">Sent: ' + c.sent_count + '</span>' : '') +
+        (c.failed && c.failed.length ? '<span class="tag" style="background:#3f1d1d;color:#f87171">Failed: ' + c.failed.length + '</span>' : '') +
+        '<div class="subMeta">' + escapeHtml(c.created_at || '') + '</div>';
+      list.appendChild(row);
+    });
+  }
+
+  async function loadSubscribers() {
+    var list = document.getElementById('subscribersList');
+    list.innerHTML = '<div class="emptyMsg">Loading...</div>';
+    var region = document.getElementById('subRegionFilter').value.trim();
+    var tag = document.getElementById('subTagFilter').value.trim();
+    var qs = [];
+    if (region) qs.push('region=' + encodeURIComponent(region));
+    if (tag) qs.push('tag=' + encodeURIComponent(tag));
+    var path = '/api/mail/subscribers' + (qs.length ? '?' + qs.join('&') : '');
+    try {
+      var r = await authedFetch(path);
+      if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load subscribers.</div>'; return; }
+      var data = await r.json();
+      renderSubscribers(data || []);
+    } catch (e) { list.innerHTML = '<div class="emptyMsg">Network error.</div>'; }
+  }
+
+  function renderSubscribers(items) {
+    var list = document.getElementById('subscribersList');
+    list.innerHTML = '';
+    if (!items.length) { list.innerHTML = '<div class="emptyMsg">No subscribers found.</div>'; return; }
+    var wrap = document.createElement('div');
+    wrap.className = 'row';
+    items.forEach(function (s) {
+      var line = document.createElement('div');
+      line.className = 'subRow';
+      line.innerHTML =
+        '<div><div class="subEmail">' + escapeHtml(s.email) + '</div>' +
+        '<div class="subMeta">' + escapeHtml(s.name || '') +
+        (s.region ? ' · ' + escapeHtml(s.region) : '') +
+        (s.tags && s.tags.length ? ' · ' + escapeHtml(s.tags.join(', ')) : '') + '</div></div>';
+      wrap.appendChild(line);
+    });
+    list.appendChild(wrap);
+    var countMsg = document.createElement('div');
+    countMsg.className = 'statusMsg';
+    countMsg.textContent = items.length + ' subscriber' + (items.length === 1 ? '' : 's');
+    list.appendChild(countMsg);
+  }
+
+  async function loadShipments() {
+    var list = document.getElementById('shipmentsList');
+    list.innerHTML = '<div class="emptyMsg">Loading...</div>';
+    var status = document.getElementById('shipStatusFilter').value;
+    var path = '/api/shipments' + (status ? '?status=' + encodeURIComponent(status) : '');
+    try {
+      var r = await authedFetch(path);
+      if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load shipments.</div>'; return; }
+      var data = await r.json();
+      renderShipments(data || []);
+    } catch (e) { list.innerHTML = '<div class="emptyMsg">Network error.</div>'; }
+  }
+
+  function renderShipments(items) {
+    var list = document.getElementById('shipmentsList');
+    list.innerHTML = '';
+    if (!items.length) { list.innerHTML = '<div class="emptyMsg">No shipments found.</div>'; return; }
+    items.slice().reverse().forEach(function (s) {
+      var card = document.createElement('div');
+      card.className = 'row';
+      var payClass = s.payment_status === 'paid' ? 'paid' : 'unpaid';
+      var payLabel = s.payment_status || (s.price ? 'unpaid' : 'no price set');
+      var statusOptions = STATUS_FLOW.map(function (st) {
+        return '<option value="' + st + '"' + (st === s.status ? ' selected' : '') + '>' + st.replace(/_/g, ' ') + '</option>';
+      }).join('');
+
+      card.innerHTML =
+        '<div class="shipHeader">' +
+          '<div><div class="trackingNum">' + escapeHtml(s.tracking_number) + '</div>' +
+          '<div class="subMeta">' + escapeHtml(s.sender.name) + ' → ' + escapeHtml(s.receiver.name) + '</div></div>' +
+          '<div style="text-align:right"><span class="statusPill">' + s.status.replace(/_/g, ' ') + '</span><br/>' +
+          '<span class="payPill ' + payClass + '" style="margin-top:4px;display:inline-block">' + payLabel + '</span></div>' +
+        '</div>' +
+        (s.description ? '<p style="margin:8px 0 0;font-size:13px;color:#9ca3af">' + escapeHtml(s.description) + '</p>' : '') +
+        '<div style="margin-top:6px">' +
+          (s.price ? '<span class="tag">' + Number(s.price).toLocaleString() + ' ' + escapeHtml(s.currency || 'UGX') + '</span>' : '') +
+          (s.weight_kg ? '<span class="tag">' + s.weight_kg + ' kg</span>' : '') +
+          (s.speed_label ? '<span class="tag">' + escapeHtml(s.speed_label) + '</span>' : '') +
+        '</div>' +
+        '<div class="actionRow">' +
+          '<button class="toggleStatusBtn" data-tn="' + s.tracking_number + '" style="background:#1f2937">Update Status</button>' +
+          '<a class="linkBtn" href="' + API_BASE + '/api/shipments/' + s.tracking_number + '/receipt" target="_blank">Receipt</a>' +
+          (s.payment_status !== 'paid' && s.status !== 'cancelled'
+            ? '<button class="cancelShipBtn" data-tn="' + s.tracking_number + '" style="background:#7f1d1d">Cancel</button>' : '') +
+        '</div>' +
+        '<div class="statusForm" id="statusForm-' + s.tracking_number + '">' +
+          '<label>New status</label>' +
+          '<select id="statusSelect-' + s.tracking_number + '">' + statusOptions + '</select>' +
+          '<label>Note (optional)</label>' +
+          '<input type="text" id="statusNote-' + s.tracking_number + '" placeholder="e.g. Left Kampala hub" />' +
+          '<label>Location (optional)</label>' +
+          '<input type="text" id="statusLocation-' + s.tracking_number + '" placeholder="e.g. Entebbe hub" />' +
+          '<button class="confirmStatusBtn" data-tn="' + s.tracking_number + '">Save Status</button>' +
+        '</div>' +
+        '<div class="statusMsg" id="shipMsg-' + s.tracking_number + '"></div>';
+      list.appendChild(card);
+    });
+
+    document.querySelectorAll('.toggleStatusBtn').forEach(function (btn) {
+      btn.addEventListener('click', function () { document.getElementById('statusForm-' + btn.dataset.tn).classList.toggle('active'); });
+    });
+    document.querySelectorAll('.confirmStatusBtn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var tn = btn.dataset.tn;
+        var status = document.getElementById('statusSelect-' + tn).value;
+        var note = document.getElementById('statusNote-' + tn).value.trim();
+        var location = document.getElementById('statusLocation-' + tn).value.trim();
+        updateShipmentStatus(tn, status, note, location);
+      });
+    });
+    document.querySelectorAll('.cancelShipBtn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (confirm('Cancel shipment ' + btn.dataset.tn + '?')) cancelShipment(btn.dataset.tn);
+      });
+    });
+  }
+
+  async function updateShipmentStatus(tn, status, note, location) {
+    var msg = document.getElementById('shipMsg-' + tn);
+    if (msg) msg.textContent = 'Saving...';
+    try {
+      var r = await authedJsonFetch('/api/shipments/' + tn + '/status', 'PATCH', { status: status, note: note, location: location });
+      if (r.ok) loadShipments(); else if (msg) msg.textContent = 'Failed to update status';
+    } catch (e) { if (msg) msg.textContent = 'Network error'; }
+  }
+
+  async function cancelShipment(tn) {
+    var msg = document.getElementById('shipMsg-' + tn);
+    if (msg) msg.textContent = 'Cancelling...';
+    try {
+      var r = await authedFetch('/api/shipments/' + tn + '/cancel', { method: 'POST' });
+      if (r.ok) loadShipments(); else if (msg) msg.textContent = 'Failed to cancel';
+    } catch (e) { if (msg) msg.textContent = 'Network error'; }
   }
 })();
 </script>
