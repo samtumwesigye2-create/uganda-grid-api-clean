@@ -7,6 +7,13 @@ per-kg charge. Speed tiers apply a multiplier.
 resolve_coordinates() reads entebbe_database.json directly, using the
 same case-insensitive substring match on grid_id/address as main.py's
 /search endpoint. No PUBLIC_BASE_URL or self-HTTP-call needed.
+
+INTERNATIONAL SHIPPING: there is no live carrier API wired in, so
+international pricing below is a flat, manually-set table by
+destination zone (base fee + per-kg rate) rather than a real-time
+quote from FedEx/DHL/UPS/etc. Edit INTERNATIONAL_ZONES with your own
+real numbers before relying on this for actual pricing — the values
+here are placeholders.
 """
 import json
 from pathlib import Path
@@ -28,6 +35,42 @@ SPEED_TIERS = {
     "one_day":   {"label": "1-Day",             "multiplier": 2.0, "eta_days": 1},
     "overnight": {"label": "Overnight",         "multiplier": 2.6, "eta_days": 1},
     "express":   {"label": "Express (same day)", "multiplier": 3.5, "eta_days": 0},
+}
+
+# ---------------------------------------------------------------------
+# International zones — PLACEHOLDER rates. These are not pulled from
+# any carrier; set your own base_fee / per_kg numbers before using
+# this for real customer-facing pricing.
+# ---------------------------------------------------------------------
+INTERNATIONAL_ZONES = {
+    "east_africa": {
+        "label": "East Africa (Kenya, Tanzania, Rwanda, S. Sudan, Burundi, DRC)",
+        "base_fee": 15000, "per_kg": 8000, "eta_days": "3-5",
+    },
+    "rest_of_africa": {
+        "label": "Rest of Africa",
+        "base_fee": 20000, "per_kg": 12000, "eta_days": "5-10",
+    },
+    "middle_east": {
+        "label": "Middle East",
+        "base_fee": 25000, "per_kg": 18000, "eta_days": "5-9",
+    },
+    "europe": {
+        "label": "Europe",
+        "base_fee": 30000, "per_kg": 25000, "eta_days": "5-10",
+    },
+    "asia": {
+        "label": "Asia",
+        "base_fee": 30000, "per_kg": 22000, "eta_days": "7-14",
+    },
+    "north_america": {
+        "label": "North America (USA, Canada)",
+        "base_fee": 35000, "per_kg": 30000, "eta_days": "7-14",
+    },
+    "rest_of_world": {
+        "label": "Rest of World",
+        "base_fee": 40000, "per_kg": 35000, "eta_days": "10-20",
+    },
 }
 
 _DB_PATH = Path(__file__).parent / "entebbe_database.json"
@@ -96,6 +139,24 @@ def quote(distance_km: float, weight_kg: float, speed: str) -> dict:
         "distance_cost": round(PER_KM * distance_km),
         "weight_cost": round(PER_KG * weight_kg),
         "multiplier": tier["multiplier"],
+        "total": total,
+        "currency": CURRENCY,
+    }
+
+
+def quote_international(zone: str, weight_kg: float) -> dict:
+    if zone not in INTERNATIONAL_ZONES:
+        raise ValueError(f"zone must be one of {list(INTERNATIONAL_ZONES)}")
+    z = INTERNATIONAL_ZONES[zone]
+    weight_cost = round(z["per_kg"] * weight_kg)
+    total = round(z["base_fee"] + weight_cost)
+    return {
+        "zone": zone,
+        "zone_label": z["label"],
+        "weight_kg": weight_kg,
+        "eta_days": z["eta_days"],
+        "base_fee": z["base_fee"],
+        "weight_cost": weight_cost,
         "total": total,
         "currency": CURRENCY,
     }
