@@ -23,27 +23,14 @@
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   }
-  header {
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--border);
-  }
+  header { padding: 20px 24px; border-bottom: 1px solid var(--border); }
   header h1 { margin: 0; font-size: 1.4rem; }
   header p { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
 
-  nav {
-    display: flex;
-    gap: 8px;
-    padding: 12px 24px;
-    border-bottom: 1px solid var(--border);
-  }
+  nav { display: flex; gap: 8px; padding: 12px 24px; border-bottom: 1px solid var(--border); }
   nav button {
-    background: var(--panel);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 10px 18px;
-    font-size: 0.95rem;
-    cursor: pointer;
+    background: var(--panel); color: var(--text); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 18px; font-size: 0.95rem; cursor: pointer;
   }
   nav button.active { background: var(--accent); border-color: var(--accent); }
 
@@ -52,23 +39,15 @@
   section.active { display: block; }
 
   .card {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px;
-    margin-bottom: 18px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 18px; margin-bottom: 18px;
   }
   .card h2 { margin: 0 0 12px; font-size: 1.05rem; }
 
   label { display: block; font-size: 0.85rem; color: var(--muted); margin: 10px 0 4px; }
   input, textarea, select {
-    width: 100%;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px;
-    color: var(--text);
-    font-size: 0.95rem;
+    width: 100%; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 10px; color: var(--text); font-size: 0.95rem;
   }
   textarea { min-height: 100px; resize: vertical; }
 
@@ -76,35 +55,40 @@
   .row > div { flex: 1; }
 
   button.primary {
-    margin-top: 14px;
-    background: var(--accent);
-    border: none;
-    border-radius: 10px;
-    color: white;
-    padding: 11px 20px;
-    font-size: 0.95rem;
-    font-weight: 600;
-    cursor: pointer;
+    margin-top: 14px; background: var(--accent); border: none; border-radius: 10px;
+    color: white; padding: 11px 20px; font-size: 0.95rem; font-weight: 600; cursor: pointer;
   }
   button.primary:disabled { opacity: 0.5; cursor: default; }
+  button.secondary {
+    margin-top: 14px; margin-left: 8px; background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text); padding: 11px 20px; font-size: 0.95rem; cursor: pointer;
+  }
 
   table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.88rem; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--border); }
   th { color: var(--muted); font-weight: 500; }
 
   .badge {
-    display: inline-block;
-    padding: 3px 9px;
-    border-radius: 999px;
-    font-size: 0.75rem;
-    background: var(--panel-2);
-    border: 1px solid var(--border);
+    display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 0.75rem;
+    background: var(--panel-2); border: 1px solid var(--border);
   }
   .badge.delivered { color: var(--ok); border-color: var(--ok); }
   .badge.in_transit, .badge.out_for_delivery { color: var(--warn); border-color: var(--warn); }
   .badge.failed_delivery, .badge.returned { color: var(--accent); border-color: var(--accent); }
+  .badge.paid { color: var(--ok); border-color: var(--ok); }
+  .badge.unpaid { color: var(--warn); border-color: var(--warn); }
 
   .status-msg { font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
+
+  .tier-option {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 8px; cursor: pointer;
+  }
+  .tier-option.selected { border-color: var(--accent); background: #2a1f2f; }
+  .tier-option .tier-name { font-weight: 600; }
+  .tier-option .tier-eta { color: var(--muted); font-size: 0.8rem; }
+  .tier-option .tier-price { font-weight: 700; font-size: 1.05rem; }
 </style>
 </head>
 <body>
@@ -128,262 +112,12 @@
       <label>Email</label>
       <input id="subEmail" type="email" placeholder="name@example.com">
       <div class="row">
-        <div>
-          <label>Name</label>
-          <input id="subName" type="text">
-        </div>
-        <div>
-          <label>Region</label>
-          <input id="subRegion" type="text" placeholder="Kampala">
-        </div>
+        <div><label>Name</label><input id="subName" type="text"></div>
+        <div><label>Region</label><input id="subRegion" type="text" placeholder="Kampala"></div>
       </div>
       <button class="primary" onclick="addSubscriber()">Add subscriber</button>
       <div class="status-msg" id="subStatus"></div>
     </div>
 
     <div class="card">
-      <h2>New campaign</h2>
-      <label>Subject</label>
-      <input id="campSubject" type="text">
-      <label>Body (HTML)</label>
-      <textarea id="campBody" placeholder="&lt;p&gt;Hello!&lt;/p&gt;"></textarea>
-      <div class="row">
-        <div>
-          <label>Only this region (optional)</label>
-          <input id="campRegion" type="text">
-        </div>
-        <div>
-          <label>Only this tag (optional)</label>
-          <input id="campTag" type="text">
-        </div>
-      </div>
-      <button class="primary" onclick="sendCampaign()">Send campaign</button>
-      <div class="status-msg" id="campStatus"></div>
-    </div>
-
-    <div class="card">
-      <h2>Recent campaigns</h2>
-      <table>
-        <thead><tr><th>Subject</th><th>Status</th><th>Sent</th><th>Created</th></tr></thead>
-        <tbody id="campaignRows"></tbody>
-      </table>
-    </div>
-  </section>
-
-  <!-- SHIPMENTS TAB -->
-  <section id="ship">
-    <div class="card">
-      <h2>New shipment</h2>
-      <div class="row">
-        <div>
-          <label>Sender name</label>
-          <input id="senderName" type="text">
-          <label>Sender phone</label>
-          <input id="senderPhone" type="text">
-          <label>Sender address / grid ID</label>
-          <input id="senderAddress" type="text" placeholder="UG-ENT-000400">
-        </div>
-        <div>
-          <label>Receiver name</label>
-          <input id="receiverName" type="text">
-          <label>Receiver phone</label>
-          <input id="receiverPhone" type="text">
-          <label>Receiver address / grid ID</label>
-          <input id="receiverAddress" type="text" placeholder="UG-ENT-000123">
-        </div>
-      </div>
-      <label>Description</label>
-      <input id="shipDesc" type="text" placeholder="Documents, 1 box">
-      <button class="primary" onclick="createShipment()">Create shipment</button>
-      <div class="status-msg" id="shipStatus"></div>
-    </div>
-
-    <div class="card">
-      <h2>Track / update a shipment</h2>
-      <label>Tracking number</label>
-      <input id="trackInput" type="text" placeholder="UG-SHIP-000001">
-      <button class="primary" onclick="lookupShipment()">Look up</button>
-      <div id="trackResult"></div>
-    </div>
-
-    <div class="card">
-      <h2>All shipments</h2>
-      <table>
-        <thead><tr><th>Tracking #</th><th>Receiver</th><th>Status</th><th>Created</th></tr></thead>
-        <tbody id="shipmentRows"></tbody>
-      </table>
-    </div>
-  </section>
-
-</main>
-
-<script>
-  const API = ""; // same-origin — served from your FastAPI app
-
-  function showTab(name) {
-    document.getElementById('mail').classList.toggle('active', name === 'mail');
-    document.getElementById('ship').classList.toggle('active', name === 'ship');
-    document.getElementById('tabMailBtn').classList.toggle('active', name === 'mail');
-    document.getElementById('tabShipBtn').classList.toggle('active', name === 'ship');
-    if (name === 'mail') loadCampaigns(); else loadShipments();
-  }
-
-  // ---------- mailing ----------
-
-  async function addSubscriber() {
-    const email = document.getElementById('subEmail').value.trim();
-    const name = document.getElementById('subName').value.trim();
-    const region = document.getElementById('subRegion').value.trim();
-    const statusEl = document.getElementById('subStatus');
-    if (!email) { statusEl.textContent = 'Email is required.'; return; }
-    try {
-      const res = await fetch(`${API}/api/mail/subscribers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name: name || null, region: region || null, tags: [] })
-      });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed');
-      statusEl.textContent = `Added ${email}.`;
-      document.getElementById('subEmail').value = '';
-      document.getElementById('subName').value = '';
-      document.getElementById('subRegion').value = '';
-    } catch (e) {
-      statusEl.textContent = `Error: ${e.message}`;
-    }
-  }
-
-  async function sendCampaign() {
-    const subject = document.getElementById('campSubject').value.trim();
-    const body_html = document.getElementById('campBody').value.trim();
-    const segment_region = document.getElementById('campRegion').value.trim() || null;
-    const segment_tag = document.getElementById('campTag').value.trim() || null;
-    const statusEl = document.getElementById('campStatus');
-    if (!subject || !body_html) { statusEl.textContent = 'Subject and body are required.'; return; }
-    try {
-      const res = await fetch(`${API}/api/mail/campaigns`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject, body_html, segment_region, segment_tag })
-      });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed');
-      statusEl.textContent = 'Campaign is sending in the background.';
-      loadCampaigns();
-    } catch (e) {
-      statusEl.textContent = `Error: ${e.message}`;
-    }
-  }
-
-  async function loadCampaigns() {
-    try {
-      const res = await fetch(`${API}/api/mail/campaigns`);
-      const campaigns = await res.json();
-      const rows = campaigns.slice().reverse().map(c => `
-        <tr>
-          <td>${escapeHtml(c.subject)}</td>
-          <td><span class="badge">${c.status}</span></td>
-          <td>${c.sent_count ?? '—'}</td>
-          <td>${new Date(c.created_at).toLocaleString()}</td>
-        </tr>`).join('');
-      document.getElementById('campaignRows').innerHTML = rows || '<tr><td colspan="4">No campaigns yet.</td></tr>';
-    } catch (e) { /* silent */ }
-  }
-
-  // ---------- shipments ----------
-
-  async function createShipment() {
-    const payload = {
-      sender: {
-        name: document.getElementById('senderName').value.trim(),
-        phone: document.getElementById('senderPhone').value.trim() || null,
-        address: document.getElementById('senderAddress').value.trim(),
-      },
-      receiver: {
-        name: document.getElementById('receiverName').value.trim(),
-        phone: document.getElementById('receiverPhone').value.trim() || null,
-        address: document.getElementById('receiverAddress').value.trim(),
-      },
-      description: document.getElementById('shipDesc').value.trim() || null,
-    };
-    const statusEl = document.getElementById('shipStatus');
-    if (!payload.sender.name || !payload.sender.address || !payload.receiver.name || !payload.receiver.address) {
-      statusEl.textContent = 'Sender/receiver name and address are required.';
-      return;
-    }
-    try {
-      const res = await fetch(`${API}/api/shipments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error((await res.json()).detail || 'Failed');
-      const created = await res.json();
-      statusEl.textContent = `Created ${created.tracking_number}.`;
-      loadShipments();
-    } catch (e) {
-      statusEl.textContent = `Error: ${e.message}`;
-    }
-  }
-
-  async function lookupShipment() {
-    const tn = document.getElementById('trackInput').value.trim();
-    const resultEl = document.getElementById('trackResult');
-    if (!tn) return;
-    try {
-      const res = await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}`);
-      if (!res.ok) throw new Error('Not found');
-      const s = await res.json();
-      const history = s.history.map(h => `<li>${h.status}${h.note ? ' — ' + escapeHtml(h.note) : ''} <span style="color:var(--muted)">(${new Date(h.at).toLocaleString()})</span></li>`).join('');
-      resultEl.innerHTML = `
-        <p><strong>${s.tracking_number}</strong> — <span class="badge ${s.status}">${s.status}</span></p>
-        <p style="color:var(--muted)">To: ${escapeHtml(s.receiver.name)}, ${escapeHtml(s.receiver.address)}</p>
-        <label>Update status</label>
-        <select id="newStatus">
-          ${['created','picked_up','in_transit','out_for_delivery','delivered','failed_delivery','returned']
-            .map(st => `<option value="${st}" ${st === s.status ? 'selected' : ''}>${st}</option>`).join('')}
-        </select>
-        <button class="primary" onclick="updateStatus('${s.tracking_number}')">Update</button>
-        <ul>${history}</ul>
-      `;
-    } catch (e) {
-      resultEl.innerHTML = `<p class="status-msg">${e.message}</p>`;
-    }
-  }
-
-  async function updateStatus(tn) {
-    const status = document.getElementById('newStatus').value;
-    await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
-    });
-    lookupShipment();
-    loadShipments();
-  }
-
-  async function loadShipments() {
-    try {
-      const res = await fetch(`${API}/api/shipments`);
-      const shipments = await res.json();
-      const rows = shipments.slice().reverse().map(s => `
-        <tr>
-          <td>${s.tracking_number}</td>
-          <td>${escapeHtml(s.receiver.name)}</td>
-          <td><span class="badge ${s.status}">${s.status}</span></td>
-          <td>${new Date(s.created_at).toLocaleString()}</td>
-        </tr>`).join('');
-      document.getElementById('shipmentRows').innerHTML = rows || '<tr><td colspan="4">No shipments yet.</td></tr>';
-    } catch (e) { /* silent */ }
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str ?? '';
-    return div.innerHTML;
-  }
-
-  loadCampaigns();
-  loadShipments();
-</script>
-
-</body>
-</html>
+      
