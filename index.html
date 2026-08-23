@@ -208,8 +208,8 @@
 
 <script>
   const API = "";
-  let selectedQuote = null; // holds the chosen tier's quote object (new shipment form)
-  let editQuote = null;     // holds the chosen tier's quote object (edit-existing-shipment form)
+  let selectedQuote = null;
+  let editQuote = null;
   let currentTrackingNumber = null;
 
   function showTab(name) {
@@ -219,8 +219,6 @@
     document.getElementById('tabShipBtn').classList.toggle('active', name === 'ship');
     if (name === 'mail') loadCampaigns(); else loadShipments();
   }
-
-  // ---------- mailing ----------
 
   async function addSubscriber() {
     const email = document.getElementById('subEmail').value.trim();
@@ -271,10 +269,8 @@
           <td>${new Date(c.created_at).toLocaleString()}</td>
         </tr>`).join('');
       document.getElementById('campaignRows').innerHTML = rows || '<tr><td colspan="4">No campaigns yet.</td></tr>';
-    } catch (e) { /* silent */ }
+    } catch (e) { }
   }
-
-  // ---------- shipping quotes (new shipment) ----------
 
   async function getQuote() {
     const origin = document.getElementById('quoteOrigin').value.trim();
@@ -330,8 +326,6 @@
       el.textContent = 'No tier selected — shipment will be created without a price.';
     }
   }
-
-  // ---------- shipments ----------
 
   async function createShipment() {
     const payload = {
@@ -392,7 +386,6 @@
         : '';
       const receiptButton = `<button class="secondary" onclick="window.open('${API}/api/shipments/${encodeURIComponent(s.tracking_number)}/receipt', '_blank')">View / print receipt</button>`;
 
-      // Edit + cancel block — only offered while unpaid and not already cancelled
       let editBlock = '';
       if (!isPaid && !isCancelled) {
         editBlock = `
@@ -574,7 +567,7 @@
           <td>${new Date(s.created_at).toLocaleString()}</td>
         </tr>`).join('');
       document.getElementById('shipmentRows').innerHTML = rows || '<tr><td colspan="5">No shipments yet.</td></tr>';
-    } catch (e) { /* silent */ }
+    } catch (e) { }
   }
 
   function escapeHtml(str) {
