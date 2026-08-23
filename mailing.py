@@ -14,6 +14,11 @@ SMTP config: set these environment variables on Railway/Render:
     SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_FROM
 Works with Gmail (app password), SendGrid SMTP relay, Mailgun SMTP, etc.
 No paid API required — any SMTP provider works.
+
+SECURITY: endpoints that expose the subscriber list or send mass email
+require the same ADMIN_PASSCODE used elsewhere in the app, sent as an
+X-Admin-Passcode header. Subscribing/unsubscribing stay open since
+those are actions the public needs to be able to do themselves.
 """
 
 import json
@@ -27,12 +32,19 @@ from email.mime.text import MIMEText
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Header
 from pydantic import BaseModel, EmailStr
 
 router = APIRouter(prefix="/api/mail", tags=["mailing"])
 
 DB_PATH = Path(__file__).parent / "mailing_database.json"
+
+ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "uganda2026")
+
+
+def check_admin(x_admin_passcode: str):
+    if x_admin_passcode != ADMIN_PASSCODE:
+        raise HTTPException(status_code=401, detail="Invalid passcode")
 
 
 # ---------- storage helpers ----------
@@ -69,6 +81,7 @@ class CampaignCreate(BaseModel):
 
 @router.post("/subscribers")
 def add_subscriber(sub: Subscriber):
+    # Public: anyone can subscribe themselves (used by the ship.html signup form)
     data = _load()
     if any(s["email"] == sub.email for s in data["subscribers"]):
         raise HTTPException(400, "Already subscribed")
@@ -82,7 +95,13 @@ def add_subscriber(sub: Subscriber):
 
 
 @router.get("/subscribers")
-def list_subscribers(region: Optional[str] = None, tag: Optional[str] = None):
+def list_subscribers(
+    region: Optional[str] = None,
+    tag: Optional[str] = None,
+    x_admin_passcode: str = Header(default=""),
+):
+    # Admin only: exposes the full subscriber list (emails, phone-adjacent PII)
+    check_admin(x_admin_passcode)
     data = _load()
     subs = data["subscribers"]
     if region:
@@ -94,6 +113,8 @@ def list_subscribers(region: Optional[str] = None, tag: Optional[str] = None):
 
 @router.delete("/subscribers/{subscriber_id}")
 def unsubscribe(subscriber_id: str):
+    # Public: this is the endpoint an "unsubscribe" link in an email would hit.
+    # Only removes the record matching a specific ID a subscriber already has.
     data = _load()
     before = len(data["subscribers"])
     data["subscribers"] = [s for s in data["subscribers"] if s["id"] != subscriber_id]
@@ -151,7 +172,13 @@ def _send_campaign_task(campaign_id: str):
 
 
 @router.post("/campaigns")
-def create_campaign(campaign: CampaignCreate, background_tasks: BackgroundTasks):
+def create_campaign(
+    campaign: CampaignCreate,
+    background_tasks: BackgroundTasks,
+    x_admin_passcode: str = Header(default=""),
+):
+    # Admin only: this sends a mass email through your SMTP account
+    check_admin(x_admin_passcode)
     data = _load()
     record = campaign.dict()
     record["id"] = str(uuid.uuid4())
@@ -165,12 +192,16 @@ def create_campaign(campaign: CampaignCreate, background_tasks: BackgroundTasks)
 
 
 @router.get("/campaigns")
-def list_campaigns():
+def list_campaigns(x_admin_passcode: str = Header(default="")):
+    # Admin only: campaign content may be sensitive/unreleased
+    check_admin(x_admin_passcode)
     return _load()["campaigns"]
 
 
 @router.get("/campaigns/{campaign_id}")
-def get_campaign(campaign_id: str):
+def get_campaign(campaign_id: str, x_admin_passcode: str = Header(default="")):
+    # Admin only
+    check_admin(x_admin_passcode)
     data = _load()
     for c in data["campaigns"]:
         if c["id"] == campaign_id:
