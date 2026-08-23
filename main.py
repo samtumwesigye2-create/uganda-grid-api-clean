@@ -28,6 +28,7 @@ INDEX_FILE = os.path.join(BASE_DIR, "index.html")
 APP_JS_FILE = os.path.join(BASE_DIR, "app.js")
 SUBMIT_FILE = os.path.join(BASE_DIR, "submit.html")
 REVIEW_FILE = os.path.join(BASE_DIR, "review.html")
+SHIP_FILE = os.path.join(BASE_DIR, "ship.html")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 USERS_FILE = os.path.join(BASE_DIR, "users.json")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -149,6 +150,13 @@ def review_page():
     if not os.path.exists(REVIEW_FILE):
         raise HTTPException(status_code=404, detail="review.html not found")
     return FileResponse(REVIEW_FILE, media_type="text/html")
+
+
+@app.get("/ship")
+def ship_page():
+    if not os.path.exists(SHIP_FILE):
+        raise HTTPException(status_code=404, detail="ship.html not found")
+    return FileResponse(SHIP_FILE, media_type="text/html")
 
 
 @app.get("/search")
