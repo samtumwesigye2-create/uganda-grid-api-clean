@@ -120,4 +120,330 @@
     </div>
 
     <div class="card">
-      
+      <h2>New campaign</h2>
+      <label>Subject</label>
+      <input id="campSubject" type="text">
+      <label>Body (HTML)</label>
+      <textarea id="campBody" placeholder="&lt;p&gt;Hello!&lt;/p&gt;"></textarea>
+      <div class="row">
+        <div><label>Only this region (optional)</label><input id="campRegion" type="text"></div>
+        <div><label>Only this tag (optional)</label><input id="campTag" type="text"></div>
+      </div>
+      <button class="primary" onclick="sendCampaign()">Send campaign</button>
+      <div class="status-msg" id="campStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>Recent campaigns</h2>
+      <table>
+        <thead><tr><th>Subject</th><th>Status</th><th>Sent</th><th>Created</th></tr></thead>
+        <tbody id="campaignRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SHIPMENTS TAB -->
+  <section id="ship">
+    <div class="card">
+      <h2>Get a quote</h2>
+      <div class="row">
+        <div><label>Sender grid ID / address</label><input id="quoteOrigin" type="text" placeholder="UG-ENT-000400"></div>
+        <div><label>Receiver grid ID / address</label><input id="quoteDest" type="text" placeholder="UG-ENT-000123"></div>
+      </div>
+      <label>Weight (kg)</label>
+      <input id="quoteWeight" type="number" step="0.1" placeholder="2.5">
+      <button class="primary" onclick="getQuote()">Get quote</button>
+      <div class="status-msg" id="quoteStatus"></div>
+      <div id="tierList" style="margin-top: 14px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>New shipment</h2>
+      <p class="status-msg">Get a quote above first — it fills in the distance/weight/price automatically. Or fill this in manually and skip pricing.</p>
+      <div class="row">
+        <div>
+          <label>Sender name</label><input id="senderName" type="text">
+          <label>Sender phone</label><input id="senderPhone" type="text">
+          <label>Sender address / grid ID</label><input id="senderAddress" type="text" placeholder="UG-ENT-000400">
+        </div>
+        <div>
+          <label>Receiver name</label><input id="receiverName" type="text">
+          <label>Receiver phone</label><input id="receiverPhone" type="text">
+          <label>Receiver address / grid ID</label><input id="receiverAddress" type="text" placeholder="UG-ENT-000123">
+        </div>
+      </div>
+      <label>Description</label>
+      <input id="shipDesc" type="text" placeholder="Documents, 1 box">
+      <div class="status-msg" id="selectedTierMsg">No tier selected — shipment will be created without a price.</div>
+      <button class="primary" onclick="createShipment()">Create shipment</button>
+      <div class="status-msg" id="shipStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>Track / update / pay a shipment</h2>
+      <label>Tracking number</label>
+      <input id="trackInput" type="text" placeholder="UG-SHIP-000001">
+      <button class="primary" onclick="lookupShipment()">Look up</button>
+      <div id="trackResult"></div>
+    </div>
+
+    <div class="card">
+      <h2>All shipments</h2>
+      <table>
+        <thead><tr><th>Tracking #</th><th>Receiver</th><th>Status</th><th>Payment</th><th>Created</th></tr></thead>
+        <tbody id="shipmentRows"></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<script>
+  const API = "";
+  let selectedQuote = null; // holds the chosen tier's quote object
+
+  function showTab(name) {
+    document.getElementById('mail').classList.toggle('active', name === 'mail');
+    document.getElementById('ship').classList.toggle('active', name === 'ship');
+    document.getElementById('tabMailBtn').classList.toggle('active', name === 'mail');
+    document.getElementById('tabShipBtn').classList.toggle('active', name === 'ship');
+    if (name === 'mail') loadCampaigns(); else loadShipments();
+  }
+
+  // ---------- mailing ----------
+
+  async function addSubscriber() {
+    const email = document.getElementById('subEmail').value.trim();
+    const name = document.getElementById('subName').value.trim();
+    const region = document.getElementById('subRegion').value.trim();
+    const statusEl = document.getElementById('subStatus');
+    if (!email) { statusEl.textContent = 'Email is required.'; return; }
+    try {
+      const res = await fetch(`${API}/api/mail/subscribers`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name: name || null, region: region || null, tags: [] })
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Failed');
+      statusEl.textContent = `Added ${email}.`;
+      document.getElementById('subEmail').value = '';
+      document.getElementById('subName').value = '';
+      document.getElementById('subRegion').value = '';
+    } catch (e) { statusEl.textContent = `Error: ${e.message}`; }
+  }
+
+  async function sendCampaign() {
+    const subject = document.getElementById('campSubject').value.trim();
+    const body_html = document.getElementById('campBody').value.trim();
+    const segment_region = document.getElementById('campRegion').value.trim() || null;
+    const segment_tag = document.getElementById('campTag').value.trim() || null;
+    const statusEl = document.getElementById('campStatus');
+    if (!subject || !body_html) { statusEl.textContent = 'Subject and body are required.'; return; }
+    try {
+      const res = await fetch(`${API}/api/mail/campaigns`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject, body_html, segment_region, segment_tag })
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Failed');
+      statusEl.textContent = 'Campaign is sending in the background.';
+      loadCampaigns();
+    } catch (e) { statusEl.textContent = `Error: ${e.message}`; }
+  }
+
+  async function loadCampaigns() {
+    try {
+      const res = await fetch(`${API}/api/mail/campaigns`);
+      const campaigns = await res.json();
+      const rows = campaigns.slice().reverse().map(c => `
+        <tr>
+          <td>${escapeHtml(c.subject)}</td>
+          <td><span class="badge">${c.status}</span></td>
+          <td>${c.sent_count ?? '—'}</td>
+          <td>${new Date(c.created_at).toLocaleString()}</td>
+        </tr>`).join('');
+      document.getElementById('campaignRows').innerHTML = rows || '<tr><td colspan="4">No campaigns yet.</td></tr>';
+    } catch (e) { /* silent */ }
+  }
+
+  // ---------- shipping quotes ----------
+
+  async function getQuote() {
+    const origin = document.getElementById('quoteOrigin').value.trim();
+    const destination = document.getElementById('quoteDest').value.trim();
+    const weight = parseFloat(document.getElementById('quoteWeight').value);
+    const statusEl = document.getElementById('quoteStatus');
+    const tierListEl = document.getElementById('tierList');
+    selectedQuote = null;
+    updateSelectedTierMsg();
+
+    if (!origin || !destination || !weight) {
+      statusEl.textContent = 'Fill in both addresses and a weight first.';
+      return;
+    }
+    statusEl.textContent = 'Getting quote...';
+    tierListEl.innerHTML = '';
+    try {
+      const res = await fetch(`${API}/api/shipments/quote`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ origin, destination, weight_kg: weight })
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Failed to get quote');
+      const quotes = await res.json();
+      statusEl.textContent = `${quotes[0].distance_km} km road distance. Tap a tier to select it.`;
+      tierListEl.innerHTML = quotes.map((q, i) => `
+        <div class="tier-option" id="tier-${q.speed}" onclick="selectTier(${i}, ${JSON.stringify(quotes).replace(/"/g, '&quot;')})">
+          <div>
+            <div class="tier-name">${q.speed_label}</div>
+            <div class="tier-eta">${q.eta_days === 0 ? 'Same day' : q.eta_days + ' day' + (q.eta_days > 1 ? 's' : '')}</div>
+          </div>
+          <div class="tier-price">${q.total.toLocaleString()} ${q.currency}</div>
+        </div>
+      `).join('');
+      // auto-fill sender/receiver address fields from the quote inputs
+      document.getElementById('senderAddress').value = origin;
+      document.getElementById('receiverAddress').value = destination;
+    } catch (e) {
+      statusEl.textContent = `Error: ${e.message}`;
+    }
+  }
+
+  function selectTier(index, quotes) {
+    selectedQuote = quotes[index];
+    document.querySelectorAll('.tier-option').forEach(el => el.classList.remove('selected'));
+    document.getElementById(`tier-${selectedQuote.speed}`).classList.add('selected');
+    updateSelectedTierMsg();
+  }
+
+  function updateSelectedTierMsg() {
+    const el = document.getElementById('selectedTierMsg');
+    if (selectedQuote) {
+      el.textContent = `Selected: ${selectedQuote.speed_label} — ${selectedQuote.total.toLocaleString()} ${selectedQuote.currency}`;
+    } else {
+      el.textContent = 'No tier selected — shipment will be created without a price.';
+    }
+  }
+
+  // ---------- shipments ----------
+
+  async function createShipment() {
+    const payload = {
+      sender: {
+        name: document.getElementById('senderName').value.trim(),
+        phone: document.getElementById('senderPhone').value.trim() || null,
+        address: document.getElementById('senderAddress').value.trim(),
+      },
+      receiver: {
+        name: document.getElementById('receiverName').value.trim(),
+        phone: document.getElementById('receiverPhone').value.trim() || null,
+        address: document.getElementById('receiverAddress').value.trim(),
+      },
+      description: document.getElementById('shipDesc').value.trim() || null,
+      weight_kg: selectedQuote ? selectedQuote.weight_kg : null,
+      speed: selectedQuote ? selectedQuote.speed : null,
+      price: selectedQuote ? selectedQuote.total : null,
+      currency: selectedQuote ? selectedQuote.currency : null,
+    };
+    const statusEl = document.getElementById('shipStatus');
+    if (!payload.sender.name || !payload.sender.address || !payload.receiver.name || !payload.receiver.address) {
+      statusEl.textContent = 'Sender/receiver name and address are required.';
+      return;
+    }
+    try {
+      const res = await fetch(`${API}/api/shipments`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Failed');
+      const created = await res.json();
+      statusEl.textContent = `Created ${created.tracking_number}.`;
+      selectedQuote = null;
+      updateSelectedTierMsg();
+      document.getElementById('tierList').innerHTML = '';
+      loadShipments();
+    } catch (e) { statusEl.textContent = `Error: ${e.message}`; }
+  }
+
+  async function lookupShipment() {
+    const tn = document.getElementById('trackInput').value.trim();
+    const resultEl = document.getElementById('trackResult');
+    if (!tn) return;
+    try {
+      const res = await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}`);
+      if (!res.ok) throw new Error('Not found');
+      const s = await res.json();
+      const history = s.history.map(h => `<li>${h.status}${h.note ? ' — ' + escapeHtml(h.note) : ''} <span style="color:var(--muted)">(${new Date(h.at).toLocaleString()})</span></li>`).join('');
+      const priceLine = s.price
+        ? `<p>Price: <strong>${s.price.toLocaleString()} ${s.currency}</strong> (${s.speed_label || s.speed}) — <span class="badge ${s.payment_status}">${s.payment_status}</span></p>`
+        : `<p class="status-msg">No price set for this shipment.</p>`;
+      const payButton = (s.price && s.payment_status !== 'paid')
+        ? `<button class="primary" onclick="payShipment('${s.tracking_number}')">Pay now</button>`
+        : '';
+      const receiptButton = `<button class="secondary" onclick="window.open('${API}/api/shipments/${encodeURIComponent(s.tracking_number)}/receipt', '_blank')">View / print receipt</button>`;
+      resultEl.innerHTML = `
+        <p><strong>${s.tracking_number}</strong> — <span class="badge ${s.status}">${s.status}</span></p>
+        <p style="color:var(--muted)">To: ${escapeHtml(s.receiver.name)}, ${escapeHtml(s.receiver.address)}</p>
+        ${priceLine}
+        <label>Update status</label>
+        <select id="newStatus">
+          ${['created','picked_up','in_transit','out_for_delivery','delivered','failed_delivery','returned']
+            .map(st => `<option value="${st}" ${st === s.status ? 'selected' : ''}>${st}</option>`).join('')}
+        </select>
+        <button class="primary" onclick="updateStatus('${s.tracking_number}')">Update status</button>
+        ${payButton}
+        ${receiptButton}
+        <ul>${history}</ul>
+      `;
+    } catch (e) {
+      resultEl.innerHTML = `<p class="status-msg">${e.message}</p>`;
+    }
+  }
+
+  async function payShipment(tn) {
+    const statusEl = document.getElementById('trackResult');
+    try {
+      const res = await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}/pay`, { method: 'POST' });
+      if (!res.ok) throw new Error((await res.json()).detail || 'Failed to start payment');
+      const data = await res.json();
+      window.location.href = data.payment_link; // send to Flutterwave hosted checkout
+    } catch (e) {
+      statusEl.insertAdjacentHTML('beforeend', `<p class="status-msg">Payment error: ${e.message}</p>`);
+    }
+  }
+
+  async function updateStatus(tn) {
+    const status = document.getElementById('newStatus').value;
+    await fetch(`${API}/api/shipments/${encodeURIComponent(tn)}/status`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    lookupShipment();
+    loadShipments();
+  }
+
+  async function loadShipments() {
+    try {
+      const res = await fetch(`${API}/api/shipments`);
+      const shipments = await res.json();
+      const rows = shipments.slice().reverse().map(s => `
+        <tr>
+          <td>${s.tracking_number}</td>
+          <td>${escapeHtml(s.receiver.name)}</td>
+          <td><span class="badge ${s.status}">${s.status}</span></td>
+          <td><span class="badge ${s.payment_status || 'unpaid'}">${s.payment_status || (s.price ? 'unpaid' : '—')}</span></td>
+          <td>${new Date(s.created_at).toLocaleString()}</td>
+        </tr>`).join('');
+      document.getElementById('shipmentRows').innerHTML = rows || '<tr><td colspan="5">No shipments yet.</td></tr>';
+    } catch (e) { /* silent */ }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str ?? '';
+    return div.innerHTML;
+  }
+
+  loadCampaigns();
+  loadShipments();
+</script>
+
+</body>
+</html>
