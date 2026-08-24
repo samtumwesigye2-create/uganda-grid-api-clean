@@ -1,569 +1,211 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Admin - Uganda National Grid</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uganda National Grid Admin</title>
 <style>
-  *{box-sizing:border-box}
-  body{margin:0;font-family:Arial,sans-serif;background:#0d1117;color:#e6edf3}
-  header{background:#111827;padding:16px;text-align:center;position:sticky;top:0;z-index:10}
-  header h1{margin:0;font-size:20px}
-  main{max-width:720px;margin:0 auto;padding:16px}
-
-  .loginBox{background:#161b22;border-radius:12px;padding:24px;border:1px solid #2a3150;margin-top:24px}
-  label{display:block;font-weight:700;font-size:13px;margin-bottom:6px}
-  input,button,select,textarea{width:100%;font-size:16px;border-radius:8px;padding:12px;border:1px solid #2a3150;box-sizing:border-box}
-  input,select,textarea{background:#0d1117;color:#e6edf3;margin-bottom:10px;font-family:inherit}
-  textarea{min-height:120px;resize:vertical}
-  button{border:0;font-weight:700;cursor:pointer;background:#2563eb;color:#fff}
-  button:disabled{opacity:.5;cursor:default}
-  #loginStatus{font-size:13px;margin-top:10px;color:#9ca3af}
-
-  #panel{display:none}
-  #logoutBar{display:flex;justify-content:space-between;align-items:center;margin:16px 0}
-  #logoutBar button{width:auto;background:#374151;padding:8px 14px;font-size:13px}
-
-  .tabs{display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;padding-bottom:4px}
-  .tabBtn{width:auto;flex-shrink:0;background:#161b22;color:#9ca3af;border:1px solid #2a3150;padding:10px 14px;font-size:13px}
-  .tabBtn.active{background:#2563eb;color:#fff;border-color:#2563eb}
-  .tabPane{display:none}
-  .tabPane.active{display:block}
-
-  .row{background:#161b22;border:1px solid #2a3150;border-radius:12px;padding:16px;margin-bottom:12px}
-  .row h3{margin:0 0 8px;font-size:15px}
-  .tag{display:inline-block;background:#1f2937;color:#9ca3af;border-radius:999px;padding:4px 10px;font-size:12px;margin:0 6px 6px 0}
-  .card img,.card video{max-width:100%;border-radius:8px;margin-top:8px}
-  .decisionRow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-  .approveForm{margin-top:10px;display:none}
-  .approveForm.active{display:block}
-  .denyBtn{background:#374151}
-  .toggleApproveBtn{background:#059669}
-  .confirmApproveBtn{background:#059669}
-  .statusMsg{font-size:12px;margin-top:6px;color:#9ca3af}
-  .emptyMsg{color:#6b7280;font-size:14px;text-align:center;padding:24px 0}
-  .refreshBtn{width:auto;background:#1f2937;color:#e6edf3;padding:8px 14px;font-size:13px;margin-bottom:12px}
-
-  .sectionTitle{font-size:14px;font-weight:700;margin:20px 0 10px;color:#9ca3af;text-transform:uppercase;letter-spacing:.03em}
-  .sectionTitle:first-child{margin-top:0}
-
-  .filterRow{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-  .filterRow select,.filterRow input{width:auto;flex:1;min-width:120px;margin-bottom:0}
-
-  .subRow{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #2a3150;font-size:13px}
-  .subRow:last-child{border-bottom:none}
-  .subEmail{font-weight:700}
-  .subMeta{color:#6b7280;font-size:12px}
-  .campaignStatus{font-size:11px;padding:3px 8px;border-radius:999px;background:#1f2937;color:#9ca3af}
-  .campaignStatus.sent{background:#064e3b;color:#34d399}
-  .campaignStatus.sending{background:#78350f;color:#fbbf24}
-
-  .shipHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-  .trackingNum{font-family:monospace;font-size:14px;font-weight:700;color:#93c5fd}
-  .statusPill{font-size:11px;padding:3px 8px;border-radius:999px;background:#1f2937;color:#e6edf3;white-space:nowrap}
-  .payPill{font-size:11px;padding:3px 8px;border-radius:999px}
-  .payPill.paid{background:#064e3b;color:#34d399}
-  .payPill.unpaid{background:#3f1d1d;color:#f87171}
-  .actionRow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-  .actionRow button{width:auto;font-size:12px;padding:8px 12px}
-  .linkBtn{background:#1f2937;color:#93c5fd;text-decoration:none;display:inline-block;text-align:center;padding:8px 12px;border-radius:8px;font-size:12px}
-  .statusForm{margin-top:10px;display:none;background:#0d1117;border-radius:8px;padding:10px;border:1px solid #2a3150}
-  .statusForm.active{display:block}
-
-  .placeholder{border:1px dashed #374151;border-radius:12px;padding:20px;color:#6b7280;font-size:14px;text-align:center}
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#0f1220; color:#eee; margin:0; padding:16px; }
+  h1 { font-size:22px; text-align:center; margin-bottom:20px; }
+  #passGate { max-width:320px; margin:80px auto; text-align:center; }
+  #passGate input { width:100%; padding:10px; border-radius:8px; border:1px solid #333; background:#1a1d2e; color:#eee; margin-bottom:10px; }
+  #passGate button { width:100%; padding:10px; border-radius:8px; border:none; background:#e2593a; color:#fff; font-size:15px; }
+  #main { display:none; max-width:900px; margin:0 auto; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:20px; }
+  .tab { padding:10px 16px; border-radius:8px; border:1px solid #333; background:#1a1d2e; color:#ccc; cursor:pointer; font-size:14px; }
+  .tab.active { background:#3b5bfd; color:#fff; border-color:#3b5bfd; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
+  th, td { border:1px solid #2a2d3e; padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:#1a1d2e; }
+  .refreshBtn { padding:8px 12px; border-radius:6px; border:none; background:#3b5bfd; color:#fff; margin-bottom:10px; }
+  .empty { color:#888; padding:20px; text-align:center; }
+  .badge { padding:2px 8px; border-radius:6px; font-size:12px; }
+  .pending { background:#fde8d4; color:#a35b00; }
+  .approved, .paid { background:#d4f4dd; color:#1a7a37; }
+  .denied { background:#fbd4d4; color:#a30000; }
 </style>
 </head>
 <body>
-<header><h1>Admin</h1></header>
-<main>
 
-  <div id="loginSection" class="loginBox">
-    <label for="passcodeInput">Admin passcode</label>
-    <input type="password" id="passcodeInput" placeholder="Passcode" autocomplete="off" />
-    <button id="unlockBtn">Unlock</button>
-    <div id="loginStatus"></div>
+<div id="passGate">
+  <h1>Admin Login</h1>
+  <input id="pass" type="password" placeholder="Admin passcode" />
+  <button onclick="unlock()">Enter</button>
+</div>
+
+<div id="main">
+  <h1>Uganda National Grid Admin</h1>
+  <div class="tabs">
+    <div class="tab active" data-tab="submissions">Submissions</div>
+    <div class="tab" data-tab="reports">Reports</div>
+    <div class="tab" data-tab="mailing">Mailing</div>
+    <div class="tab" data-tab="shipments">Shipments</div>
+    <div class="tab" data-tab="data">Data</div>
   </div>
 
-  <div id="panel">
-    <div id="logoutBar">
-      <strong>Uganda National Grid Admin</strong>
-      <button id="lockBtn">Lock</button>
-    </div>
-
-    <div class="tabs">
-      <button class="tabBtn active" data-tab="submissions">Submissions</button>
-      <button class="tabBtn" data-tab="reports">Reports</button>
-      <button class="tabBtn" data-tab="mailing">Mailing</button>
-      <button class="tabBtn" data-tab="shipments">Shipments</button>
-    </div>
-
-    <div id="tab-submissions" class="tabPane active">
-      <button class="refreshBtn" data-refresh="submissions">Refresh</button>
-      <div id="submissionsList"></div>
-    </div>
-
-    <div id="tab-reports" class="tabPane">
-      <button class="refreshBtn" data-refresh="reports">Refresh</button>
-      <div id="reportsList"></div>
-    </div>
-
-    <div id="tab-mailing" class="tabPane">
-      <div class="sectionTitle">New Campaign</div>
-      <div class="row">
-        <label>Subject</label>
-        <input type="text" id="campSubject" placeholder="e.g. Road closure update — Kampala Road" />
-        <label>Message (HTML allowed)</label>
-        <textarea id="campBody" placeholder="Write your message..."></textarea>
-        <label>Limit to region (optional)</label>
-        <input type="text" id="campRegion" placeholder="e.g. Entebbe" />
-        <label>Limit to tag (optional)</label>
-        <input type="text" id="campTag" placeholder="e.g. business-owners" />
-        <button id="sendCampaignBtn">Send Campaign</button>
-        <div class="statusMsg" id="campaignStatusMsg"></div>
-      </div>
-
-      <div class="sectionTitle">Past Campaigns</div>
-      <button class="refreshBtn" data-refresh="campaigns">Refresh</button>
-      <div id="campaignsList"></div>
-
-      <div class="sectionTitle">Subscribers</div>
-      <div class="filterRow">
-        <input type="text" id="subRegionFilter" placeholder="Filter by region" />
-        <input type="text" id="subTagFilter" placeholder="Filter by tag" />
-        <button class="refreshBtn" style="width:auto;flex:0 0 auto" data-refresh="subscribers">Go</button>
-      </div>
-      <div id="subscribersList"></div>
-    </div>
-
-    <div id="tab-shipments" class="tabPane">
-      <div class="filterRow">
-        <select id="shipStatusFilter">
-          <option value="">All statuses</option>
-          <option value="created">Created</option>
-          <option value="picked_up">Picked up</option>
-          <option value="in_transit">In transit</option>
-          <option value="out_for_delivery">Out for delivery</option>
-          <option value="delivered">Delivered</option>
-          <option value="failed_delivery">Failed delivery</option>
-          <option value="returned">Returned</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-        <button class="refreshBtn" style="width:auto;flex:0 0 auto" data-refresh="shipments">Go</button>
-      </div>
-      <div id="shipmentsList"></div>
-    </div>
+  <div class="panel active" id="panel-submissions">
+    <button class="refreshBtn" onclick="loadSubmissions()">Refresh</button>
+    <div id="submissionsOut"></div>
   </div>
-</main>
+
+  <div class="panel" id="panel-reports">
+    <button class="refreshBtn" onclick="loadReports()">Refresh</button>
+    <div id="reportsOut"></div>
+  </div>
+
+  <div class="panel" id="panel-mailing">
+    <button class="refreshBtn" onclick="loadMailing()">Refresh</button>
+    <div id="mailingOut"></div>
+  </div>
+
+  <div class="panel" id="panel-shipments">
+    <button class="refreshBtn" onclick="loadShipments()">Refresh</button>
+    <div id="shipmentsOut"></div>
+  </div>
+
+  <div class="panel" id="panel-data">
+    <input id="filterType" placeholder="Filter by form_type (blank = all)" style="padding:8px;border-radius:6px;border:1px solid #333;background:#1a1d2e;color:#eee;" />
+    <button class="refreshBtn" onclick="loadData()">Refresh</button>
+    <button class="refreshBtn" onclick="exportData()">Export CSV</button>
+    <div id="dataStats" style="color:#aaa;font-size:13px;margin:8px 0;"></div>
+    <div id="dataOut"></div>
+  </div>
+</div>
 
 <script>
-(function () {
-  var passcode = '';
-  var API_BASE = location.origin;
-  var STATUS_FLOW = ["created","picked_up","in_transit","out_for_delivery","delivered","failed_delivery","returned","cancelled"];
+let PASS = "";
 
-  var passcodeInput = document.getElementById('passcodeInput');
-  var unlockBtn = document.getElementById('unlockBtn');
-  var loginStatus = document.getElementById('loginStatus');
-  var loginSection = document.getElementById('loginSection');
-  var panel = document.getElementById('panel');
-  var lockBtn = document.getElementById('lockBtn');
+function unlock() {
+  PASS = document.getElementById('pass').value;
+  document.getElementById('passGate').style.display = 'none';
+  document.getElementById('main').style.display = 'block';
+  loadSubmissions();
+}
 
-  var BUILDING_LABELS = {
-    hospital: 'Hospital / Health Facility', police: 'Police Station', government: 'Government Office',
-    residence: 'Home / Residence', business: 'Business', other: 'Other'
-  };
-  var CATEGORY_LABELS = {
-    police: 'Police', accident: 'Accident', road_closure: 'Road Closure',
-    bridge: 'Bridge', traffic: 'Traffic', weather: 'Weather'
-  };
-
-  function escapeHtml(v) {
-    return String(v || '').replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
-
-  function authedFetch(path, opts) {
-    opts = opts || {};
-    opts.headers = opts.headers || {};
-    opts.headers['X-Admin-Passcode'] = passcode;
-    return fetch(API_BASE + path, opts);
-  }
-
-  function authedJsonFetch(path, method, bodyObj) {
-    return authedFetch(path, {
-      method: method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bodyObj)
-    });
-  }
-
-  async function tryUnlock() {
-    passcode = passcodeInput.value;
-    if (!passcode) { loginStatus.textContent = 'Enter a passcode first.'; return; }
-    unlockBtn.disabled = true;
-    loginStatus.textContent = 'Checking...';
-    try {
-      var r = await authedFetch('/submissions?status=pending');
-      if (r.status === 401) {
-        loginStatus.textContent = 'Incorrect passcode — rejected by server.';
-        unlockBtn.disabled = false; return;
-      }
-      if (!r.ok) {
-        loginStatus.textContent = 'Server error (' + r.status + '). Try again.';
-        unlockBtn.disabled = false; return;
-      }
-      loginSection.style.display = 'none';
-      panel.style.display = 'block';
-      loadSubmissions();
-    } catch (e) {
-      loginStatus.textContent = 'Network error — could not reach ' + API_BASE;
-      unlockBtn.disabled = false;
-    }
-  }
-  unlockBtn.addEventListener('click', tryUnlock);
-  passcodeInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') tryUnlock(); });
-  lockBtn.addEventListener('click', function () {
-    passcode = ''; passcodeInput.value = ''; loginStatus.textContent = ''; unlockBtn.disabled = false;
-    panel.style.display = 'none'; loginSection.style.display = 'block';
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    const name = tab.dataset.tab;
+    document.getElementById('panel-' + name).classList.add('active');
+    if (name === 'submissions') loadSubmissions();
+    if (name === 'reports') loadReports();
+    if (name === 'mailing') loadMailing();
+    if (name === 'shipments') loadShipments();
+    if (name === 'data') loadData();
   });
+});
 
-  var loadedOnce = {};
-  document.querySelectorAll('.tabBtn').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      document.querySelectorAll('.tabBtn').forEach(function (b) { b.classList.remove('active'); });
-      document.querySelectorAll('.tabPane').forEach(function (p) { p.classList.remove('active'); });
-      btn.classList.add('active');
-      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-      var t = btn.dataset.tab;
-      if (!loadedOnce[t]) {
-        loadedOnce[t] = true;
-        if (t === 'reports') loadReports();
-        if (t === 'mailing') { loadCampaigns(); loadSubscribers(); }
-        if (t === 'shipments') loadShipments();
-      }
-    });
+async function authedFetch(url) {
+  const res = await fetch(url, { headers: { 'X-Admin-Passcode': PASS } });
+  if (!res.ok) throw new Error('Request failed: ' + res.status);
+  return res.json();
+}
+
+function renderTable(container, rows, columns) {
+  if (!rows.length) {
+    container.innerHTML = '<div class="empty">No records yet.</div>';
+    return;
+  }
+  let html = '<table><thead><tr>';
+  columns.forEach(c => html += `<th>${c.label}</th>`);
+  html += '</tr></thead><tbody>';
+  rows.forEach(r => {
+    html += '<tr>';
+    columns.forEach(c => html += `<td>${c.render ? c.render(r) : (r[c.key] ?? '')}</td>`);
+    html += '</tr>';
   });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
 
-  document.querySelectorAll('[data-refresh]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var r = btn.dataset.refresh;
-      if (r === 'submissions') loadSubmissions();
-      if (r === 'reports') loadReports();
-      if (r === 'campaigns') loadCampaigns();
-      if (r === 'subscribers') loadSubscribers();
-      if (r === 'shipments') loadShipments();
+async function loadSubmissions() {
+  const out = document.getElementById('submissionsOut');
+  try {
+    const data = await authedFetch('/submissions');
+    renderTable(out, data.results, [
+      { label: 'Building', key: 'building_type' },
+      { label: 'Note', key: 'note' },
+      { label: 'Status', render: r => `<span class="badge ${r.status}">${r.status}</span>` },
+      { label: 'Assigned', render: r => r.assigned_grid_id || '—' },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading submissions.</div>'; }
+}
+
+async function loadReports() {
+  const out = document.getElementById('reportsOut');
+  try {
+    const res = await fetch('/reports');
+    const data = await res.json();
+    renderTable(out, data.results, [
+      { label: 'Category', key: 'category' },
+      { label: 'Note', key: 'note' },
+      { label: 'Location', render: r => `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading reports.</div>'; }
+}
+
+async function loadMailing() {
+  const out = document.getElementById('mailingOut');
+  try {
+    const data = await authedFetch('/mail/list');
+    renderTable(out, data.results, [
+      { label: 'Email', key: 'email' },
+      { label: 'Name', key: 'name' },
+      { label: 'Subscribed', render: r => new Date(r.created_at * 1000).toLocaleDateString() },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading mailing list.</div>'; }
+}
+
+async function loadShipments() {
+  const out = document.getElementById('shipmentsOut');
+  try {
+    const data = await authedFetch('/ship/list');
+    renderTable(out, data.results, [
+      { label: '#', key: 'shipment_number' },
+      { label: 'Pickup', key: 'pickup' },
+      { label: 'Delivery', key: 'delivery' },
+      { label: 'Weight', render: r => r.weight_kg + ' kg' },
+      { label: 'Rate', render: r => 'UGX ' + Number(r.rate_ugx).toLocaleString() },
+      { label: 'Status', render: r => `<span class="badge ${r.status === 'paid' ? 'paid' : 'pending'}">${r.status}</span>` },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading shipments.</div>'; }
+}
+
+async function loadData() {
+  const type = document.getElementById('filterType').value.trim();
+  const out = document.getElementById('dataOut');
+  const statsBox = document.getElementById('dataStats');
+  try {
+    const url = '/data/records' + (type ? ('?form_type=' + encodeURIComponent(type)) : '');
+    const data = await authedFetch(url);
+    renderTable(out, data.results, [
+      { label: 'Type', key: 'form_type' },
+      { label: 'Data', render: r => `<pre style="white-space:pre-wrap;margin:0;font-size:12px;">${JSON.stringify(r.payload, null, 2)}</pre>` },
+      { label: 'Created', render: r => new Date(r.created_at * 1000).toLocaleString() },
+    ]);
+    const stats = await authedFetch('/data/stats');
+    statsBox.textContent = `Total: ${stats.total_records} — ` +
+      Object.entries(stats.by_form_type).map(([k, v]) => `${k}: ${v}`).join(', ');
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading data.</div>'; }
+}
+
+function exportData() {
+  const type = document.getElementById('filterType').value.trim();
+  const url = '/data/export.csv' + (type ? ('?form_type=' + encodeURIComponent(type)) : '');
+  fetch(url, { headers: { 'X-Admin-Passcode': PASS } })
+    .then(res => res.blob())
+    .then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'data_export.csv';
+      a.click();
     });
-  });
-
-  async function loadSubmissions() {
-    var list = document.getElementById('submissionsList');
-    list.innerHTML = '<div class="emptyMsg">Loading...</div>';
-    try {
-      var r = await authedFetch('/submissions?status=pending');
-      if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load submissions.</div>'; return; }
-      var data = await r.json();
-      renderSubmissions(data.results || []);
-    } catch (e) { list.innerHTML = '<div class="emptyMsg">Network error.</div>'; }
-  }
-
-  function renderSubmissions(items) {
-    var list = document.getElementById('submissionsList');
-    list.innerHTML = '';
-    if (!items.length) { list.innerHTML = '<div class="emptyMsg">No pending submissions.</div>'; return; }
-    items.forEach(function (sub) {
-      var card = document.createElement('div');
-      card.className = 'row card';
-      var mediaHtml = '';
-      if (sub.media_url) {
-        var url = API_BASE + sub.media_url;
-        mediaHtml = (sub.media_type && sub.media_type.indexOf('video') === 0)
-          ? '<video src="' + url + '" controls></video>' : '<img src="' + url + '" />';
-      }
-      card.innerHTML =
-        '<span class="tag">' + escapeHtml(BUILDING_LABELS[sub.building_type] || sub.building_type) + '</span>' +
-        '<span class="tag">' + sub.lat.toFixed(6) + ', ' + sub.lon.toFixed(6) + '</span>' +
-        (sub.note ? '<p>' + escapeHtml(sub.note) + '</p>' : '') + mediaHtml +
-        '<div class="decisionRow">' +
-          '<button class="toggleApproveBtn" data-id="' + sub.id + '">Approve</button>' +
-          '<button class="denyBtn" data-id="' + sub.id + '">Deny</button>' +
-        '</div>' +
-        '<div class="approveForm" id="approveForm-' + sub.id + '">' +
-          '<input type="text" placeholder="Grid ID e.g. UG-ENT-000123" id="gridId-' + sub.id + '" />' +
-          '<input type="text" placeholder="Full address" id="address-' + sub.id + '" />' +
-          '<button data-id="' + sub.id + '" class="confirmApproveBtn">Confirm Approval</button>' +
-        '</div>' +
-        '<div class="statusMsg" id="msg-' + sub.id + '"></div>';
-      list.appendChild(card);
-    });
-    document.querySelectorAll('.toggleApproveBtn').forEach(function (btn) {
-      btn.addEventListener('click', function () { document.getElementById('approveForm-' + btn.dataset.id).classList.toggle('active'); });
-    });
-    document.querySelectorAll('.denyBtn').forEach(function (btn) {
-      btn.addEventListener('click', function () { decideSubmission(btn.dataset.id, 'deny', '', ''); });
-    });
-    document.querySelectorAll('.confirmApproveBtn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var id = btn.dataset.id;
-        var gridId = document.getElementById('gridId-' + id).value.trim();
-        var address = document.getElementById('address-' + id).value.trim();
-        if (!gridId || !address) { document.getElementById('msg-' + id).textContent = 'Grid ID and address are required'; return; }
-        decideSubmission(id, 'approve', gridId, address);
-      });
-    });
-  }
-
-  async function decideSubmission(id, action, gridId, address) {
-    var msg = document.getElementById('msg-' + id);
-    if (msg) msg.textContent = 'Saving...';
-    var formData = new FormData();
-    formData.append('action', action); formData.append('grid_id', gridId); formData.append('address', address);
-    try {
-      var r = await authedFetch('/submissions/' + id + '/decision', { method: 'POST', body: formData });
-      if (r.ok) loadSubmissions(); else if (msg) msg.textContent = 'Failed to save decision';
-    } catch (e) { if (msg) msg.textContent = 'Network error'; }
-  }
-
-  async function loadReports() {
-    var list = document.getElementById('reportsList');
-    list.innerHTML = '<div class="emptyMsg">Loading...</div>';
-    try {
-      var r = await authedFetch('/reports');
-      if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load reports.</div>'; return; }
-      var data = await r.json();
-      renderReports(data.results || []);
-    } catch (e) { list.innerHTML = '<div class="emptyMsg">Network error.</div>'; }
-  }
-
-  function renderReports(items) {
-    var list = document.getElementById('reportsList');
-    list.innerHTML = '';
-    if (!items.length) { list.innerHTML = '<div class="emptyMsg">No active reports.</div>'; return; }
-    items.sort(function (a, b) { return b.created_at - a.created_at; });
-    items.forEach(function (rep) {
-      var card = document.createElement('div');
-      card.className = 'row card';
-      var mediaHtml = '';
-      if (rep.media_url) {
-        var url = API_BASE + rep.media_url;
-        mediaHtml = (rep.media_type && rep.media_type.indexOf('video') === 0)
-          ? '<video src="' + url + '" controls></video>' : '<img src="' + url + '" />';
-      }
-      var age = Math.max(0, Math.round((Date.now() / 1000 - rep.created_at) / 60));
-      card.innerHTML =
-        '<span class="tag">' + escapeHtml(CATEGORY_LABELS[rep.category] || rep.category) + '</span>' +
-        '<span class="tag">' + rep.lat.toFixed(6) + ', ' + rep.lon.toFixed(6) + '</span>' +
-        '<span class="tag">' + age + ' min ago</span>' +
-        (rep.note ? '<p>' + escapeHtml(rep.note) + '</p>' : '') + mediaHtml;
-      list.appendChild(card);
-    });
-  }
-
-  document.getElementById('sendCampaignBtn').addEventListener('click', async function () {
-    var subject = document.getElementById('campSubject').value.trim();
-    var body = document.getElementById('campBody').value.trim();
-    var region = document.getElementById('campRegion').value.trim();
-    var tag = document.getElementById('campTag').value.trim();
-    var msg = document.getElementById('campaignStatusMsg');
-    if (!subject || !body) { msg.textContent = 'Subject and message are required.'; return; }
-    var payload = { subject: subject, body_html: body };
-    if (region) payload.segment_region = region;
-    if (tag) payload.segment_tag = tag;
-    msg.textContent = 'Sending...';
-    try {
-      var r = await authedJsonFetch('/api/mail/campaigns', 'POST', payload);
-      if (r.ok) {
-        msg.textContent = 'Campaign queued and sending in the background.';
-        document.getElementById('campSubject').value = '';
-        document.getElementById('campBody').value = '';
-        document.getElementById('campRegion').value = '';
-        document.getElementById('campTag').value = '';
-        loadCampaigns();
-      } else {
-        var err = await r.json().catch(function(){return {};});
-        msg.textContent = 'Failed: ' + (err.detail || r.status);
-      }
-    } catch (e) { msg.textContent = 'Network error.'; }
-  });
-
-  async function loadCampaigns() {
-    var list = document.getElementById('campaignsList');
-    list.innerHTML = '<div class="emptyMsg">Loading...</div>';
-    try {
-      var r = await authedFetch('/api/mail/campaigns');
-      if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load campaigns.</div>'; return; }
-      var data = await r.json();
-      renderCampaigns(data || []);
-    } catch (e) { list.innerHTML = '<div class="emptyMsg">Network error.</div>'; }
-  }
-
-  function renderCampaigns(items) {
-    var list = document.getElementById('campaignsList');
-    list.innerHTML = '';
-    if (!items.length) { list.innerHTML = '<div class="emptyMsg">No campaigns sent yet.</div>'; return; }
-    items.slice().reverse().forEach(function (c) {
-      var row = document.createElement('div');
-      row.className = 'row';
-      var statusClass = c.status === 'sent' ? 'sent' : (c.status === 'sending' ? 'sending' : '');
-      row.innerHTML =
-        '<div class="shipHeader"><h3>' + escapeHtml(c.subject) + '</h3>' +
-        '<span class="campaignStatus ' + statusClass + '">' + escapeHtml(c.status) + '</span></div>' +
-        (c.segment_region ? '<span class="tag">Region: ' + escapeHtml(c.segment_region) + '</span>' : '') +
-        (c.segment_tag ? '<span class="tag">Tag: ' + escapeHtml(c.segment_tag) + '</span>' : '') +
-        (c.sent_count !== undefined ? '<span class="tag">Sent: ' + c.sent_count + '</span>' : '') +
-        (c.failed && c.failed.length ? '<span class="tag" style="background:#3f1d1d;color:#f87171">Failed: ' + c.failed.length + '</span>' : '') +
-        '<div class="subMeta">' + escapeHtml(c.created_at || '') + '</div>';
-      list.appendChild(row);
-    });
-  }
-
-  async function loadSubscribers() {
-    var list = document.getElementById('subscribersList');
-    list.innerHTML = '<div class="emptyMsg">Loading...</div>';
-    var region = document.getElementById('subRegionFilter').value.trim();
-    var tag = document.getElementById('subTagFilter').value.trim();
-    var qs = [];
-    if (region) qs.push('region=' + encodeURIComponent(region));
-    if (tag) qs.push('tag=' + encodeURIComponent(tag));
-    var path = '/api/mail/subscribers' + (qs.length ? '?' + qs.join('&') : '');
-    try {
-      var r = await authedFetch(path);
-      if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load subscribers.</div>'; return; }
-      var data = await r.json();
-      renderSubscribers(data || []);
-    } catch (e) { list.innerHTML = '<div class="emptyMsg">Network error.</div>'; }
-  }
-
-  function renderSubscribers(items) {
-    var list = document.getElementById('subscribersList');
-    list.innerHTML = '';
-    if (!items.length) { list.innerHTML = '<div class="emptyMsg">No subscribers found.</div>'; return; }
-    var wrap = document.createElement('div');
-    wrap.className = 'row';
-    items.forEach(function (s) {
-      var line = document.createElement('div');
-      line.className = 'subRow';
-      line.innerHTML =
-        '<div><div class="subEmail">' + escapeHtml(s.email) + '</div>' +
-        '<div class="subMeta">' + escapeHtml(s.name || '') +
-        (s.region ? ' · ' + escapeHtml(s.region) : '') +
-        (s.tags && s.tags.length ? ' · ' + escapeHtml(s.tags.join(', ')) : '') + '</div></div>';
-      wrap.appendChild(line);
-    });
-    list.appendChild(wrap);
-    var countMsg = document.createElement('div');
-    countMsg.className = 'statusMsg';
-    countMsg.textContent = items.length + ' subscriber' + (items.length === 1 ? '' : 's');
-    list.appendChild(countMsg);
-  }
-
-  async function loadShipments() {
-    var list = document.getElementById('shipmentsList');
-    list.innerHTML = '<div class="emptyMsg">Loading...</div>';
-    var status = document.getElementById('shipStatusFilter').value;
-    var path = '/api/shipments' + (status ? '?status=' + encodeURIComponent(status) : '');
-    try {
-      var r = await authedFetch(path);
-      if (!r.ok) { list.innerHTML = '<div class="emptyMsg">Failed to load shipments.</div>'; return; }
-      var data = await r.json();
-      renderShipments(data || []);
-    } catch (e) { list.innerHTML = '<div class="emptyMsg">Network error.</div>'; }
-  }
-
-  function renderShipments(items) {
-    var list = document.getElementById('shipmentsList');
-    list.innerHTML = '';
-    if (!items.length) { list.innerHTML = '<div class="emptyMsg">No shipments found.</div>'; return; }
-    items.slice().reverse().forEach(function (s) {
-      var card = document.createElement('div');
-      card.className = 'row';
-      var payClass = s.payment_status === 'paid' ? 'paid' : 'unpaid';
-      var payLabel = s.payment_status || (s.price ? 'unpaid' : 'no price set');
-      var statusOptions = STATUS_FLOW.map(function (st) {
-        return '<option value="' + st + '"' + (st === s.status ? ' selected' : '') + '>' + st.replace(/_/g, ' ') + '</option>';
-      }).join('');
-
-      var senderLoc = escapeHtml(s.sender.name) + (s.sender.country && s.sender.country !== 'Uganda' ? ' (' + escapeHtml(s.sender.country) + ')' : '');
-      var receiverLoc = escapeHtml(s.receiver.name) + (s.receiver.country && s.receiver.country !== 'Uganda' ? ' (' + escapeHtml(s.receiver.country) + ')' : '');
-      var customsHtml = '';
-      if (s.international && s.customs) {
-        customsHtml = '<div class="subMeta" style="margin-top:6px">Declared value: ' +
-          (s.customs.declared_value != null ? s.customs.declared_value + ' ' + escapeHtml(s.customs.declared_value_currency || '') : '—') +
-          (s.customs.hs_code ? ' · HS: ' + escapeHtml(s.customs.hs_code) : '') + '</div>';
-      }
-
-      card.innerHTML =
-        '<div class="shipHeader">' +
-          '<div><div class="trackingNum">' + escapeHtml(s.tracking_number) + '</div>' +
-          '<div class="subMeta">' + senderLoc + ' → ' + receiverLoc + '</div></div>' +
-          '<div style="text-align:right"><span class="statusPill">' + s.status.replace(/_/g, ' ') + '</span><br/>' +
-          '<span class="payPill ' + payClass + '" style="margin-top:4px;display:inline-block">' + payLabel + '</span></div>' +
-        '</div>' +
-        (s.description ? '<p style="margin:8px 0 0;font-size:13px;color:#9ca3af">' + escapeHtml(s.description) + '</p>' : '') +
-        '<div style="margin-top:6px">' +
-          (s.international ? '<span class="tag" style="background:#1e3a5f;color:#93c5fd">International</span>' : '') +
-          (s.price ? '<span class="tag">' + Number(s.price).toLocaleString() + ' ' + escapeHtml(s.currency || 'UGX') + '</span>' : '') +
-          (s.weight_kg ? '<span class="tag">' + s.weight_kg + ' kg</span>' : '') +
-          (s.speed_label ? '<span class="tag">' + escapeHtml(s.speed_label) + '</span>' : '') +
-          (s.zone_label ? '<span class="tag">' + escapeHtml(s.zone_label) + '</span>' : '') +
-        '</div>' +
-        customsHtml +
-        '<div class="actionRow">' +
-          '<button class="toggleStatusBtn" data-tn="' + s.tracking_number + '" style="background:#1f2937">Update Status</button>' +
-          '<a class="linkBtn" href="' + API_BASE + '/api/shipments/' + s.tracking_number + '/receipt" target="_blank">Receipt</a>' +
-          (s.payment_status !== 'paid' && s.status !== 'cancelled'
-            ? '<button class="cancelShipBtn" data-tn="' + s.tracking_number + '" style="background:#7f1d1d">Cancel</button>' : '') +
-        '</div>' +
-        '<div class="statusForm" id="statusForm-' + s.tracking_number + '">' +
-          '<label>New status</label>' +
-          '<select id="statusSelect-' + s.tracking_number + '">' + statusOptions + '</select>' +
-          '<label>Note (optional)</label>' +
-          '<input type="text" id="statusNote-' + s.tracking_number + '" placeholder="e.g. Left Kampala hub" />' +
-          '<label>Location (optional)</label>' +
-          '<input type="text" id="statusLocation-' + s.tracking_number + '" placeholder="e.g. Entebbe hub" />' +
-          '<button class="confirmStatusBtn" data-tn="' + s.tracking_number + '">Save Status</button>' +
-        '</div>' +
-        '<div class="statusMsg" id="shipMsg-' + s.tracking_number + '"></div>';
-      list.appendChild(card);
-    });
-
-    document.querySelectorAll('.toggleStatusBtn').forEach(function (btn) {
-      btn.addEventListener('click', function () { document.getElementById('statusForm-' + btn.dataset.tn).classList.toggle('active'); });
-    });
-    document.querySelectorAll('.confirmStatusBtn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var tn = btn.dataset.tn;
-        var status = document.getElementById('statusSelect-' + tn).value;
-        var note = document.getElementById('statusNote-' + tn).value.trim();
-        var location = document.getElementById('statusLocation-' + tn).value.trim();
-        updateShipmentStatus(tn, status, note, location);
-      });
-    });
-    document.querySelectorAll('.cancelShipBtn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        if (confirm('Cancel shipment ' + btn.dataset.tn + '?')) cancelShipment(btn.dataset.tn);
-      });
-    });
-  }
-
-  async function updateShipmentStatus(tn, status, note, location) {
-    var msg = document.getElementById('shipMsg-' + tn);
-    if (msg) msg.textContent = 'Saving...';
-    try {
-      var r = await authedJsonFetch('/api/shipments/' + tn + '/status', 'PATCH', { status: status, note: note, location: location });
-      if (r.ok) loadShipments(); else if (msg) msg.textContent = 'Failed to update status';
-    } catch (e) { if (msg) msg.textContent = 'Network error'; }
-  }
-
-  async function cancelShipment(tn) {
-    var msg = document.getElementById('shipMsg-' + tn);
-    if (msg) msg.textContent = 'Cancelling...';
-    try {
-      var r = await authedFetch('/api/shipments/' + tn + '/cancel', { method: 'POST' });
-      if (r.ok) loadShipments(); else if (msg) msg.textContent = 'Failed to cancel';
-    } catch (e) { if (msg) msg.textContent = 'Network error'; }
-  }
-})();
+}
 </script>
 </body>
 </html>
