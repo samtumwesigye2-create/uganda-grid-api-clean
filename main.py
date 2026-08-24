@@ -23,6 +23,7 @@ INDEX_FILE = os.path.join(BASE_DIR, "index.html")
 APP_JS_FILE = os.path.join(BASE_DIR, "app.js")
 SUBMIT_FILE = os.path.join(BASE_DIR, "submit.html")
 REVIEW_FILE = os.path.join(BASE_DIR, "review.html")
+ADMIN_FILE = os.path.join(BASE_DIR, "admin.html")
 
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -38,13 +39,15 @@ except Exception:
 
 
 def save_addresses(updated_addresses):
+    """Persist the addresses list back to entebbe_database.json so approved
+    building submissions and commercial applications survive a restart."""
     global addresses
     addresses = updated_addresses
     try:
         with open(DATABASE, "w", encoding="utf-8") as file:
             json.dump(addresses, file, ensure_ascii=False, indent=2)
     except Exception:
-        pass
+        pass  # best-effort; in-memory list is still updated either way
 
 
 REPORTS = []
@@ -58,20 +61,31 @@ ALLOWED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "vi
 MAX_MEDIA_BYTES = 15 * 1024 * 1024
 
 
+# --- Wire in shipments.py (domestic + international shipping routes) ---
 from shipments import router as shipments_router, register_rate_routes
+
 register_rate_routes(lambda: addresses)
 app.include_router(shipments_router)
 
+
+# --- Wire in commercial.py (landlord/company commercial address registration) ---
 from commercial import router as commercial_router, register_commercial_routes
+
 register_commercial_routes(lambda: addresses, save_addresses)
 app.include_router(commercial_router)
 
+
+# --- Wire in auth.py (staff accounts + delegated permissions) ---
 from auth import router as auth_router
 app.include_router(auth_router)
 
+
+# --- Wire in inventory.py (warehouse stock, reorder alerts, forecasting) ---
 from inventory import router as inventory_router
 app.include_router(inventory_router)
 
+
+# --- Wire in invoicing.py (invoices + bills of lading, generated from shipments) ---
 from invoicing import router as invoicing_router
 app.include_router(invoicing_router)
 
@@ -122,6 +136,13 @@ def review_page():
     if not os.path.exists(REVIEW_FILE):
         raise HTTPException(status_code=404, detail="review.html not found")
     return FileResponse(REVIEW_FILE, media_type="text/html")
+
+
+@app.get("/admin")
+def admin_page():
+    if not os.path.exists(ADMIN_FILE):
+        raise HTTPException(status_code=404, detail="admin.html not found")
+    return FileResponse(ADMIN_FILE, media_type="text/html")
 
 
 @app.get("/search")
