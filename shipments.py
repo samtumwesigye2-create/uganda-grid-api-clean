@@ -1,473 +1,310 @@
 """
-Shipment / Parcel Management module for Uganda National Grid (UGAMAP)
---------------------------------------------------------------------
-Drop into repo root alongside main.py, then in main.py add (if not
-already added):
+shipments.py — Ship & Mail: rate calculation, shipment creation, receipts.
 
+Self-contained: manages its own SQLite table (in data_hub.db, same file
+data_hub.py uses, but its own "shipments" table so it doesn't collide).
+
+INSTALL: in main.py add:
     from shipments import router as shipments_router
     app.include_router(shipments_router)
-
-Also add to main.py, near your other imports, if not already present:
-
-    from fastapi.responses import HTMLResponse
-
-Requires payments.py (Flutterwave) and rates.py (quoting) to be in the
-same directory.
-
-Env vars needed (Railway/Render -> Variables):
-    FLW_SECRET_KEY   - your Flutterwave secret key
-    PUBLIC_BASE_URL  - e.g. https://uganda-grid-api-clean-production.up.railway.app
-                       (used to build the Flutterwave redirect URL)
 """
 
-import json
+import math
 import os
+import sqlite3
+import time
 import uuid
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Form, Header, HTTPException, Query
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
 
-import rates
-import payments
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "data_hub.db")
+ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "uganda2026")
 
-router = APIRouter(prefix="/api/shipments", tags=["shipments"])
+router = APIRouter()
 
-DB_PATH = Path(__file__).parent / "shipments_database.json"
+# Speed tier multipliers applied to the base rate
+SPEED_TIERS = {
+    "seven_day": {"label": "7-Day", "multiplier": 1.0, "eta_days": 7},
+    "three_day": {"label": "3-Day", "multiplier": 1.3, "eta_days": 3},
+    "two_day": {"label": "2-Day", "multiplier": 1.6, "eta_days": 2},
+    "one_day": {"label": "1-Day", "multiplier": 2.0, "eta_days": 1},
+    "overnight": {"label": "Overnight", "multiplier": 2.6, "eta_days": 1},
+    "express": {"label": "Express", "multiplier": 3.5, "eta_days": 0},
+}
 
-STATUS_FLOW = [
-    "created", "picked_up", "in_transit", "out_for_delivery",
-    "delivered", "failed_delivery", "returned", "cancelled",
-]
-
-
-def _load():
-    if not DB_PATH.exists():
-        data = {"shipments": [], "next_number": 1}
-        _save(data)
-        return data
-    return json.loads(DB_PATH.read_text())
-
-
-def _save(data):
-    DB_PATH.write_text(json.dumps(data, indent=2, default=str))
+BASE_RATE_PER_KG = 1500       # UGX per kg
+BASE_RATE_PER_KM = 200        # UGX per km
+MINIMUM_CHARGE = 3000         # UGX floor
 
 
-def _next_tracking_number(data):
-    n = data["next_number"]
-    data["next_number"] += 1
+def get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_conn()
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shipments (
+            id TEXT PRIMARY KEY,
+            shipment_number TEXT UNIQUE NOT NULL,
+            pickup TEXT NOT NULL,
+            delivery TEXT NOT NULL,
+            weight_kg REAL NOT NULL,
+            distance_km REAL NOT NULL,
+            speed_tier TEXT NOT NULL,
+            rate_ugx REAL NOT NULL,
+            status TEXT NOT NULL,
+            sender_name TEXT,
+            sender_phone TEXT,
+            recipient_name TEXT,
+            recipient_phone TEXT,
+            created_at REAL NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shipment_counter (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            next_number INTEGER NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        "INSERT OR IGNORE INTO shipment_counter (id, next_number) VALUES (1, 1)"
+    )
+    conn.commit()
+    conn.close()
+
+
+init_db()
+
+
+def check_admin(x_admin_passcode: str):
+    if x_admin_passcode != ADMIN_PASSCODE:
+        raise HTTPException(status_code=401, detail="Invalid passcode")
+
+
+def next_shipment_number():
+    conn = get_conn()
+    cur = conn.execute("SELECT next_number FROM shipment_counter WHERE id = 1")
+    n = cur.fetchone()["next_number"]
+    conn.execute("UPDATE shipment_counter SET next_number = ? WHERE id = 1", (n + 1,))
+    conn.commit()
+    conn.close()
     return f"UG-SHIP-{n:06d}"
 
 
-def _find(data, tracking_number):
-    for s in data["shipments"]:
-        if s["tracking_number"] == tracking_number:
-            return s
+def haversine_km(lat1, lon1, lat2, lon2):
+    R = 6371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return 2 * R * math.asin(math.sqrt(a))
+
+
+def lookup_coords(grid_id_or_address: str, addresses):
+    """Looks up lat/lon from the grid database by grid_id or address text."""
+    query = grid_id_or_address.strip().lower()
+    for item in addresses:
+        if str(item.get("grid_id", "")).strip().lower() == query:
+            return float(item.get("latitude", 0)), float(item.get("longitude", 0))
+    for item in addresses:
+        if query in str(item.get("address", "")).strip().lower():
+            return float(item.get("latitude", 0)), float(item.get("longitude", 0))
     return None
 
 
-# ---------- models ----------
-
-class Party(BaseModel):
-    name: str
-    phone: Optional[str] = None
-    address: str
-    country: Optional[str] = "Uganda"
-
-
-class CustomsInfo(BaseModel):
-    declared_value: Optional[float] = None
-    declared_value_currency: Optional[str] = "USD"
-    description: Optional[str] = None
-    hs_code: Optional[str] = None
+def calculate_rate(distance_km: float, weight_kg: float, speed_tier: str):
+    tier = SPEED_TIERS.get(speed_tier)
+    if not tier:
+        raise HTTPException(status_code=400, detail="Invalid speed tier")
+    base = (weight_kg * BASE_RATE_PER_KG) + (distance_km * BASE_RATE_PER_KM)
+    rate = max(base * tier["multiplier"], MINIMUM_CHARGE)
+    return round(rate, -1)  # round to nearest 10 UGX
 
 
-class ShipmentCreate(BaseModel):
-    sender: Party
-    receiver: Party
-    description: Optional[str] = None
-    weight_kg: Optional[float] = None
-    speed: Optional[str] = None      # one of rates.SPEED_TIERS keys (domestic)
-    zone: Optional[str] = None       # one of rates.INTERNATIONAL_ZONES keys (international)
-    customs: Optional[CustomsInfo] = None
-    price: Optional[float] = None
-    currency: Optional[str] = None
+def register_rate_routes(addresses_ref):
+    """
+    addresses_ref: a zero-arg callable returning the current `addresses` list
+    from main.py, so this module can look up coordinates without importing
+    main.py directly (avoids circular imports).
+    """
 
+    @router.get("/ship/rates")
+    def get_rates(
+        pickup: str = Query(...),
+        delivery: str = Query(...),
+        weight_kg: float = Query(..., gt=0),
+    ):
+        addresses = addresses_ref()
+        p = lookup_coords(pickup, addresses)
+        d = lookup_coords(delivery, addresses)
+        if not p or not d:
+            raise HTTPException(status_code=404, detail="Pickup or delivery address not found in grid database")
 
-class ShipmentEdit(BaseModel):
-    description: Optional[str] = None
-    weight_kg: Optional[float] = None
-    speed: Optional[str] = None
-    zone: Optional[str] = None
-    customs: Optional[CustomsInfo] = None
-    price: Optional[float] = None
-    currency: Optional[str] = None
+        distance_km = round(haversine_km(p[0], p[1], d[0], d[1]), 2)
 
+        quotes = []
+        for key, tier in SPEED_TIERS.items():
+            rate = calculate_rate(distance_km, weight_kg, key)
+            quotes.append({
+                "speed_tier": key,
+                "label": tier["label"],
+                "eta_days": tier["eta_days"],
+                "rate_ugx": rate,
+            })
 
-class StatusUpdate(BaseModel):
-    status: str
-    note: Optional[str] = None
-    location: Optional[str] = None
+        return {
+            "pickup": pickup,
+            "delivery": delivery,
+            "weight_kg": weight_kg,
+            "distance_km": distance_km,
+            "quotes": quotes,
+        }
 
+    @router.post("/ship/create")
+    def create_shipment(
+        pickup: str = Form(...),
+        delivery: str = Form(...),
+        weight_kg: float = Form(..., gt=0),
+        speed_tier: str = Form(...),
+        sender_name: str = Form(""),
+        sender_phone: str = Form(""),
+        recipient_name: str = Form(""),
+        recipient_phone: str = Form(""),
+    ):
+        addresses = addresses_ref()
+        p = lookup_coords(pickup, addresses)
+        d = lookup_coords(delivery, addresses)
+        if not p or not d:
+            raise HTTPException(status_code=404, detail="Pickup or delivery address not found in grid database")
 
-class QuoteRequest(BaseModel):
-    origin: str          # grid ID or address
-    destination: str
-    weight_kg: float
+        distance_km = round(haversine_km(p[0], p[1], d[0], d[1]), 2)
+        rate = calculate_rate(distance_km, weight_kg, speed_tier)
+        shipment_id = str(uuid.uuid4())
+        shipment_number = next_shipment_number()
 
-
-class InternationalQuoteRequest(BaseModel):
-    zone: str
-    weight_kg: float
-
-
-def _is_international(sender: dict, receiver: dict) -> bool:
-    origin_country = (sender.get("country") or "Uganda").strip().lower()
-    dest_country = (receiver.get("country") or "Uganda").strip().lower()
-    return origin_country != dest_country
-
-
-# ---------- quoting ----------
-
-@router.post("/quote")
-def get_quote(req: QuoteRequest):
-    origin_coords = rates.resolve_coordinates(req.origin)
-    dest_coords = rates.resolve_coordinates(req.destination)
-    if not origin_coords or not dest_coords:
-        raise HTTPException(
-            400,
-            "Could not resolve one or both addresses to coordinates. "
-            "Use a known grid ID (e.g. UG-ENT-000001)."
+        conn = get_conn()
+        conn.execute(
+            """
+            INSERT INTO shipments
+            (id, shipment_number, pickup, delivery, weight_kg, distance_km,
+             speed_tier, rate_ugx, status, sender_name, sender_phone,
+             recipient_name, recipient_phone, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                shipment_id, shipment_number, pickup, delivery, weight_kg,
+                distance_km, speed_tier, rate, "pending_payment",
+                sender_name, sender_phone, recipient_name, recipient_phone,
+                time.time(),
+            ),
         )
-    try:
-        distance_km = rates.road_distance_km(origin_coords, dest_coords)
-    except Exception as e:
-        raise HTTPException(502, f"Routing service error: {e}")
+        conn.commit()
+        conn.close()
 
-    return rates.quote_all_tiers(distance_km, req.weight_kg)
-
-
-@router.get("/zones")
-def list_international_zones():
-    """List available international shipping zones with their (manually
-    set) base fee, per-kg rate, and estimated transit time."""
-    return rates.INTERNATIONAL_ZONES
+        return {
+            "id": shipment_id,
+            "shipment_number": shipment_number,
+            "rate_ugx": rate,
+            "distance_km": distance_km,
+            "status": "pending_payment",
+            "receipt_url": f"/ship/receipt/{shipment_number}",
+        }
 
 
-@router.post("/quote/international")
-def get_international_quote(req: InternationalQuoteRequest):
-    try:
-        return rates.quote_international(req.zone, req.weight_kg)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
+@router.post("/ship/{shipment_number}/pay")
+def mark_paid(shipment_number: str):
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    conn.execute(
+        "UPDATE shipments SET status = 'paid' WHERE shipment_number = ?",
+        (shipment_number,),
+    )
+    conn.commit()
+    conn.close()
+    return {"shipment_number": shipment_number, "status": "paid"}
 
 
-# ---------- shipment CRUD ----------
+@router.get("/ship/receipt/{shipment_number}", response_class=HTMLResponse)
+def receipt(shipment_number: str):
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)
+    ).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="Shipment not found")
 
-@router.post("")
-def create_shipment(shipment: ShipmentCreate):
-    data = _load()
-    tracking_number = _next_tracking_number(data)
-    now = datetime.now(timezone.utc).isoformat()
+    tier = SPEED_TIERS.get(row["speed_tier"], {"label": row["speed_tier"]})
+    date_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(row["created_at"]))
 
-    sender_dict = shipment.sender.dict()
-    receiver_dict = shipment.receiver.dict()
-    international = _is_international(sender_dict, receiver_dict)
-
-    speed_label = rates.SPEED_TIERS[shipment.speed]["label"] if shipment.speed in rates.SPEED_TIERS else None
-    zone_label = rates.INTERNATIONAL_ZONES[shipment.zone]["label"] if shipment.zone in rates.INTERNATIONAL_ZONES else None
-
-    record = {
-        "tracking_number": tracking_number,
-        "sender": sender_dict,
-        "receiver": receiver_dict,
-        "international": international,
-        "description": shipment.description,
-        "weight_kg": shipment.weight_kg,
-        "speed": shipment.speed,
-        "speed_label": speed_label,
-        "zone": shipment.zone,
-        "zone_label": zone_label,
-        "customs": shipment.customs.dict() if shipment.customs else None,
-        "price": shipment.price,
-        "currency": shipment.currency or "UGX",
-        "payment_status": "unpaid" if shipment.price else None,
-        "payment_tx_ref": None,
-        "status": "created",
-        "created_at": now,
-        "history": [{"status": "created", "note": "Shipment registered", "at": now}],
-    }
-    data["shipments"].append(record)
-    _save(data)
-    return record
-
-
-@router.get("/{tracking_number}")
-def get_shipment(tracking_number: str):
-    data = _load()
-    s = _find(data, tracking_number)
-    if not s:
-        raise HTTPException(404, "No shipment found with that tracking number")
-    return s
+    return f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Receipt — {row['shipment_number']}</title>
+<style>
+  body {{ font-family: -apple-system, sans-serif; max-width:480px; margin:30px auto; padding:20px; color:#111; }}
+  h1 {{ font-size:20px; border-bottom:2px solid #111; padding-bottom:10px; }}
+  table {{ width:100%; border-collapse:collapse; margin-top:16px; }}
+  td {{ padding:6px 0; border-bottom:1px solid #eee; }}
+  td:first-child {{ color:#666; width:45%; }}
+  .total {{ font-size:18px; font-weight:bold; margin-top:16px; }}
+  .status {{ display:inline-block; padding:4px 10px; border-radius:6px; font-size:13px; }}
+  .paid {{ background:#d4f4dd; color:#1a7a37; }}
+  .pending {{ background:#fde8d4; color:#a35b00; }}
+  button {{ margin-top:20px; padding:10px 16px; border:none; border-radius:6px; background:#e2593a; color:#fff; font-size:15px; }}
+</style>
+</head>
+<body>
+  <h1>Uganda National Grid — Shipping Receipt</h1>
+  <p>Receipt #: <strong>{row['shipment_number']}</strong><br>Date: {date_str}</p>
+  <span class="status {'paid' if row['status'] == 'paid' else 'pending'}">
+    {'PAID' if row['status'] == 'paid' else 'PENDING PAYMENT'}
+  </span>
+  <table>
+    <tr><td>Pickup</td><td>{row['pickup']}</td></tr>
+    <tr><td>Delivery</td><td>{row['delivery']}</td></tr>
+    <tr><td>Weight</td><td>{row['weight_kg']} kg</td></tr>
+    <tr><td>Distance</td><td>{row['distance_km']} km</td></tr>
+    <tr><td>Speed</td><td>{tier.get('label', row['speed_tier'])}</td></tr>
+    <tr><td>Sender</td><td>{row['sender_name'] or '—'} {row['sender_phone'] or ''}</td></tr>
+    <tr><td>Recipient</td><td>{row['recipient_name'] or '—'} {row['recipient_phone'] or ''}</td></tr>
+  </table>
+  <div class="total">Total: UGX {row['rate_ugx']:,.0f}</div>
+  <button onclick="window.print()">Print Receipt</button>
+</body>
+</html>
+"""
 
 
-@router.get("")
+@router.get("/ship/list")
 def list_shipments(
-    status: Optional[str] = None,
-    sender_phone: Optional[str] = None,
-    receiver_phone: Optional[str] = None,
-    international: Optional[bool] = None,
+    status: str = Query(default=""),
+    x_admin_passcode: str = Header(default=""),
 ):
-    data = _load()
-    results = data["shipments"]
+    check_admin(x_admin_passcode)
+    conn = get_conn()
+    query = "SELECT * FROM shipments"
+    params = []
     if status:
-        results = [s for s in results if s["status"] == status]
-    if sender_phone:
-        results = [s for s in results if s["sender"].get("phone") == sender_phone]
-    if receiver_phone:
-        results = [s for s in results if s["receiver"].get("phone") == receiver_phone]
-    if international is not None:
-        results = [s for s in results if bool(s.get("international")) == international]
-    return results
-
-
-@router.patch("/{tracking_number}/status")
-def update_status(tracking_number: str, update: StatusUpdate):
-    if update.status not in STATUS_FLOW:
-        raise HTTPException(400, f"status must be one of {STATUS_FLOW}")
-    data = _load()
-    s = _find(data, tracking_number)
-    if not s:
-        raise HTTPException(404, "No shipment found with that tracking number")
-    s["status"] = update.status
-    s["history"].append({
-        "status": update.status,
-        "note": update.note,
-        "location": update.location,
-        "at": datetime.now(timezone.utc).isoformat(),
-    })
-    _save(data)
-    return s
-
-
-@router.patch("/{tracking_number}")
-def edit_shipment(tracking_number: str, edit: ShipmentEdit):
-    """Edit description/weight/tier/price on a shipment that hasn't been paid yet."""
-    data = _load()
-    s = _find(data, tracking_number)
-    if not s:
-        raise HTTPException(404, "No shipment found with that tracking number")
-    if s.get("payment_status") == "paid":
-        raise HTTPException(400, "Cannot edit a shipment that has already been paid.")
-
-    changed = []
-    if edit.description is not None:
-        s["description"] = edit.description
-        changed.append("description")
-    if edit.weight_kg is not None:
-        s["weight_kg"] = edit.weight_kg
-        changed.append("weight_kg")
-    if edit.speed is not None:
-        if edit.speed not in rates.SPEED_TIERS:
-            raise HTTPException(400, f"speed must be one of {list(rates.SPEED_TIERS.keys())}")
-        s["speed"] = edit.speed
-        s["speed_label"] = rates.SPEED_TIERS[edit.speed]["label"]
-        changed.append("speed")
-    if edit.zone is not None:
-        if edit.zone not in rates.INTERNATIONAL_ZONES:
-            raise HTTPException(400, f"zone must be one of {list(rates.INTERNATIONAL_ZONES.keys())}")
-        s["zone"] = edit.zone
-        s["zone_label"] = rates.INTERNATIONAL_ZONES[edit.zone]["label"]
-        changed.append("zone")
-    if edit.customs is not None:
-        s["customs"] = edit.customs.dict()
-        changed.append("customs")
-    if edit.price is not None:
-        s["price"] = edit.price
-        s["payment_status"] = "unpaid"
-        changed.append("price")
-    if edit.currency is not None:
-        s["currency"] = edit.currency
-        changed.append("currency")
-
-    if changed:
-        s["history"].append({
-            "status": s["status"],
-            "note": f"Updated: {', '.join(changed)}",
-            "at": datetime.now(timezone.utc).isoformat(),
-        })
-        _save(data)
-    return s
-
-
-@router.post("/{tracking_number}/cancel")
-def cancel_shipment(tracking_number: str, note: Optional[str] = None):
-    """Cancel a shipment that hasn't been paid yet."""
-    data = _load()
-    s = _find(data, tracking_number)
-    if not s:
-        raise HTTPException(404, "No shipment found with that tracking number")
-    if s.get("payment_status") == "paid":
-        raise HTTPException(400, "Cannot cancel a paid shipment — contact support for a refund instead.")
-    if s["status"] == "cancelled":
-        raise HTTPException(400, "Shipment is already cancelled.")
-
-    s["status"] = "cancelled"
-    s["history"].append({
-        "status": "cancelled",
-        "note": note or "Cancelled",
-        "at": datetime.now(timezone.utc).isoformat(),
-    })
-    _save(data)
-    return s
-
-
-# ---------- payment ----------
-
-@router.post("/{tracking_number}/pay")
-def start_payment(tracking_number: str):
-    data = _load()
-    s = _find(data, tracking_number)
-    if not s:
-        raise HTTPException(404, "No shipment found with that tracking number")
-    if not s.get("price"):
-        raise HTTPException(400, "This shipment has no price set — get a quote first.")
-    if s.get("payment_status") == "paid":
-        raise HTTPException(400, "This shipment is already paid.")
-
-    tx_ref = f"{tracking_number}-{uuid.uuid4().hex[:8]}"
-    base_url = os.environ.get("PUBLIC_BASE_URL", "").rstrip("/")
-    redirect_url = f"{base_url}/api/shipments/{tracking_number}/payment-callback"
-
-    try:
-        link = payments.initiate_payment(
-            tx_ref=tx_ref,
-            amount=s["price"],
-            currency=s.get("currency", "UGX"),
-            customer_email=s["sender"].get("email") or "customer@ugamap.app",
-            customer_name=s["sender"]["name"],
-            redirect_url=redirect_url,
-        )
-    except Exception as e:
-        raise HTTPException(502, f"Payment provider error: {e}")
-
-    s["payment_tx_ref"] = tx_ref
-    _save(data)
-    return {"payment_link": link, "tx_ref": tx_ref}
-
-
-@router.get("/{tracking_number}/payment-callback", response_class=HTMLResponse)
-def payment_callback(
-    tracking_number: str,
-    status: Optional[str] = Query(None),
-    tx_ref: Optional[str] = Query(None),
-    transaction_id: Optional[str] = Query(None),
-):
-    """Flutterwave redirects the customer's browser here after checkout."""
-    data = _load()
-    s = _find(data, tracking_number)
-    if not s:
-        return HTMLResponse("<h1>Shipment not found</h1>", status_code=404)
-
-    verified_ok = False
-    if status == "successful" and transaction_id:
-        try:
-            verification = payments.verify_payment(transaction_id)
-            if (
-                verification.get("status") == "successful"
-                and verification.get("tx_ref") == s.get("payment_tx_ref")
-                and float(verification.get("amount", 0)) >= float(s["price"])
-            ):
-                verified_ok = True
-        except Exception:
-            verified_ok = False
-
-    if verified_ok:
-        s["payment_status"] = "paid"
-        s["history"].append({
-            "status": s["status"],
-            "note": f"Payment confirmed ({transaction_id})",
-            "at": datetime.now(timezone.utc).isoformat(),
-        })
-        _save(data)
-        message = "Payment confirmed — thank you!"
-    else:
-        message = "Payment was not confirmed. If you were charged, contact support with your tracking number."
-
-    return HTMLResponse(f"""
-    <html><body style="font-family: sans-serif; padding: 40px; text-align: center;">
-      <h1>{message}</h1>
-      <p>Tracking number: <strong>{tracking_number}</strong></p>
-      <p><a href="/admin">Back to UGAMAP Admin</a></p>
-    </body></html>
-    """)
-
-
-# ---------- receipt ----------
-
-@router.get("/{tracking_number}/receipt", response_class=HTMLResponse)
-def receipt(tracking_number: str):
-    data = _load()
-    s = _find(data, tracking_number)
-    if not s:
-        return HTMLResponse("<h1>Shipment not found</h1>", status_code=404)
-
-    service_row_label = "Service"
-    service_row_value = s.get('speed_label') or s.get('zone_label') or s.get('speed') or s.get('zone') or '—'
-
-    price_row = ""
-    if s.get("price"):
-        price_row = f"""
-        <tr><td>{service_row_label}</td><td>{service_row_value}</td></tr>
-        <tr><td>Weight</td><td>{s.get('weight_kg') or '—'} kg</td></tr>
-        <tr><td><strong>Total</strong></td><td><strong>{s['price']:,.0f} {s.get('currency', 'UGX')}</strong></td></tr>
-        <tr><td>Payment status</td><td>{s.get('payment_status') or 'unpaid'}</td></tr>
-        """
-
-    customs_row = ""
-    if s.get("international") and s.get("customs"):
-        c = s["customs"]
-        customs_row = f"""
-        <tr><td>Declared value</td><td>{c.get('declared_value') or '—'} {c.get('declared_value_currency') or ''}</td></tr>
-        <tr><td>Customs description</td><td>{c.get('description') or '—'}</td></tr>
-        <tr><td>HS code</td><td>{c.get('hs_code') or '—'}</td></tr>
-        """
-
-    international_row = ""
-    if s.get("international"):
-        international_row = '<tr><td>Shipment type</td><td>International</td></tr>'
-
-    return HTMLResponse(f"""
-    <html>
-    <head>
-      <title>Receipt — {tracking_number}</title>
-      <style>
-        body {{ font-family: -apple-system, sans-serif; max-width: 480px; margin: 30px auto; color: #111; }}
-        h1 {{ font-size: 1.3rem; margin-bottom: 0; }}
-        .muted {{ color: #666; font-size: 0.85rem; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 16px; }}
-        td {{ padding: 8px 4px; border-bottom: 1px solid #eee; font-size: 0.9rem; }}
-        button {{ margin-top: 20px; padding: 10px 18px; font-size: 0.95rem; }}
-        @media print {{ button {{ display: none; }} }}
-      </style>
-    </head>
-    <body>
-      <h1>UGAMAP Shipment Receipt</h1>
-      <p class="muted">Tracking number: {tracking_number}</p>
-      <table>
-        <tr><td>From</td><td>{s['sender']['name']}, {s['sender']['address']}, {s['sender'].get('country', 'Uganda')}</td></tr>
-        <tr><td>To</td><td>{s['receiver']['name']}, {s['receiver']['address']}, {s['receiver'].get('country', 'Uganda')}</td></tr>
-        {international_row}
-        <tr><td>Description</td><td>{s.get('description') or '—'}</td></tr>
-        {price_row}
-        {customs_row}
-        <tr><td>Status</td><td>{s['status']}</td></tr>
-        <tr><td>Created</td><td>{s['created_at']}</td></tr>
-      </table>
-      <button onclick="window.print()">Print receipt</button>
-    </body>
-    </html>
-    """)
+        query += " WHERE status = ?"
+        params.append(status)
+    query += " ORDER BY created_at DESC"
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return {"count": len(rows), "results": [dict(r) for r in rows]}
