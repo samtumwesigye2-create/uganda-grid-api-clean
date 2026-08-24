@@ -1,14 +1,3 @@
-"""
-shipments.py — Ship & Mail: rate calculation, shipment creation, receipts.
-
-Self-contained: manages its own SQLite table (in data_hub.db, same file
-data_hub.py uses, but its own "shipments" table so it doesn't collide).
-
-INSTALL: in main.py add:
-    from shipments import router as shipments_router
-    app.include_router(shipments_router)
-"""
-
 import math
 import os
 import sqlite3
@@ -24,7 +13,6 @@ ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "uganda2026")
 
 router = APIRouter()
 
-# Speed tier multipliers applied to the base rate
 SPEED_TIERS = {
     "seven_day": {"label": "7-Day", "multiplier": 1.0, "eta_days": 7},
     "three_day": {"label": "3-Day", "multiplier": 1.3, "eta_days": 3},
@@ -34,9 +22,9 @@ SPEED_TIERS = {
     "express": {"label": "Express", "multiplier": 3.5, "eta_days": 0},
 }
 
-BASE_RATE_PER_KG = 1500       # UGX per kg
-BASE_RATE_PER_KM = 200        # UGX per km
-MINIMUM_CHARGE = 3000         # UGX floor
+BASE_RATE_PER_KG = 1500
+BASE_RATE_PER_KM = 200
+MINIMUM_CHARGE = 3000
 
 
 def get_conn():
@@ -110,7 +98,6 @@ def haversine_km(lat1, lon1, lat2, lon2):
 
 
 def lookup_coords(grid_id_or_address: str, addresses):
-    """Looks up lat/lon from the grid database by grid_id or address text."""
     query = grid_id_or_address.strip().lower()
     for item in addresses:
         if str(item.get("grid_id", "")).strip().lower() == query:
@@ -127,16 +114,10 @@ def calculate_rate(distance_km: float, weight_kg: float, speed_tier: str):
         raise HTTPException(status_code=400, detail="Invalid speed tier")
     base = (weight_kg * BASE_RATE_PER_KG) + (distance_km * BASE_RATE_PER_KM)
     rate = max(base * tier["multiplier"], MINIMUM_CHARGE)
-    return round(rate, -1)  # round to nearest 10 UGX
+    return round(rate, -1)
 
 
 def register_rate_routes(addresses_ref):
-    """
-    addresses_ref: a zero-arg callable returning the current `addresses` list
-    from main.py, so this module can look up coordinates without importing
-    main.py directly (avoids circular imports).
-    """
-
     @router.get("/ship/rates")
     def get_rates(
         pickup: str = Query(...),
