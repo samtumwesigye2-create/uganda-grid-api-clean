@@ -1,7 +1,3 @@
-"""
-data_hub.py — Drop-in data collection & storage module for Uganda National Grid.
-"""
-
 import csv
 import io
 import json
