@@ -74,6 +74,21 @@ register_commercial_routes(lambda: addresses, save_addresses)
 app.include_router(commercial_router)
 
 
+# --- Wire in auth.py (staff accounts + delegated permissions) ---
+from auth import router as auth_router
+app.include_router(auth_router)
+
+
+# --- Wire in inventory.py (warehouse stock, reorder alerts, forecasting) ---
+from inventory import router as inventory_router
+app.include_router(inventory_router)
+
+
+# --- Wire in invoicing.py (invoices + bills of lading, generated from shipments) ---
+from invoicing import router as invoicing_router
+app.include_router(invoicing_router)
+
+
 def prune_reports():
     now = time.time()
     global REPORTS
