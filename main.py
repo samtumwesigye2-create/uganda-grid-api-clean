@@ -2,17 +2,14 @@ from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form, Heade
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 import json
 import os
 import time
 import uuid
 
-from data_hub import router as data_hub_router
-from mailing import router as mailing_router
-import shipments
-from shipments import router as shipments_router
+app = FastAPI(title="Uganda National Grid API", version="1.5")
 
-app = FastAPI(title="Uganda National Grid API", version="1.6")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,8 +23,7 @@ INDEX_FILE = os.path.join(BASE_DIR, "index.html")
 APP_JS_FILE = os.path.join(BASE_DIR, "app.js")
 SUBMIT_FILE = os.path.join(BASE_DIR, "submit.html")
 REVIEW_FILE = os.path.join(BASE_DIR, "review.html")
-ADMIN_FILE = os.path.join(BASE_DIR, "admin.html")
-SHIP_FILE = os.path.join(BASE_DIR, "ship.html")
+
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
@@ -46,8 +42,19 @@ VALID_CATEGORIES = {"police", "accident", "road_closure", "bridge", "traffic", "
 
 SUBMISSIONS = []
 VALID_BUILDING_TYPES = {"hospital", "police", "government", "residence", "business", "other"}
+
 ALLOWED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/quicktime", "video/webm"}
 MAX_MEDIA_BYTES = 15 * 1024 * 1024
+
+
+# --- Wire in shipments.py (domestic + international shipping routes) ---
+# shipments.py exposes an APIRouter plus register_rate_routes(), which needs
+# a callable returning the live `addresses` list (avoids circular imports
+# since shipments.py can't import main.py directly).
+from shipments import router as shipments_router, register_rate_routes
+
+register_rate_routes(lambda: addresses)
+app.include_router(shipments_router)
 
 
 def prune_reports():
@@ -59,12 +66,6 @@ def prune_reports():
 def check_admin(x_admin_passcode: str):
     if x_admin_passcode != ADMIN_PASSCODE:
         raise HTTPException(status_code=401, detail="Invalid passcode")
-
-
-shipments.register_rate_routes(lambda: addresses)
-app.include_router(shipments_router)
-app.include_router(mailing_router)
-app.include_router(data_hub_router)
 
 
 @app.get("/health")
@@ -102,20 +103,6 @@ def review_page():
     if not os.path.exists(REVIEW_FILE):
         raise HTTPException(status_code=404, detail="review.html not found")
     return FileResponse(REVIEW_FILE, media_type="text/html")
-
-
-@app.get("/admin")
-def admin_page():
-    if not os.path.exists(ADMIN_FILE):
-        raise HTTPException(status_code=404, detail="admin.html not found")
-    return FileResponse(ADMIN_FILE, media_type="text/html")
-
-
-@app.get("/ship")
-def ship_page():
-    if not os.path.exists(SHIP_FILE):
-        raise HTTPException(status_code=404, detail="ship.html not found")
-    return FileResponse(SHIP_FILE, media_type="text/html")
 
 
 @app.get("/search")
