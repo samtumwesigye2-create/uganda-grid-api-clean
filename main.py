@@ -36,6 +36,19 @@ try:
 except Exception:
     addresses = []
 
+
+def save_addresses(updated_addresses):
+    """Persist the addresses list back to entebbe_database.json so approved
+    building submissions and commercial applications survive a restart."""
+    global addresses
+    addresses = updated_addresses
+    try:
+        with open(DATABASE, "w", encoding="utf-8") as file:
+            json.dump(addresses, file, ensure_ascii=False, indent=2)
+    except Exception:
+        pass  # best-effort; in-memory list is still updated either way
+
+
 REPORTS = []
 REPORT_TTL_SECONDS = 6 * 3600
 VALID_CATEGORIES = {"police", "accident", "road_closure", "bridge", "traffic", "weather"}
@@ -48,13 +61,17 @@ MAX_MEDIA_BYTES = 15 * 1024 * 1024
 
 
 # --- Wire in shipments.py (domestic + international shipping routes) ---
-# shipments.py exposes an APIRouter plus register_rate_routes(), which needs
-# a callable returning the live `addresses` list (avoids circular imports
-# since shipments.py can't import main.py directly).
 from shipments import router as shipments_router, register_rate_routes
 
 register_rate_routes(lambda: addresses)
 app.include_router(shipments_router)
+
+
+# --- Wire in commercial.py (landlord/company commercial address registration) ---
+from commercial import router as commercial_router, register_commercial_routes
+
+register_commercial_routes(lambda: addresses, save_addresses)
+app.include_router(commercial_router)
 
 
 def prune_reports():
@@ -133,8 +150,12 @@ def get_address(grid_id: str):
 
 @app.get("/stats")
 def stats():
+    residential = sum(1 for a in addresses if a.get("address_type", "residential") == "residential")
+    commercial = sum(1 for a in addresses if a.get("address_type") == "commercial")
     return {
         "total_records": len(addresses),
+        "residential_records": residential,
+        "commercial_records": commercial,
         "database": "entebbe_database.json",
         "frontend": "index.html + app.js",
     }
@@ -273,10 +294,13 @@ def decide_submission(
     sub["status"] = "approved"
     sub["assigned_grid_id"] = grid_id
     sub["assigned_address"] = address
-    addresses.append({
+
+    updated = addresses + [{
         "grid_id": grid_id,
         "address": address,
         "latitude": sub["lat"],
         "longitude": sub["lon"],
-    })
+        "address_type": "residential",
+    }]
+    save_addresses(updated)
     return sub
