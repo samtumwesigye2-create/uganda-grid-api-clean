@@ -60,9 +60,6 @@ def check_admin(x_admin_passcode: str):
         raise HTTPException(status_code=401, detail="Invalid passcode")
 
 
-# --- Wire up routers ---
-# Shipments needs a way to read the current `addresses` list for distance
-# lookups without a circular import, so we hand it a zero-arg getter.
 shipments.register_rate_routes(lambda: addresses)
 app.include_router(shipments_router)
 app.include_router(mailing_router)
