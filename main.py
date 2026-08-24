@@ -2,22 +2,23 @@ from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form, Heade
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 import json
 import os
 import time
 import uuid
 
 from data_hub import router as data_hub_router
+from mailing import router as mailing_router
+import shipments
+from shipments import router as shipments_router
 
-app = FastAPI(title="Uganda National Grid API", version="1.5")
+app = FastAPI(title="Uganda National Grid API", version="1.6")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.include_router(data_hub_router)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "entebbe_database.json")
@@ -25,6 +26,7 @@ INDEX_FILE = os.path.join(BASE_DIR, "index.html")
 APP_JS_FILE = os.path.join(BASE_DIR, "app.js")
 SUBMIT_FILE = os.path.join(BASE_DIR, "submit.html")
 REVIEW_FILE = os.path.join(BASE_DIR, "review.html")
+ADMIN_FILE = os.path.join(BASE_DIR, "admin.html")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
@@ -56,6 +58,15 @@ def prune_reports():
 def check_admin(x_admin_passcode: str):
     if x_admin_passcode != ADMIN_PASSCODE:
         raise HTTPException(status_code=401, detail="Invalid passcode")
+
+
+# --- Wire up routers ---
+# Shipments needs a way to read the current `addresses` list for distance
+# lookups without a circular import, so we hand it a zero-arg getter.
+shipments.register_rate_routes(lambda: addresses)
+app.include_router(shipments_router)
+app.include_router(mailing_router)
+app.include_router(data_hub_router)
 
 
 @app.get("/health")
@@ -93,6 +104,13 @@ def review_page():
     if not os.path.exists(REVIEW_FILE):
         raise HTTPException(status_code=404, detail="review.html not found")
     return FileResponse(REVIEW_FILE, media_type="text/html")
+
+
+@app.get("/admin")
+def admin_page():
+    if not os.path.exists(ADMIN_FILE):
+        raise HTTPException(status_code=404, detail="admin.html not found")
+    return FileResponse(ADMIN_FILE, media_type="text/html")
 
 
 @app.get("/search")
