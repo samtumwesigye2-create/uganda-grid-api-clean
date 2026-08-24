@@ -1,5 +1,4 @@
 from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form, Header
-from auth_middleware import PasscodeMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -8,19 +7,17 @@ import json
 import os
 import time
 import uuid
-import urllib.request
-import urllib.parse
-import hashlib
-import secrets
 
-app = FastAPI(title="Uganda National Grid API", version="1.6")
+from data_hub import router as data_hub_router
+
+app = FastAPI(title="Uganda National Grid API", version="1.5")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(PasscodeMiddleware)
+app.include_router(data_hub_router)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "entebbe_database.json")
@@ -28,15 +25,11 @@ INDEX_FILE = os.path.join(BASE_DIR, "index.html")
 APP_JS_FILE = os.path.join(BASE_DIR, "app.js")
 SUBMIT_FILE = os.path.join(BASE_DIR, "submit.html")
 REVIEW_FILE = os.path.join(BASE_DIR, "review.html")
-SHIP_FILE = os.path.join(BASE_DIR, "ship.html")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
-USERS_FILE = os.path.join(BASE_DIR, "users.json")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
-
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "uganda2026")
-NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")
 
 try:
     with open(DATABASE, "r", encoding="utf-8") as file:
@@ -50,58 +43,8 @@ VALID_CATEGORIES = {"police", "accident", "road_closure", "bridge", "traffic", "
 
 SUBMISSIONS = []
 VALID_BUILDING_TYPES = {"hospital", "police", "government", "residence", "business", "other"}
-
 ALLOWED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/quicktime", "video/webm"}
 MAX_MEDIA_BYTES = 15 * 1024 * 1024
-
-try:
-    with open(USERS_FILE, "r", encoding="utf-8") as f:
-        USERS = json.load(f)
-except Exception:
-    USERS = {}
-
-SESSIONS = {}
-
-
-def save_users():
-    try:
-        with open(USERS_FILE, "w", encoding="utf-8") as f:
-            json.dump(USERS, f)
-    except Exception as e:
-        print("Failed to save users:", e)
-
-
-def hash_password(password, salt=None):
-    if salt is None:
-        salt = secrets.token_hex(16)
-    digest = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000
-    ).hex()
-    return digest, salt
-
-
-def verify_password(password, salt, digest):
-    check, _ = hash_password(password, salt)
-    return secrets.compare_digest(check, digest)
-
-
-def make_session(email):
-    token = secrets.token_hex(32)
-    SESSIONS[token] = email
-    return token
-
-
-def get_session_email(token):
-    return SESSIONS.get(token)
-
-
-def public_user(record):
-    return {
-        "name": record.get("name", ""),
-        "email": record.get("email", ""),
-        "phone": record.get("phone", ""),
-        "address": record.get("address", ""),
-    }
 
 
 def prune_reports():
@@ -152,13 +95,6 @@ def review_page():
     return FileResponse(REVIEW_FILE, media_type="text/html")
 
 
-@app.get("/ship")
-def ship_page():
-    if not os.path.exists(SHIP_FILE):
-        raise HTTPException(status_code=404, detail="ship.html not found")
-    return FileResponse(SHIP_FILE, media_type="text/html")
-
-
 @app.get("/search")
 def search(q: str = Query(..., min_length=1)):
     query = q.strip().lower()
@@ -170,8 +106,8 @@ def search(q: str = Query(..., min_length=1)):
         address = str(item.get("address", "")).strip().lower()
         if query in grid_id or query in address:
             results.append(item)
-            if len(results) >= 50:
-                break
+        if len(results) >= 50:
+            break
     return {"count": len(results), "results": results}
 
 
@@ -205,6 +141,7 @@ async def create_report(
     category = category.strip().lower()
     if category not in VALID_CATEGORIES:
         raise HTTPException(status_code=400, detail="Invalid category")
+
     prune_reports()
 
     media_url = ""
@@ -326,7 +263,6 @@ def decide_submission(
     sub["status"] = "approved"
     sub["assigned_grid_id"] = grid_id
     sub["assigned_address"] = address
-
     addresses.append({
         "grid_id": grid_id,
         "address": address,
@@ -334,156 +270,3 @@ def decide_submission(
         "longitude": sub["lon"],
     })
     return sub
-
-
-# ---------------------------------------------------------------------
-# User accounts (signup / login / profile)
-# ---------------------------------------------------------------------
-
-class SignupIn(BaseModel):
-    name: str
-    email: str
-    password: str
-    phone: str = ""
-    address: str = ""
-
-
-class LoginIn(BaseModel):
-    email: str
-    password: str
-
-
-class ProfileUpdateIn(BaseModel):
-    token: str
-    name: str = ""
-    phone: str = ""
-    address: str = ""
-
-
-@app.post("/auth/signup")
-def signup(body: SignupIn):
-    email = body.email.strip().lower()
-    if not email or "@" not in email:
-        raise HTTPException(status_code=400, detail="A valid email is required")
-    name = body.name.strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Name is required")
-    if len(body.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
-    if email in USERS:
-        raise HTTPException(status_code=409, detail="An account with this email already exists")
-
-    digest, salt = hash_password(body.password)
-    record = {
-        "name": name[:100],
-        "email": email,
-        "phone": body.phone.strip()[:30],
-        "address": body.address.strip()[:200],
-        "password_hash": digest,
-        "password_salt": salt,
-        "created_at": time.time(),
-        "updated_at": time.time(),
-    }
-    USERS[email] = record
-    save_users()
-    token = make_session(email)
-    return {"token": token, **public_user(record)}
-
-
-@app.post("/auth/login")
-def login(body: LoginIn):
-    email = body.email.strip().lower()
-    record = USERS.get(email)
-    if not record or not verify_password(
-        body.password, record.get("password_salt", ""), record.get("password_hash", "")
-    ):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    token = make_session(email)
-    return {"token": token, **public_user(record)}
-
-
-@app.post("/auth/logout")
-def logout(token: str = Form(...)):
-    SESSIONS.pop(token, None)
-    return {"ok": True}
-
-
-@app.get("/auth/me")
-def me(token: str = Query(...)):
-    email = get_session_email(token)
-    if not email:
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
-    record = USERS.get(email)
-    if not record:
-        raise HTTPException(status_code=404, detail="User not found")
-    return public_user(record)
-
-
-@app.post("/profile")
-def update_profile(body: ProfileUpdateIn):
-    email = get_session_email(body.token)
-    if not email:
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
-    record = USERS.get(email)
-    if not record:
-        raise HTTPException(status_code=404, detail="User not found")
-    if body.name.strip():
-        record["name"] = body.name.strip()[:100]
-    record["phone"] = body.phone.strip()[:30]
-    record["address"] = body.address.strip()[:200]
-    record["updated_at"] = time.time()
-    USERS[email] = record
-    save_users()
-    return public_user(record)
-
-
-# ---------------------------------------------------------------------
-# Trending news (requires a free NEWS_API_KEY from gnews.io set as an
-# environment variable on Railway/Render; without it, returns a
-# friendly "not configured" response instead of failing).
-# ---------------------------------------------------------------------
-
-@app.get("/news")
-def get_news(region: str = Query(default="Uganda")):
-    if not NEWS_API_KEY:
-        return {
-            "available": False,
-            "message": "News feed not configured yet. Add a NEWS_API_KEY environment variable to enable this.",
-            "articles": [],
-        }
-    try:
-        query = urllib.parse.quote(f"{region} Uganda")
-        url = (
-            "https://gnews.io/api/v4/search"
-            f"?q={query}&lang=en&max=8&sortby=publishedAt&token={NEWS_API_KEY}"
-        )
-        with urllib.request.urlopen(url, timeout=8) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        articles = [
-            {
-                "title": a.get("title", ""),
-                "source": (a.get("source") or {}).get("name", ""),
-                "url": a.get("url", ""),
-                "publishedAt": a.get("publishedAt", ""),
-            }
-            for a in data.get("articles", [])[:8]
-        ]
-        return {"available": True, "articles": articles}
-    except Exception:
-        return {
-            "available": False,
-            "message": "Unable to fetch news right now. Try again shortly.",
-            "articles": [],
-        }
-from mailing import router as mailing_router
-from shipments import router as shipments_router
-from fastapi.responses import FileResponse
-
-app.include_router(mailing_router)
-app.include_router(shipments_router)
-
-from pathlib import Path
-
-@app.get("/admin")
-def admin_page():
-    return FileResponse(Path(__file__).parent / "admin.html")
