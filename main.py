@@ -27,6 +27,7 @@ APP_JS_FILE = os.path.join(BASE_DIR, "app.js")
 SUBMIT_FILE = os.path.join(BASE_DIR, "submit.html")
 REVIEW_FILE = os.path.join(BASE_DIR, "review.html")
 ADMIN_FILE = os.path.join(BASE_DIR, "admin.html")
+SHIP_FILE = os.path.join(BASE_DIR, "ship.html")
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
@@ -108,6 +109,13 @@ def admin_page():
     if not os.path.exists(ADMIN_FILE):
         raise HTTPException(status_code=404, detail="admin.html not found")
     return FileResponse(ADMIN_FILE, media_type="text/html")
+
+
+@app.get("/ship")
+def ship_page():
+    if not os.path.exists(SHIP_FILE):
+        raise HTTPException(status_code=404, detail="ship.html not found")
+    return FileResponse(SHIP_FILE, media_type="text/html")
 
 
 @app.get("/search")
