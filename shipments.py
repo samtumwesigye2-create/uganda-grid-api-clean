@@ -1,3 +1,8 @@
+"""
+shipments.py — Ship & Mail: rate calculation, shipment creation, receipts.
+Covers both domestic (Uganda grid-to-grid) and international shipping.
+"""
+
 import math
 import os
 import sqlite3
@@ -13,6 +18,7 @@ ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "uganda2026")
 
 router = APIRouter()
 
+# --- Domestic (Uganda) speed tiers ---
 SPEED_TIERS = {
     "seven_day": {"label": "7-Day", "multiplier": 1.0, "eta_days": 7},
     "three_day": {"label": "3-Day", "multiplier": 1.3, "eta_days": 3},
@@ -22,9 +28,37 @@ SPEED_TIERS = {
     "express": {"label": "Express", "multiplier": 3.5, "eta_days": 0},
 }
 
-BASE_RATE_PER_KG = 1500
-BASE_RATE_PER_KM = 200
-MINIMUM_CHARGE = 3000
+BASE_RATE_PER_KG = 1500       # UGX per kg
+BASE_RATE_PER_KM = 200        # UGX per km
+MINIMUM_CHARGE = 3000         # UGX floor
+
+# --- International speed tiers ---
+INTL_TIERS = {
+    "intl_standard": {"label": "International Standard", "multiplier": 1.0, "eta_days": 14},
+    "intl_express": {"label": "International Express", "multiplier": 1.8, "eta_days": 5},
+}
+
+# Countries grouped into zones. Zone 1 = cheapest (neighboring East Africa),
+# Zone 4 = default for anywhere not listed.
+INTL_ZONE_MAP = {
+    "kenya": 1, "tanzania": 1, "rwanda": 1, "burundi": 1, "south sudan": 1,
+    "democratic republic of congo": 1, "dr congo": 1,
+    "nigeria": 2, "ghana": 2, "south africa": 2, "egypt": 2, "ethiopia": 2,
+    "morocco": 2, "senegal": 2, "tunisia": 2,
+    "united kingdom": 3, "uk": 3, "germany": 3, "france": 3, "netherlands": 3,
+    "italy": 3, "spain": 3, "sweden": 3, "belgium": 3, "uae": 3,
+    "united arab emirates": 3, "india": 3, "china": 3,
+    "united states": 4, "usa": 4, "us": 4, "canada": 4, "australia": 4,
+    "brazil": 4, "japan": 4, "south korea": 4,
+}
+DEFAULT_ZONE = 4
+
+ZONE_RATES = {
+    1: {"base": 15000, "per_kg": 6000},
+    2: {"base": 25000, "per_kg": 9000},
+    3: {"base": 40000, "per_kg": 14000},
+    4: {"base": 55000, "per_kg": 20000},
+}
 
 
 def get_conn():
@@ -51,6 +85,7 @@ def init_db():
             sender_phone TEXT,
             recipient_name TEXT,
             recipient_phone TEXT,
+            shipment_type TEXT DEFAULT 'domestic',
             created_at REAL NOT NULL
         )
         """
@@ -66,6 +101,12 @@ def init_db():
     conn.execute(
         "INSERT OR IGNORE INTO shipment_counter (id, next_number) VALUES (1, 1)"
     )
+    # In case this table already existed from before this update, make sure
+    # the new column exists too.
+    try:
+        conn.execute("ALTER TABLE shipments ADD COLUMN shipment_type TEXT DEFAULT 'domestic'")
+    except sqlite3.OperationalError:
+        pass  # column already exists
     conn.commit()
     conn.close()
 
@@ -117,7 +158,31 @@ def calculate_rate(distance_km: float, weight_kg: float, speed_tier: str):
     return round(rate, -1)
 
 
+def get_zone(country: str) -> int:
+    return INTL_ZONE_MAP.get(country.strip().lower(), DEFAULT_ZONE)
+
+
+def calculate_international_rate(zone: int, weight_kg: float, speed_tier: str):
+    tier = INTL_TIERS.get(speed_tier)
+    if not tier:
+        raise HTTPException(status_code=400, detail="Invalid speed tier")
+    zone_rate = ZONE_RATES[zone]
+    base = zone_rate["base"] + (weight_kg * zone_rate["per_kg"])
+    rate = base * tier["multiplier"]
+    return round(rate, -1)
+
+
+def all_tier_labels():
+    return {**SPEED_TIERS, **INTL_TIERS}
+
+
 def register_rate_routes(addresses_ref):
+    """
+    addresses_ref: a zero-arg callable returning the current `addresses` list
+    from main.py, so this module can look up coordinates without importing
+    main.py directly (avoids circular imports).
+    """
+
     @router.get("/ship/rates")
     def get_rates(
         pickup: str = Query(...),
@@ -150,6 +215,28 @@ def register_rate_routes(addresses_ref):
             "quotes": quotes,
         }
 
+    @router.get("/ship/international/rates")
+    def get_international_rates(
+        country: str = Query(...),
+        weight_kg: float = Query(..., gt=0),
+    ):
+        zone = get_zone(country)
+        quotes = []
+        for key, tier in INTL_TIERS.items():
+            rate = calculate_international_rate(zone, weight_kg, key)
+            quotes.append({
+                "speed_tier": key,
+                "label": tier["label"],
+                "eta_days": tier["eta_days"],
+                "rate_ugx": rate,
+            })
+        return {
+            "country": country,
+            "zone": zone,
+            "weight_kg": weight_kg,
+            "quotes": quotes,
+        }
+
     @router.post("/ship/create")
     def create_shipment(
         pickup: str = Form(...),
@@ -178,14 +265,14 @@ def register_rate_routes(addresses_ref):
             INSERT INTO shipments
             (id, shipment_number, pickup, delivery, weight_kg, distance_km,
              speed_tier, rate_ugx, status, sender_name, sender_phone,
-             recipient_name, recipient_phone, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             recipient_name, recipient_phone, shipment_type, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 shipment_id, shipment_number, pickup, delivery, weight_kg,
                 distance_km, speed_tier, rate, "pending_payment",
                 sender_name, sender_phone, recipient_name, recipient_phone,
-                time.time(),
+                "domestic", time.time(),
             ),
         )
         conn.commit()
@@ -196,6 +283,50 @@ def register_rate_routes(addresses_ref):
             "shipment_number": shipment_number,
             "rate_ugx": rate,
             "distance_km": distance_km,
+            "status": "pending_payment",
+            "receipt_url": f"/ship/receipt/{shipment_number}",
+        }
+
+    @router.post("/ship/international/create")
+    def create_international_shipment(
+        country: str = Form(...),
+        recipient_address: str = Form(...),
+        weight_kg: float = Form(..., gt=0),
+        speed_tier: str = Form(...),
+        sender_name: str = Form(""),
+        sender_phone: str = Form(""),
+        recipient_name: str = Form(""),
+        recipient_phone: str = Form(""),
+    ):
+        zone = get_zone(country)
+        rate = calculate_international_rate(zone, weight_kg, speed_tier)
+        shipment_id = str(uuid.uuid4())
+        shipment_number = next_shipment_number()
+
+        conn = get_conn()
+        conn.execute(
+            """
+            INSERT INTO shipments
+            (id, shipment_number, pickup, delivery, weight_kg, distance_km,
+             speed_tier, rate_ugx, status, sender_name, sender_phone,
+             recipient_name, recipient_phone, shipment_type, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (
+                shipment_id, shipment_number, "Uganda (origin)",
+                f"{country} — {recipient_address}", weight_kg, 0,
+                speed_tier, rate, "pending_payment",
+                sender_name, sender_phone, recipient_name, recipient_phone,
+                "international", time.time(),
+            ),
+        )
+        conn.commit()
+        conn.close()
+
+        return {
+            "id": shipment_id,
+            "shipment_number": shipment_number,
+            "rate_ugx": rate,
             "status": "pending_payment",
             "receipt_url": f"/ship/receipt/{shipment_number}",
         }
@@ -229,8 +360,9 @@ def receipt(shipment_number: str):
     if not row:
         raise HTTPException(status_code=404, detail="Shipment not found")
 
-    tier = SPEED_TIERS.get(row["speed_tier"], {"label": row["speed_tier"]})
+    tier = all_tier_labels().get(row["speed_tier"], {"label": row["speed_tier"]})
     date_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(row["created_at"]))
+    is_intl = row["shipment_type"] == "international"
 
     return f"""
 <!DOCTYPE html>
@@ -258,10 +390,11 @@ def receipt(shipment_number: str):
     {'PAID' if row['status'] == 'paid' else 'PENDING PAYMENT'}
   </span>
   <table>
+    <tr><td>Type</td><td>{'International' if is_intl else 'Domestic'}</td></tr>
     <tr><td>Pickup</td><td>{row['pickup']}</td></tr>
     <tr><td>Delivery</td><td>{row['delivery']}</td></tr>
     <tr><td>Weight</td><td>{row['weight_kg']} kg</td></tr>
-    <tr><td>Distance</td><td>{row['distance_km']} km</td></tr>
+    {'' if is_intl else f"<tr><td>Distance</td><td>{row['distance_km']} km</td></tr>"}
     <tr><td>Speed</td><td>{tier.get('label', row['speed_tier'])}</td></tr>
     <tr><td>Sender</td><td>{row['sender_name'] or '—'} {row['sender_phone'] or ''}</td></tr>
     <tr><td>Recipient</td><td>{row['recipient_name'] or '—'} {row['recipient_phone'] or ''}</td></tr>
