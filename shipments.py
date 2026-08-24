@@ -1,5 +1,6 @@
 """
 shipments.py — Ship & Mail: rate calculation, shipment creation, receipts.
+
 Covers both domestic (Uganda grid-to-grid) and international shipping.
 """
 
@@ -28,9 +29,9 @@ SPEED_TIERS = {
     "express": {"label": "Express", "multiplier": 3.5, "eta_days": 0},
 }
 
-BASE_RATE_PER_KG = 1500       # UGX per kg
-BASE_RATE_PER_KM = 200        # UGX per km
-MINIMUM_CHARGE = 3000         # UGX floor
+BASE_RATE_PER_KG = 1500  # UGX per kg
+BASE_RATE_PER_KM = 200   # UGX per km
+MINIMUM_CHARGE = 3000    # UGX floor
 
 # --- International speed tiers ---
 INTL_TIERS = {
@@ -59,6 +60,12 @@ ZONE_RATES = {
     3: {"base": 40000, "per_kg": 14000},
     4: {"base": 55000, "per_kg": 20000},
 }
+
+# --- Delivery status lifecycle (separate from payment status) ---
+DELIVERY_STATUSES = [
+    "created", "picked_up", "in_transit", "out_for_delivery",
+    "delivered", "failed_delivery", "returned", "cancelled",
+]
 
 
 def get_conn():
@@ -101,12 +108,19 @@ def init_db():
     conn.execute(
         "INSERT OR IGNORE INTO shipment_counter (id, next_number) VALUES (1, 1)"
     )
+
     # In case this table already existed from before this update, make sure
-    # the new column exists too.
+    # the new columns exist too.
     try:
         conn.execute("ALTER TABLE shipments ADD COLUMN shipment_type TEXT DEFAULT 'domestic'")
     except sqlite3.OperationalError:
         pass  # column already exists
+
+    try:
+        conn.execute("ALTER TABLE shipments ADD COLUMN delivery_status TEXT DEFAULT 'created'")
+    except sqlite3.OperationalError:
+        pass  # column already exists
+
     conn.commit()
     conn.close()
 
@@ -196,7 +210,6 @@ def register_rate_routes(addresses_ref):
             raise HTTPException(status_code=404, detail="Pickup or delivery address not found in grid database")
 
         distance_km = round(haversine_km(p[0], p[1], d[0], d[1]), 2)
-
         quotes = []
         for key, tier in SPEED_TIERS.items():
             rate = calculate_rate(distance_km, weight_kg, key)
@@ -230,6 +243,7 @@ def register_rate_routes(addresses_ref):
                 "eta_days": tier["eta_days"],
                 "rate_ugx": rate,
             })
+
         return {
             "country": country,
             "zone": zone,
@@ -256,6 +270,7 @@ def register_rate_routes(addresses_ref):
 
         distance_km = round(haversine_km(p[0], p[1], d[0], d[1]), 2)
         rate = calculate_rate(distance_km, weight_kg, speed_tier)
+
         shipment_id = str(uuid.uuid4())
         shipment_number = next_shipment_number()
 
@@ -265,14 +280,14 @@ def register_rate_routes(addresses_ref):
             INSERT INTO shipments
             (id, shipment_number, pickup, delivery, weight_kg, distance_km,
              speed_tier, rate_ugx, status, sender_name, sender_phone,
-             recipient_name, recipient_phone, shipment_type, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             recipient_name, recipient_phone, shipment_type, delivery_status, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 shipment_id, shipment_number, pickup, delivery, weight_kg,
                 distance_km, speed_tier, rate, "pending_payment",
                 sender_name, sender_phone, recipient_name, recipient_phone,
-                "domestic", time.time(),
+                "domestic", "created", time.time(),
             ),
         )
         conn.commit()
@@ -284,6 +299,7 @@ def register_rate_routes(addresses_ref):
             "rate_ugx": rate,
             "distance_km": distance_km,
             "status": "pending_payment",
+            "delivery_status": "created",
             "receipt_url": f"/ship/receipt/{shipment_number}",
         }
 
@@ -300,6 +316,7 @@ def register_rate_routes(addresses_ref):
     ):
         zone = get_zone(country)
         rate = calculate_international_rate(zone, weight_kg, speed_tier)
+
         shipment_id = str(uuid.uuid4())
         shipment_number = next_shipment_number()
 
@@ -309,15 +326,15 @@ def register_rate_routes(addresses_ref):
             INSERT INTO shipments
             (id, shipment_number, pickup, delivery, weight_kg, distance_km,
              speed_tier, rate_ugx, status, sender_name, sender_phone,
-             recipient_name, recipient_phone, shipment_type, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             recipient_name, recipient_phone, shipment_type, delivery_status, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 shipment_id, shipment_number, "Uganda (origin)",
                 f"{country} — {recipient_address}", weight_kg, 0,
                 speed_tier, rate, "pending_payment",
                 sender_name, sender_phone, recipient_name, recipient_phone,
-                "international", time.time(),
+                "international", "created", time.time(),
             ),
         )
         conn.commit()
@@ -328,97 +345,129 @@ def register_rate_routes(addresses_ref):
             "shipment_number": shipment_number,
             "rate_ugx": rate,
             "status": "pending_payment",
+            "delivery_status": "created",
             "receipt_url": f"/ship/receipt/{shipment_number}",
         }
 
+    @router.post("/ship/{shipment_number}/pay")
+    def mark_paid(shipment_number: str):
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)
+        ).fetchone()
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Shipment not found")
 
-@router.post("/ship/{shipment_number}/pay")
-def mark_paid(shipment_number: str):
-    conn = get_conn()
-    row = conn.execute(
-        "SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)
-    ).fetchone()
-    if not row:
+        conn.execute(
+            "UPDATE shipments SET status = 'paid' WHERE shipment_number = ?",
+            (shipment_number,),
+        )
+        conn.commit()
         conn.close()
-        raise HTTPException(status_code=404, detail="Shipment not found")
-    conn.execute(
-        "UPDATE shipments SET status = 'paid' WHERE shipment_number = ?",
-        (shipment_number,),
-    )
-    conn.commit()
-    conn.close()
-    return {"shipment_number": shipment_number, "status": "paid"}
+        return {"shipment_number": shipment_number, "status": "paid"}
 
+    @router.post("/ship/{shipment_number}/status")
+    def update_delivery_status(
+        shipment_number: str,
+        delivery_status: str = Form(...),
+        x_admin_passcode: str = Header(default=""),
+    ):
+        check_admin(x_admin_passcode)
+        if delivery_status not in DELIVERY_STATUSES:
+            raise HTTPException(status_code=400, detail="Invalid status")
 
-@router.get("/ship/receipt/{shipment_number}", response_class=HTMLResponse)
-def receipt(shipment_number: str):
-    conn = get_conn()
-    row = conn.execute(
-        "SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)
-    ).fetchone()
-    conn.close()
-    if not row:
-        raise HTTPException(status_code=404, detail="Shipment not found")
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)
+        ).fetchone()
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Shipment not found")
 
-    tier = all_tier_labels().get(row["speed_tier"], {"label": row["speed_tier"]})
-    date_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(row["created_at"]))
-    is_intl = row["shipment_type"] == "international"
+        conn.execute(
+            "UPDATE shipments SET delivery_status = ? WHERE shipment_number = ?",
+            (delivery_status, shipment_number),
+        )
+        conn.commit()
+        conn.close()
+        return {"shipment_number": shipment_number, "delivery_status": delivery_status}
 
-    return f"""
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Receipt — {row['shipment_number']}</title>
-<style>
-  body {{ font-family: -apple-system, sans-serif; max-width:480px; margin:30px auto; padding:20px; color:#111; }}
-  h1 {{ font-size:20px; border-bottom:2px solid #111; padding-bottom:10px; }}
-  table {{ width:100%; border-collapse:collapse; margin-top:16px; }}
-  td {{ padding:6px 0; border-bottom:1px solid #eee; }}
-  td:first-child {{ color:#666; width:45%; }}
-  .total {{ font-size:18px; font-weight:bold; margin-top:16px; }}
-  .status {{ display:inline-block; padding:4px 10px; border-radius:6px; font-size:13px; }}
-  .paid {{ background:#d4f4dd; color:#1a7a37; }}
-  .pending {{ background:#fde8d4; color:#a35b00; }}
-  button {{ margin-top:20px; padding:10px 16px; border:none; border-radius:6px; background:#e2593a; color:#fff; font-size:15px; }}
-</style>
-</head>
-<body>
-  <h1>Uganda National Grid — Shipping Receipt</h1>
-  <p>Receipt #: <strong>{row['shipment_number']}</strong><br>Date: {date_str}</p>
-  <span class="status {'paid' if row['status'] == 'paid' else 'pending'}">
-    {'PAID' if row['status'] == 'paid' else 'PENDING PAYMENT'}
-  </span>
-  <table>
-    <tr><td>Type</td><td>{'International' if is_intl else 'Domestic'}</td></tr>
-    <tr><td>Pickup</td><td>{row['pickup']}</td></tr>
-    <tr><td>Delivery</td><td>{row['delivery']}</td></tr>
-    <tr><td>Weight</td><td>{row['weight_kg']} kg</td></tr>
-    {'' if is_intl else f"<tr><td>Distance</td><td>{row['distance_km']} km</td></tr>"}
-    <tr><td>Speed</td><td>{tier.get('label', row['speed_tier'])}</td></tr>
-    <tr><td>Sender</td><td>{row['sender_name'] or '—'} {row['sender_phone'] or ''}</td></tr>
-    <tr><td>Recipient</td><td>{row['recipient_name'] or '—'} {row['recipient_phone'] or ''}</td></tr>
-  </table>
-  <div class="total">Total: UGX {row['rate_ugx']:,.0f}</div>
-  <button onclick="window.print()">Print Receipt</button>
-</body>
-</html>
-"""
+    @router.get("/ship/receipt/{shipment_number}", response_class=HTMLResponse)
+    def receipt(shipment_number: str):
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)
+        ).fetchone()
+        conn.close()
+        if not row:
+            raise HTTPException(status_code=404, detail="Shipment not found")
 
+        tier = all_tier_labels().get(row["speed_tier"], {"label": row["speed_tier"]})
+        date_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(row["created_at"]))
+        is_intl = row["shipment_type"] == "international"
+        delivery_status = row["delivery_status"] or "created"
 
-@router.get("/ship/list")
-def list_shipments(
-    status: str = Query(default=""),
-    x_admin_passcode: str = Header(default=""),
-):
-    check_admin(x_admin_passcode)
-    conn = get_conn()
-    query = "SELECT * FROM shipments"
-    params = []
-    if status:
-        query += " WHERE status = ?"
-        params.append(status)
-    query += " ORDER BY created_at DESC"
-    rows = conn.execute(query, params).fetchall()
-    conn.close()
-    return {"count": len(rows), "results": [dict(r) for r in rows]}
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Receipt — {row['shipment_number']}</title>
+            <style>
+                body {{ font-family: -apple-system, sans-serif; max-width:480px; margin:30px auto; padding:20px; color:#111; }}
+                h1 {{ font-size:20px; border-bottom:2px solid #111; padding-bottom:10px; }}
+                table {{ width:100%; border-collapse:collapse; margin-top:16px; }}
+                td {{ padding:6px 0; border-bottom:1px solid #eee; }}
+                td:first-child {{ color:#666; width:45%; }}
+                .total {{ font-size:18px; font-weight:bold; margin-top:16px; }}
+                .status {{ display:inline-block; padding:4px 10px; border-radius:6px; font-size:13px; margin-right:6px; }}
+                .paid {{ background:#d4f4dd; color:#1a7a37; }}
+                .pending {{ background:#fde8d4; color:#a35b00; }}
+                .delivery {{ background:#dbe6ff; color:#2a3a7a; }}
+                button {{ margin-top:20px; padding:10px 16px; border:none; border-radius:6px; background:#e2593a; color:#fff; font-size:15px; }}
+            </style>
+        </head>
+        <body>
+            <h1>Uganda National Grid — Shipping Receipt</h1>
+            <p>Receipt #: <strong>{row['shipment_number']}</strong><br>Date: {date_str}</p>
+            <span class="status {'paid' if row['status'] == 'paid' else 'pending'}">
+                {'PAID' if row['status'] == 'paid' else 'PENDING PAYMENT'}
+            </span>
+            <span class="status delivery">{delivery_status.replace('_', ' ').upper()}</span>
+            <table>
+                <tr><td>Type</td><td>{'International' if is_intl else 'Domestic'}</td></tr>
+                <tr><td>Pickup</td><td>{row['pickup']}</td></tr>
+                <tr><td>Delivery</td><td>{row['delivery']}</td></tr>
+                <tr><td>Weight</td><td>{row['weight_kg']} kg</td></tr>
+                {'' if is_intl else f"<tr><td>Distance</td><td>{row['distance_km']} km</td></tr>"}
+                <tr><td>Speed</td><td>{tier.get('label', row['speed_tier'])}</td></tr>
+                <tr><td>Sender</td><td>{row['sender_name'] or '—'} {row['sender_phone'] or ''}</td></tr>
+                <tr><td>Recipient</td><td>{row['recipient_name'] or '—'} {row['recipient_phone'] or ''}</td></tr>
+            </table>
+            <div class="total">Total: UGX {row['rate_ugx']:,.0f}</div>
+            <button onclick="window.print()">Print Receipt</button>
+        </body>
+        </html>
+        """
+
+    @router.get("/ship/list")
+    def list_shipments(
+        status: str = Query(default=""),
+        delivery_status: str = Query(default=""),
+        x_admin_passcode: str = Header(default=""),
+    ):
+        check_admin(x_admin_passcode)
+        conn = get_conn()
+        query = "SELECT * FROM shipments WHERE 1=1"
+        params = []
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        if delivery_status:
+            query += " AND delivery_status = ?"
+            params.append(delivery_status)
+        query += " ORDER BY created_at DESC"
+        rows = conn.execute(query, params).fetchall()
+        conn.close()
+        return {"count": len(rows), "results": [dict(r) for r in rows]}
