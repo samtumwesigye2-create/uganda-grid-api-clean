@@ -753,6 +753,29 @@ window.addEventListener('load', () => {
     });
   }
 
+  async function fetchValhalla(payload, attempt = 1) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    try {
+      const r = await fetch('https://valhalla1.openstreetmap.de/route', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    } catch (e) {
+      clearTimeout(timeoutId);
+      if (attempt < 2) {
+        await new Promise(res => setTimeout(res, 800));
+        return fetchValhalla(payload, attempt + 1);
+      }
+      throw new Error('Routing service is temporarily unavailable. Please try again in a moment.');
+    }
+  }
+
   async function getRoute(a, b) {
     if (mode.value === 'flight') {
       const distance = haversine(a, b);
@@ -761,11 +784,7 @@ window.addEventListener('load', () => {
 
     const costing = mode.value === 'walking' ? 'pedestrian' : mode.value === 'cycling' ? 'bicycle' : 'auto';
     const payload = { locations: [{ lat: a.lat, lon: a.lon }, { lat: b.lat, lon: b.lon }], costing, units: 'kilometers' };
-    const r = await fetch('https://valhalla1.openstreetmap.de/route', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-    });
-    if (!r.ok) throw new Error('Routing service unavailable');
-    const d = await r.json();
+    const d = await fetchValhalla(payload);
     const leg = d && d.trip && d.trip.legs && d.trip.legs[0];
     if (!leg || !leg.shape) throw new Error('No route found');
     const pts = decodeShape(leg.shape);
