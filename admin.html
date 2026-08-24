@@ -8,6 +8,7 @@
   * { box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#0f1220; color:#eee; margin:0; padding:16px; }
   h1 { font-size:22px; text-align:center; margin-bottom:20px; }
+  h3 { font-size:15px; margin:16px 0 8px; }
   #passGate { max-width:320px; margin:80px auto; text-align:center; }
   #passGate input { width:100%; padding:10px; border-radius:8px; border:1px solid #333; background:#1a1d2e; color:#eee; margin-bottom:10px; }
   #passGate button { width:100%; padding:10px; border-radius:8px; border:none; background:#e2593a; color:#fff; font-size:15px; }
@@ -15,17 +16,32 @@
   .tabs { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:20px; }
   .tab { padding:10px 16px; border-radius:8px; border:1px solid #333; background:#1a1d2e; color:#ccc; cursor:pointer; font-size:14px; }
   .tab.active { background:#3b5bfd; color:#fff; border-color:#3b5bfd; }
+  .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .subtab { padding:7px 12px; border-radius:6px; border:1px solid #2a2d3e; background:#171a2b; color:#aaa; cursor:pointer; font-size:12px; }
+  .subtab.active { background:#2a3a7a; color:#fff; border-color:#2a3a7a; }
+  .subpanel { display:none; }
+  .subpanel.active { display:block; }
   .panel { display:none; }
   .panel.active { display:block; }
   table { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
   th, td { border:1px solid #2a2d3e; padding:6px 8px; text-align:left; vertical-align:top; }
   th { background:#1a1d2e; }
-  .refreshBtn { padding:8px 12px; border-radius:6px; border:none; background:#3b5bfd; color:#fff; margin-bottom:10px; }
+  .refreshBtn { padding:8px 12px; border-radius:6px; border:none; background:#3b5bfd; color:#fff; margin-bottom:10px; margin-right:6px; font-size:13px; cursor:pointer; }
   .empty { color:#888; padding:20px; text-align:center; }
   .badge { padding:2px 8px; border-radius:6px; font-size:12px; }
-  .pending { background:#fde8d4; color:#a35b00; }
+  .pending, .unpaid { background:#fde8d4; color:#a35b00; }
   .approved, .paid { background:#d4f4dd; color:#1a7a37; }
-  .denied { background:#fbd4d4; color:#a30000; }
+  .denied, .void { background:#fbd4d4; color:#a30000; }
+  .formBox { background:#1a1d2e; border:1px solid #2a2d3e; border-radius:8px; padding:12px; margin-bottom:14px; }
+  .formBox input { width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0f1220; color:#eee; margin-bottom:8px; font-size:13px; }
+  .formBox .row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .formBox button { padding:9px 14px; border-radius:6px; border:none; background:#3b5bfd; color:#fff; font-size:13px; cursor:pointer; }
+  .formBox button.danger { background:#e2593a; }
+  a.viewLink { color:#8fa3ff; }
+  .rowBtn { padding:4px 8px; border-radius:5px; border:none; font-size:11px; cursor:pointer; margin-right:4px; color:#fff; }
+  .rowBtn.edit { background:#3b5bfd; }
+  .rowBtn.delete { background:#e2593a; }
+  .rowBtn.toggle { background:#5a5f7a; }
 </style>
 </head>
 <body>
@@ -43,6 +59,10 @@
     <div class="tab" data-tab="reports">Reports</div>
     <div class="tab" data-tab="mailing">Mailing</div>
     <div class="tab" data-tab="shipments">Shipments</div>
+    <div class="tab" data-tab="invoices">Invoices</div>
+    <div class="tab" data-tab="bol">Bill of Lading</div>
+    <div class="tab" data-tab="inventory">Inventory</div>
+    <div class="tab" data-tab="staff">Staff</div>
     <div class="tab" data-tab="data">Data</div>
   </div>
 
@@ -64,6 +84,118 @@
   <div class="panel" id="panel-shipments">
     <button class="refreshBtn" onclick="loadShipments()">Refresh</button>
     <div id="shipmentsOut"></div>
+  </div>
+
+  <div class="panel" id="panel-invoices">
+    <div class="formBox">
+      <h3 style="margin-top:0;">Create Invoice</h3>
+      <input id="invShipNum" placeholder="Shipment number (e.g. UG-SHIP-000001)" />
+      <input id="invBillName" placeholder="Bill to name" />
+      <input id="invBillAddr" placeholder="Bill to address" />
+      <input id="invTaxRate" type="number" step="0.1" placeholder="Tax rate % (optional, default 0)" />
+      <button onclick="createInvoice()">Create Invoice</button>
+    </div>
+    <button class="refreshBtn" onclick="loadInvoices()">Refresh</button>
+    <div id="invoicesOut"></div>
+  </div>
+
+  <div class="panel" id="panel-bol">
+    <div class="formBox">
+      <h3 style="margin-top:0;">Create Bill of Lading</h3>
+      <input id="bolShipNum" placeholder="Shipment number" />
+      <div class="row2">
+        <input id="bolShipperName" placeholder="Shipper name" />
+        <input id="bolShipperAddr" placeholder="Shipper address" />
+      </div>
+      <div class="row2">
+        <input id="bolConsigneeName" placeholder="Consignee name" />
+        <input id="bolConsigneeAddr" placeholder="Consignee address" />
+      </div>
+      <input id="bolCarrier" placeholder="Carrier" />
+      <input id="bolGoods" placeholder="Goods description" />
+      <input id="bolQuantity" placeholder="Quantity" />
+      <button onclick="createBol()">Create Bill of Lading</button>
+    </div>
+    <button class="refreshBtn" onclick="loadBol()">Refresh</button>
+    <div id="bolOut"></div>
+  </div>
+
+  <div class="panel" id="panel-inventory">
+    <div class="subtabs">
+      <div class="subtab active" data-subtab="products">Products</div>
+      <div class="subtab" data-subtab="warehouses">Warehouses</div>
+      <div class="subtab" data-subtab="stock">Stock Movements</div>
+      <div class="subtab" data-subtab="reorder">Reorder Needed</div>
+    </div>
+
+    <div class="subpanel active" id="subpanel-products">
+      <div class="formBox">
+        <h3 style="margin-top:0;">Add Product</h3>
+        <div class="row2">
+          <input id="invProdSku" placeholder="SKU" />
+          <input id="invProdName" placeholder="Product name" />
+        </div>
+        <div class="row2">
+          <input id="invProdCost" type="number" step="0.01" placeholder="Unit cost (UGX)" />
+          <input id="invProdInitQty" type="number" step="0.01" placeholder="Initial quantity" />
+        </div>
+        <div class="row2">
+          <input id="invProdReorderPoint" type="number" step="0.01" placeholder="Reorder point" />
+          <input id="invProdReorderQty" type="number" step="0.01" placeholder="Reorder quantity" />
+        </div>
+        <button onclick="createProduct()">Add Product</button>
+      </div>
+      <div class="formBox">
+        <h3 style="margin-top:0;">Receive / Dispatch Stock</h3>
+        <div class="row2">
+          <input id="invMoveSku" placeholder="SKU" />
+          <input id="invMoveQty" type="number" step="0.01" placeholder="Quantity" />
+        </div>
+        <input id="invMoveNote" placeholder="Note" />
+        <div class="row2">
+          <button onclick="receiveStock()">Receive</button>
+          <button class="danger" onclick="dispatchStock()">Dispatch</button>
+        </div>
+      </div>
+      <button class="refreshBtn" onclick="loadInventory()">Refresh Products</button>
+      <div id="inventoryOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-warehouses">
+      <div class="formBox">
+        <h3 style="margin-top:0;">Add Warehouse</h3>
+        <input id="whName" placeholder="Warehouse name" />
+        <input id="whAddress" placeholder="Address" />
+        <button onclick="createWarehouse()">Add Warehouse</button>
+      </div>
+      <button class="refreshBtn" onclick="loadWarehouses()">Refresh Warehouses</button>
+      <div id="warehousesOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-stock">
+      <div class="formBox">
+        <input id="movFilterSku" placeholder="Filter by SKU (optional)" />
+        <button onclick="loadMovements()">Load Movements</button>
+      </div>
+      <div id="movementsOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-reorder">
+      <button class="refreshBtn" onclick="loadReorder()">Refresh Reorder List</button>
+      <div id="reorderOut"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-staff">
+    <div class="formBox">
+      <h3 style="margin-top:0;">Add Staff Member</h3>
+      <input id="staffName" placeholder="Staff name" />
+      <input id="staffPasscode" placeholder="Passcode to assign" />
+      <input id="staffPermissions" placeholder="Permissions, e.g. inventory:read,inventory:write" />
+      <button onclick="createStaff()">Add Staff</button>
+    </div>
+    <button class="refreshBtn" onclick="loadStaff()">Refresh</button>
+    <div id="staffOut"></div>
   </div>
 
   <div class="panel" id="panel-data">
@@ -96,14 +228,56 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (name === 'reports') loadReports();
     if (name === 'mailing') loadMailing();
     if (name === 'shipments') loadShipments();
+    if (name === 'invoices') loadInvoices();
+    if (name === 'bol') loadBol();
+    if (name === 'inventory') loadInventory();
+    if (name === 'staff') loadStaff();
     if (name === 'data') loadData();
   });
 });
 
+document.querySelectorAll('.subtab').forEach(sub => {
+  sub.addEventListener('click', () => {
+    document.querySelectorAll('.subtab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.subpanel').forEach(p => p.classList.remove('active'));
+    sub.classList.add('active');
+    const name = sub.dataset.subtab;
+    document.getElementById('subpanel-' + name).classList.add('active');
+    if (name === 'products') loadInventory();
+    if (name === 'warehouses') loadWarehouses();
+    if (name === 'reorder') loadReorder();
+  });
+});
+
+// Sends both header names since older endpoints (submissions, shipments,
+// commercial) check X-Admin-Passcode while newer ones (inventory, invoicing,
+// staff) check x-access-code via auth.py — the master passcode satisfies both.
+function authHeaders() {
+  return { 'X-Admin-Passcode': PASS, 'x-access-code': PASS };
+}
+
 async function authedFetch(url) {
-  const res = await fetch(url, { headers: { 'X-Admin-Passcode': PASS } });
+  const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) throw new Error('Request failed: ' + res.status);
   return res.json();
+}
+
+async function authedPost(url, params, method) {
+  const res = await fetch(url, {
+    method: method || 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(params)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || ('Request failed: ' + res.status));
+  return data;
+}
+
+async function authedDelete(url) {
+  const res = await fetch(url, { method: 'DELETE', headers: authHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || ('Request failed: ' + res.status));
+  return data;
 }
 
 function renderTable(container, rows, columns) {
@@ -176,6 +350,310 @@ async function loadShipments() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading shipments.</div>'; }
 }
 
+// ---- Invoices ----
+
+async function createInvoice() {
+  const shipmentNumber = document.getElementById('invShipNum').value.trim();
+  const billName = document.getElementById('invBillName').value.trim();
+  const billAddr = document.getElementById('invBillAddr').value.trim();
+  const taxRate = document.getElementById('invTaxRate').value.trim() || '0';
+  if (!shipmentNumber || !billName || !billAddr) { alert('Fill in shipment number, bill name, and address'); return; }
+  try {
+    await authedPost('/invoices/create', {
+      shipment_number: shipmentNumber,
+      bill_to_name: billName,
+      bill_to_address: billAddr,
+      tax_rate_percent: taxRate
+    });
+    document.getElementById('invShipNum').value = '';
+    document.getElementById('invBillName').value = '';
+    document.getElementById('invBillAddr').value = '';
+    document.getElementById('invTaxRate').value = '';
+    loadInvoices();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadInvoices() {
+  const out = document.getElementById('invoicesOut');
+  try {
+    const data = await authedFetch('/invoices');
+    renderTable(out, data.results, [
+      { label: '#', key: 'invoice_number' },
+      { label: 'Bill To', key: 'bill_to_name' },
+      { label: 'Total', render: r => 'UGX ' + Number(r.total_ugx).toLocaleString() },
+      { label: 'Status', render: r => `<span class="badge ${r.status}">${r.status}</span>` },
+      { label: '', render: r => `<a class="viewLink" href="/invoices/${r.invoice_number}" target="_blank">View</a>` },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading invoices.</div>'; }
+}
+
+// ---- Bill of Lading ----
+
+async function createBol() {
+  const params = {
+    shipment_number: document.getElementById('bolShipNum').value.trim(),
+    shipper_name: document.getElementById('bolShipperName').value.trim(),
+    shipper_address: document.getElementById('bolShipperAddr').value.trim(),
+    consignee_name: document.getElementById('bolConsigneeName').value.trim(),
+    consignee_address: document.getElementById('bolConsigneeAddr').value.trim(),
+    carrier: document.getElementById('bolCarrier').value.trim(),
+    goods_description: document.getElementById('bolGoods').value.trim(),
+    quantity: document.getElementById('bolQuantity').value.trim(),
+  };
+  if (Object.values(params).some(v => !v)) { alert('Fill in all fields'); return; }
+  try {
+    await authedPost('/bol/create', params);
+    ['bolShipNum','bolShipperName','bolShipperAddr','bolConsigneeName','bolConsigneeAddr','bolCarrier','bolGoods','bolQuantity'].forEach(id => document.getElementById(id).value = '');
+    loadBol();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadBol() {
+  const out = document.getElementById('bolOut');
+  try {
+    const data = await authedFetch('/bol');
+    renderTable(out, data.results, [
+      { label: '#', key: 'bol_number' },
+      { label: 'Shipper', key: 'shipper_name' },
+      { label: 'Consignee', key: 'consignee_name' },
+      { label: 'Carrier', key: 'carrier' },
+      { label: '', render: r => `<a class="viewLink" href="/bol/${r.bol_number}" target="_blank">View</a>` },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading bills of lading.</div>'; }
+}
+
+// ---- Warehouses ----
+
+async function createWarehouse() {
+  const name = document.getElementById('whName').value.trim();
+  const address = document.getElementById('whAddress').value.trim();
+  if (!name) { alert('Warehouse name is required'); return; }
+  try {
+    await authedPost('/inventory/warehouses', { name, address });
+    document.getElementById('whName').value = '';
+    document.getElementById('whAddress').value = '';
+    loadWarehouses();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadWarehouses() {
+  const out = document.getElementById('warehousesOut');
+  try {
+    const data = await authedFetch('/inventory/warehouses');
+    renderTable(out, data.results, [
+      { label: 'Name', key: 'name' },
+      { label: 'Address', key: 'address' },
+      { label: 'Active', render: r => r.is_active ? 'Yes' : 'No' },
+      { label: 'Actions', render: r => r.id === 'main'
+          ? '<span style="color:#888;">default</span>'
+          : `<button class="rowBtn edit" onclick="editWarehouse('${r.id}','${escapeAttr(r.name)}','${escapeAttr(r.address || '')}')">Edit</button>` +
+            `<button class="rowBtn delete" onclick="deactivateWarehouse('${r.id}')">Deactivate</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading warehouses.</div>'; }
+}
+
+function escapeAttr(s) { return String(s).replace(/'/g, "\\'"); }
+
+async function editWarehouse(id, currentName, currentAddress) {
+  const newName = prompt('Warehouse name:', currentName);
+  if (newName === null) return;
+  const newAddress = prompt('Address:', currentAddress);
+  if (newAddress === null) return;
+  try {
+    await authedPost('/inventory/warehouses/' + id, { name: newName, address: newAddress }, 'PUT');
+    loadWarehouses();
+  } catch (e) { alert(e.message); }
+}
+
+async function deactivateWarehouse(id) {
+  if (!confirm('Deactivate this warehouse?')) return;
+  try {
+    await authedDelete('/inventory/warehouses/' + id);
+    loadWarehouses();
+  } catch (e) { alert(e.message); }
+}
+
+// ---- Products ----
+
+async function createProduct() {
+  const sku = document.getElementById('invProdSku').value.trim();
+  const name = document.getElementById('invProdName').value.trim();
+  if (!sku || !name) { alert('SKU and name are required'); return; }
+  try {
+    await authedPost('/inventory/products', {
+      sku,
+      name,
+      unit_cost: document.getElementById('invProdCost').value.trim() || '0',
+      initial_quantity: document.getElementById('invProdInitQty').value.trim() || '0',
+      reorder_point: document.getElementById('invProdReorderPoint').value.trim() || '0',
+      reorder_quantity: document.getElementById('invProdReorderQty').value.trim() || '0',
+      warehouse_id: 'main'
+    });
+    ['invProdSku','invProdName','invProdCost','invProdInitQty','invProdReorderPoint','invProdReorderQty'].forEach(id => document.getElementById(id).value = '');
+    loadInventory();
+  } catch (e) { alert(e.message); }
+}
+
+async function receiveStock() {
+  const sku = document.getElementById('invMoveSku').value.trim();
+  const qty = document.getElementById('invMoveQty').value.trim();
+  if (!sku || !qty) { alert('SKU and quantity are required'); return; }
+  try {
+    await authedPost('/inventory/stock/receive', { sku, quantity: qty, note: document.getElementById('invMoveNote').value.trim(), warehouse_id: 'main' });
+    loadInventory();
+  } catch (e) { alert(e.message); }
+}
+
+async function dispatchStock() {
+  const sku = document.getElementById('invMoveSku').value.trim();
+  const qty = document.getElementById('invMoveQty').value.trim();
+  if (!sku || !qty) { alert('SKU and quantity are required'); return; }
+  try {
+    await authedPost('/inventory/stock/dispatch', { sku, quantity: qty, note: document.getElementById('invMoveNote').value.trim(), warehouse_id: 'main' });
+    loadInventory();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadInventory() {
+  const out = document.getElementById('inventoryOut');
+  try {
+    const data = await authedFetch('/inventory/products');
+    renderTable(out, data.results, [
+      { label: 'SKU', key: 'sku' },
+      { label: 'Name', key: 'name' },
+      { label: 'On Hand', key: 'total_quantity_on_hand' },
+      { label: 'Reorder Point', key: 'reorder_point' },
+      { label: 'Unit Cost', render: r => 'UGX ' + Number(r.unit_cost).toLocaleString() },
+      { label: 'Actions', render: r =>
+          `<button class="rowBtn edit" onclick="editProduct('${escapeAttr(r.sku)}','${escapeAttr(r.name)}','${r.unit_cost}','${r.reorder_point}','${r.reorder_quantity}')">Edit</button>` +
+          `<button class="rowBtn delete" onclick="deleteProduct('${escapeAttr(r.sku)}')">Delete</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading inventory.</div>'; }
+}
+
+async function editProduct(sku, currentName, currentCost, currentReorderPoint, currentReorderQty) {
+  const newName = prompt('Product name:', currentName);
+  if (newName === null) return;
+  const newCost = prompt('Unit cost (UGX):', currentCost);
+  if (newCost === null) return;
+  const newReorderPoint = prompt('Reorder point:', currentReorderPoint);
+  if (newReorderPoint === null) return;
+  const newReorderQty = prompt('Reorder quantity:', currentReorderQty);
+  if (newReorderQty === null) return;
+  try {
+    await authedPost('/inventory/products/' + sku, {
+      name: newName, unit_cost: newCost, reorder_point: newReorderPoint, reorder_quantity: newReorderQty
+    }, 'PUT');
+    loadInventory();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteProduct(sku) {
+  if (!confirm('Delete product ' + sku + '? This removes it and its stock records (movement history is kept).')) return;
+  try {
+    await authedDelete('/inventory/products/' + sku);
+    loadInventory();
+  } catch (e) { alert(e.message); }
+}
+
+// ---- Stock movements ----
+
+async function loadMovements() {
+  const out = document.getElementById('movementsOut');
+  const sku = document.getElementById('movFilterSku').value.trim();
+  try {
+    const url = '/inventory/movements' + (sku ? ('?sku=' + encodeURIComponent(sku)) : '');
+    const data = await authedFetch(url);
+    renderTable(out, data.results, [
+      { label: 'SKU', key: 'product_sku' },
+      { label: 'Warehouse', key: 'warehouse_id' },
+      { label: 'Type', key: 'movement_type' },
+      { label: 'Qty', key: 'quantity' },
+      { label: 'Note', key: 'note' },
+      { label: 'When', render: r => new Date(r.created_at * 1000).toLocaleString() },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading movements.</div>'; }
+}
+
+// ---- Reorder ----
+
+async function loadReorder() {
+  const out = document.getElementById('reorderOut');
+  try {
+    const data = await authedFetch('/inventory/reorder');
+    renderTable(out, data.results, [
+      { label: 'SKU', key: 'sku' },
+      { label: 'Name', key: 'name' },
+      { label: 'On Hand', key: 'quantity_on_hand' },
+      { label: 'Reorder Point', key: 'reorder_point' },
+      { label: 'Suggested Reorder Qty', key: 'suggested_reorder_quantity' },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading reorder list.</div>'; }
+}
+
+// ---- Staff ----
+
+async function createStaff() {
+  const name = document.getElementById('staffName').value.trim();
+  const passcode = document.getElementById('staffPasscode').value.trim();
+  const permissions = document.getElementById('staffPermissions').value.trim();
+  if (!name || !passcode || !permissions) { alert('Fill in name, passcode, and permissions'); return; }
+  try {
+    await authedPost('/staff', { name, passcode, permissions });
+    document.getElementById('staffName').value = '';
+    document.getElementById('staffPasscode').value = '';
+    document.getElementById('staffPermissions').value = '';
+    loadStaff();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadStaff() {
+  const out = document.getElementById('staffOut');
+  try {
+    const data = await authedFetch('/staff');
+    renderTable(out, data.results, [
+      { label: 'Name', key: 'name' },
+      { label: 'Permissions', key: 'permissions' },
+      { label: 'Active', render: r => r.is_active ? 'Yes' : 'No' },
+      { label: 'Actions', render: r =>
+          `<button class="rowBtn edit" onclick="editStaff('${r.id}','${escapeAttr(r.name)}','${escapeAttr(r.permissions)}')">Edit</button>` +
+          `<button class="rowBtn toggle" onclick="toggleStaff('${r.id}',${r.is_active})">${r.is_active ? 'Deactivate' : 'Activate'}</button>` +
+          `<button class="rowBtn delete" onclick="deleteStaff('${r.id}')">Delete</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading staff.</div>'; }
+}
+
+async function editStaff(id, currentName, currentPermissions) {
+  const newName = prompt('Staff name:', currentName);
+  if (newName === null) return;
+  const newPermissions = prompt('Permissions (comma-separated):', currentPermissions);
+  if (newPermissions === null) return;
+  try {
+    await authedPost('/staff/' + id, { name: newName, permissions: newPermissions }, 'PUT');
+    loadStaff();
+  } catch (e) { alert(e.message); }
+}
+
+async function toggleStaff(id, currentlyActive) {
+  try {
+    await authedPost('/staff/' + id, { is_active: currentlyActive ? 'false' : 'true' }, 'PUT');
+    loadStaff();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteStaff(id) {
+  if (!confirm('Delete this staff member? This cannot be undone.')) return;
+  try {
+    await authedDelete('/staff/' + id);
+    loadStaff();
+  } catch (e) { alert(e.message); }
+}
+
+// ---- Data ----
+
 async function loadData() {
   const type = document.getElementById('filterType').value.trim();
   const out = document.getElementById('dataOut');
@@ -197,7 +675,7 @@ async function loadData() {
 function exportData() {
   const type = document.getElementById('filterType').value.trim();
   const url = '/data/export.csv' + (type ? ('?form_type=' + encodeURIComponent(type)) : '');
-  fetch(url, { headers: { 'X-Admin-Passcode': PASS } })
+  fetch(url, { headers: authHeaders() })
     .then(res => res.blob())
     .then(blob => {
       const a = document.createElement('a');
