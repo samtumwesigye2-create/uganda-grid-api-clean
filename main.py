@@ -100,6 +100,11 @@ from data_hub import router as data_router
 app.include_router(data_router)
 
 
+# --- Wire in users.py (customer accounts: signup, login, profile) ---
+from users import router as users_router
+app.include_router(users_router)
+
+
 def prune_reports():
     now = time.time()
     global REPORTS
