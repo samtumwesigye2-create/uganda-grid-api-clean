@@ -43,6 +43,14 @@
   .rowBtn.delete { background:#e2593a; }
   .rowBtn.toggle { background:#5a5f7a; }
   select.statusSelect { padding:5px 6px; border-radius:5px; border:1px solid #333; background:#0f1220; color:#eee; font-size:12px; }
+
+  .customDropdown { position:relative; display:inline-block; margin-bottom:10px; }
+  .dropdownToggle { padding:9px 14px; border-radius:6px; border:1px solid #333; background:#1a1d2e; color:#eee; font-size:13px; cursor:pointer; }
+  .dropdownToggle .caret { font-size:11px; margin-left:4px; }
+  .dropdownMenu { display:none; position:absolute; top:100%; left:0; margin-top:4px; background:#1a1d2e; border:1px solid #333; border-radius:8px; min-width:180px; z-index:50; max-height:260px; overflow-y:auto; box-shadow:0 6px 16px rgba(0,0,0,.4); }
+  .dropdownMenu.open { display:block; }
+  .dropdownItem { padding:9px 12px; font-size:13px; color:#ccc; cursor:pointer; }
+  .dropdownItem:hover, .dropdownItem.selected { background:#2a3a7a; color:#fff; }
 </style>
 </head>
 <body>
@@ -83,17 +91,20 @@
   </div>
 
   <div class="panel" id="panel-shipments">
-    <select id="shipStatusFilter" style="padding:8px;border-radius:6px;border:1px solid #333;background:#1a1d2e;color:#eee;margin-bottom:10px;">
-      <option value="">All statuses</option>
-      <option value="created">Created</option>
-      <option value="picked_up">Picked up</option>
-      <option value="in_transit">In transit</option>
-      <option value="out_for_delivery">Out for delivery</option>
-      <option value="delivered">Delivered</option>
-      <option value="failed_delivery">Failed delivery</option>
-      <option value="returned">Returned</option>
-      <option value="cancelled">Cancelled</option>
-    </select>
+    <div class="customDropdown" id="shipStatusDropdown">
+      <button type="button" class="dropdownToggle" id="shipStatusToggle">All statuses <span class="caret">▾</span></button>
+      <div class="dropdownMenu" id="shipStatusMenu">
+        <div class="dropdownItem" data-value="">All statuses</div>
+        <div class="dropdownItem" data-value="created">Created</div>
+        <div class="dropdownItem" data-value="picked_up">Picked up</div>
+        <div class="dropdownItem" data-value="in_transit">In transit</div>
+        <div class="dropdownItem" data-value="out_for_delivery">Out for delivery</div>
+        <div class="dropdownItem" data-value="delivered">Delivered</div>
+        <div class="dropdownItem" data-value="failed_delivery">Failed delivery</div>
+        <div class="dropdownItem" data-value="returned">Returned</div>
+        <div class="dropdownItem" data-value="cancelled">Cancelled</div>
+      </div>
+    </div>
     <button class="refreshBtn" onclick="loadShipments()">Refresh</button>
     <div id="shipmentsOut"></div>
   </div>
@@ -261,7 +272,28 @@ document.querySelectorAll('.subtab').forEach(sub => {
   });
 });
 
-document.getElementById('shipStatusFilter').addEventListener('change', loadShipments);
+// ---- Custom shipment status dropdown (inline, not native iOS picker) ----
+let shipStatusFilter = '';
+const shipStatusToggle = document.getElementById('shipStatusToggle');
+const shipStatusMenu = document.getElementById('shipStatusMenu');
+
+shipStatusToggle.addEventListener('click', (e) => {
+  e.stopPropagation();
+  shipStatusMenu.classList.toggle('open');
+});
+
+shipStatusMenu.querySelectorAll('.dropdownItem').forEach(item => {
+  item.addEventListener('click', () => {
+    shipStatusMenu.querySelectorAll('.dropdownItem').forEach(i => i.classList.remove('selected'));
+    item.classList.add('selected');
+    shipStatusFilter = item.dataset.value;
+    shipStatusToggle.innerHTML = item.textContent + ' <span class="caret">▾</span>';
+    shipStatusMenu.classList.remove('open');
+    loadShipments();
+  });
+});
+
+document.addEventListener('click', () => shipStatusMenu.classList.remove('open'));
 
 // Sends both header names since older endpoints (submissions, shipments,
 // commercial) check X-Admin-Passcode while newer ones (inventory, invoicing,
@@ -351,7 +383,7 @@ async function loadMailing() {
 
 async function loadShipments() {
   const out = document.getElementById('shipmentsOut');
-  const filter = document.getElementById('shipStatusFilter').value;
+  const filter = shipStatusFilter;
   try {
     const url = '/ship/list' + (filter ? ('?delivery_status=' + encodeURIComponent(filter)) : '');
     const data = await authedFetch(url);
