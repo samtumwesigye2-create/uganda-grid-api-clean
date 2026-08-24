@@ -90,6 +90,16 @@ from invoicing import router as invoicing_router
 app.include_router(invoicing_router)
 
 
+# --- Wire in mailing.py (email subscription list) ---
+from mailing import router as mailing_router
+app.include_router(mailing_router)
+
+
+# --- Wire in data_hub.py (generic form/data collection, export, stats) ---
+from data_hub import router as data_router
+app.include_router(data_router)
+
+
 def prune_reports():
     now = time.time()
     global REPORTS
