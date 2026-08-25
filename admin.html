@@ -29,9 +29,9 @@
   .refreshBtn { padding:8px 12px; border-radius:6px; border:none; background:#3b5bfd; color:#fff; margin-bottom:10px; margin-right:6px; font-size:13px; cursor:pointer; }
   .empty { color:#888; padding:20px; text-align:center; }
   .badge { padding:2px 8px; border-radius:6px; font-size:12px; }
-  .pending, .unpaid { background:#fde8d4; color:#a35b00; }
-  .approved, .paid { background:#d4f4dd; color:#1a7a37; }
-  .denied, .void { background:#fbd4d4; color:#a30000; }
+  .pending, .unpaid, .assigned { background:#fde8d4; color:#a35b00; }
+  .approved, .paid, .completed, .dropped_off_customer, .dropped_off_warehouse { background:#d4f4dd; color:#1a7a37; }
+  .denied, .void, .failed, .cancelled { background:#fbd4d4; color:#a30000; }
   .formBox { background:#1a1d2e; border:1px solid #2a2d3e; border-radius:8px; padding:12px; margin-bottom:14px; }
   .formBox input, .formBox select { width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0f1220; color:#eee; margin-bottom:8px; font-size:13px; }
   .formBox .row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
@@ -43,6 +43,8 @@
   .rowBtn.delete { background:#e2593a; }
   .rowBtn.toggle { background:#5a5f7a; }
   select.statusSelect { padding:5px 6px; border-radius:5px; border:1px solid #333; background:#0f1220; color:#eee; font-size:12px; }
+  .photoThumb { max-width:60px; max-height:60px; border-radius:6px; display:block; }
+  .noPhoto { color:#e2593a; font-size:11px; font-weight:700; }
 
   .customDropdown { position:relative; display:inline-block; margin-bottom:10px; }
   .dropdownToggle { padding:9px 14px; border-radius:6px; border:1px solid #333; background:#1a1d2e; color:#eee; font-size:13px; cursor:pointer; }
@@ -71,6 +73,7 @@
     <div class="tab" data-tab="invoices">Invoices</div>
     <div class="tab" data-tab="bol">Bill of Lading</div>
     <div class="tab" data-tab="inventory">Inventory</div>
+    <div class="tab" data-tab="fleet">Fleet</div>
     <div class="tab" data-tab="staff">Staff</div>
     <div class="tab" data-tab="data">Data</div>
   </div>
@@ -103,6 +106,7 @@
         <div class="dropdownItem" data-value="failed_delivery">Failed delivery</div>
         <div class="dropdownItem" data-value="returned">Returned</div>
         <div class="dropdownItem" data-value="cancelled">Cancelled</div>
+        <div class="dropdownItem" data-value="delayed">Delayed</div>
       </div>
     </div>
     <button class="refreshBtn" onclick="loadShipments()">Refresh</button>
@@ -209,6 +213,74 @@
     </div>
   </div>
 
+  <div class="panel" id="panel-fleet">
+    <div class="subtabs">
+      <div class="subtab active" data-subtab="vehicles">Vehicles</div>
+      <div class="subtab" data-subtab="drivers">Drivers</div>
+      <div class="subtab" data-subtab="tasks">Dispatch Tasks</div>
+      <div class="subtab" data-subtab="photoaudit">Photo Audit</div>
+    </div>
+
+    <div class="subpanel active" id="subpanel-vehicles">
+      <div class="formBox">
+        <h3 style="margin-top:0;">Add Vehicle</h3>
+        <div class="row2">
+          <input id="vehPlate" placeholder="Plate number" />
+          <input id="vehType" placeholder="Type (van, truck, motorbike)" />
+        </div>
+        <input id="vehCapacity" type="number" step="0.1" placeholder="Capacity (kg)" />
+        <button onclick="createVehicle()">Add Vehicle</button>
+      </div>
+      <button class="refreshBtn" onclick="loadVehicles()">Refresh Vehicles</button>
+      <div id="vehiclesOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-drivers">
+      <div class="formBox">
+        <h3 style="margin-top:0;">Add Driver</h3>
+        <div class="row2">
+          <input id="drvName" placeholder="Driver name" />
+          <input id="drvPhone" placeholder="Phone" />
+        </div>
+        <input id="drvPasscode" placeholder="Passcode to assign" />
+        <input id="drvVehicleId" placeholder="Vehicle ID (optional, see Vehicles tab)" />
+        <button onclick="createDriver()">Add Driver</button>
+      </div>
+      <button class="refreshBtn" onclick="loadDrivers()">Refresh Drivers</button>
+      <div id="driversOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-tasks">
+      <div class="formBox">
+        <h3 style="margin-top:0;">Create Dispatch Task</h3>
+        <select id="taskType">
+          <option value="pickup">Pickup</option>
+          <option value="dropoff_customer">Dropoff — Customer</option>
+          <option value="dropoff_warehouse">Dropoff — Warehouse</option>
+          <option value="warehouse_transfer">Warehouse Transfer</option>
+        </select>
+        <input id="taskLocation" placeholder="Location (address or description)" />
+        <input id="taskShipNum" placeholder="Shipment number (optional)" />
+        <input id="taskDriverId" placeholder="Driver ID (see Drivers tab)" />
+        <input id="taskNotes" placeholder="Notes (optional)" />
+        <button onclick="createTask()">Create Task</button>
+      </div>
+      <div class="formBox">
+        <input id="taskFilterDriver" placeholder="Filter by driver ID (optional)" />
+        <button onclick="loadTasks()">Load Tasks</button>
+      </div>
+      <div id="tasksOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-photoaudit">
+      <div class="formBox">
+        <input id="auditFilterDriver" placeholder="Filter by driver ID (optional)" />
+        <button onclick="loadPhotoAudit()">Run Audit</button>
+      </div>
+      <div id="photoAuditOut"></div>
+    </div>
+  </div>
+
   <div class="panel" id="panel-staff">
     <div class="formBox">
       <h3 style="margin-top:0;">Add Staff Member</h3>
@@ -254,6 +326,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (name === 'invoices') loadInvoices();
     if (name === 'bol') loadBol();
     if (name === 'inventory') loadInventory();
+    if (name === 'fleet') loadVehicles();
     if (name === 'staff') loadStaff();
     if (name === 'data') loadData();
   });
@@ -261,18 +334,22 @@ document.querySelectorAll('.tab').forEach(tab => {
 
 document.querySelectorAll('.subtab').forEach(sub => {
   sub.addEventListener('click', () => {
-    document.querySelectorAll('.subtab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.subpanel').forEach(p => p.classList.remove('active'));
+    const parentPanel = sub.closest('.panel');
+    parentPanel.querySelectorAll('.subtab').forEach(t => t.classList.remove('active'));
+    parentPanel.querySelectorAll('.subpanel').forEach(p => p.classList.remove('active'));
     sub.classList.add('active');
     const name = sub.dataset.subtab;
     document.getElementById('subpanel-' + name).classList.add('active');
     if (name === 'products') loadInventory();
     if (name === 'warehouses') loadWarehouses();
     if (name === 'reorder') loadReorder();
+    if (name === 'vehicles') loadVehicles();
+    if (name === 'drivers') loadDrivers();
+    if (name === 'tasks') loadTasks();
+    if (name === 'photoaudit') { /* wait for manual run */ }
   });
 });
 
-// ---- Custom shipment status dropdown (inline, not native iOS picker) ----
 let shipStatusFilter = '';
 const shipStatusToggle = document.getElementById('shipStatusToggle');
 const shipStatusMenu = document.getElementById('shipStatusMenu');
@@ -295,9 +372,6 @@ shipStatusMenu.querySelectorAll('.dropdownItem').forEach(item => {
 
 document.addEventListener('click', () => shipStatusMenu.classList.remove('open'));
 
-// Sends both header names since older endpoints (submissions, shipments,
-// commercial) check X-Admin-Passcode while newer ones (inventory, invoicing,
-// staff) check x-access-code via auth.py — the master passcode satisfies both.
 function authHeaders() {
   return { 'X-Admin-Passcode': PASS, 'x-access-code': PASS };
 }
@@ -342,6 +416,8 @@ function renderTable(container, rows, columns) {
   html += '</tbody></table>';
   container.innerHTML = html;
 }
+
+function escapeAttr(s) { return String(s).replace(/'/g, "\\'"); }
 
 async function loadSubmissions() {
   const out = document.getElementById('submissionsOut');
@@ -395,25 +471,32 @@ async function loadShipments() {
       { label: 'Rate', render: r => 'UGX ' + Number(r.rate_ugx).toLocaleString() },
       { label: 'Payment', render: r => `<span class="badge ${r.status === 'paid' ? 'paid' : 'pending'}">${r.status}</span>` },
       { label: 'Delivery Status', render: r => {
-          const current = r.delivery_status || 'created';
-          const opts = ['created','picked_up','in_transit','out_for_delivery','delivered','failed_delivery','returned','cancelled'];
-          return `<select class="statusSelect" onchange="updateShipStatus('${r.shipment_number}', this.value)">` +
-            opts.map(o => `<option value="${o}" ${o === current ? 'selected' : ''}>${o.replace('_',' ')}</option>`).join('') +
-            `</select>`;
+          const current = (r.delivery_status || 'created').replace('_',' ');
+          return `<button class="rowBtn edit" onclick="openStatusUpdate('${r.shipment_number}')">${current}</button>`;
         }
       },
     ]);
   } catch (e) { out.innerHTML = '<div class="empty">Error loading shipments.</div>'; }
 }
 
-async function updateShipStatus(shipmentNumber, newStatus) {
+function openStatusUpdate(shipmentNumber) {
+  const opts = ['created','picked_up','in_transit','out_for_delivery','delivered','failed_delivery','returned','cancelled','delayed'];
+  const optionsList = opts.map((o, i) => `${i + 1}. ${o.replace('_',' ')}`).join('\n');
+  const choice = prompt('Update status for ' + shipmentNumber + ':\n' + optionsList + '\n\nEnter the number:');
+  if (choice === null) return;
+  const idx = parseInt(choice.trim(), 10) - 1;
+  if (isNaN(idx) || idx < 0 || idx >= opts.length) { alert('Invalid choice'); return; }
+  const newStatus = opts[idx];
+  const note = prompt('Message for the customer (optional):') || '';
+  updateShipStatus(shipmentNumber, newStatus, note);
+}
+
+async function updateShipStatus(shipmentNumber, newStatus, note) {
   try {
-    await authedPost('/ship/' + shipmentNumber + '/status', { delivery_status: newStatus });
+    await authedPost('/ship/' + shipmentNumber + '/status', { delivery_status: newStatus, note: note || '' });
     loadShipments();
   } catch (e) { alert(e.message); }
 }
-
-// ---- Invoices ----
 
 async function createInvoice() {
   const shipmentNumber = document.getElementById('invShipNum').value.trim();
@@ -450,8 +533,6 @@ async function loadInvoices() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading invoices.</div>'; }
 }
 
-// ---- Bill of Lading ----
-
 async function createBol() {
   const params = {
     shipment_number: document.getElementById('bolShipNum').value.trim(),
@@ -485,8 +566,6 @@ async function loadBol() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading bills of lading.</div>'; }
 }
 
-// ---- Warehouses ----
-
 async function createWarehouse() {
   const name = document.getElementById('whName').value.trim();
   const address = document.getElementById('whAddress').value.trim();
@@ -516,8 +595,6 @@ async function loadWarehouses() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading warehouses.</div>'; }
 }
 
-function escapeAttr(s) { return String(s).replace(/'/g, "\\'"); }
-
 async function editWarehouse(id, currentName, currentAddress) {
   const newName = prompt('Warehouse name:', currentName);
   if (newName === null) return;
@@ -536,8 +613,6 @@ async function deactivateWarehouse(id) {
     loadWarehouses();
   } catch (e) { alert(e.message); }
 }
-
-// ---- Products ----
 
 async function createProduct() {
   const sku = document.getElementById('invProdSku').value.trim();
@@ -621,8 +696,6 @@ async function deleteProduct(sku) {
   } catch (e) { alert(e.message); }
 }
 
-// ---- Stock movements ----
-
 async function loadMovements() {
   const out = document.getElementById('movementsOut');
   const sku = document.getElementById('movFilterSku').value.trim();
@@ -640,8 +713,6 @@ async function loadMovements() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading movements.</div>'; }
 }
 
-// ---- Reorder ----
-
 async function loadReorder() {
   const out = document.getElementById('reorderOut');
   try {
@@ -654,6 +725,203 @@ async function loadReorder() {
       { label: 'Suggested Reorder Qty', key: 'suggested_reorder_quantity' },
     ]);
   } catch (e) { out.innerHTML = '<div class="empty">Error loading reorder list.</div>'; }
+}
+
+// ---- Fleet: Vehicles ----
+
+async function createVehicle() {
+  const plate_number = document.getElementById('vehPlate').value.trim();
+  const vehicle_type = document.getElementById('vehType').value.trim();
+  const capacity_kg = document.getElementById('vehCapacity').value.trim() || '0';
+  if (!plate_number || !vehicle_type) { alert('Plate number and type are required'); return; }
+  try {
+    await authedPost('/fleet/vehicles', { plate_number, vehicle_type, capacity_kg });
+    document.getElementById('vehPlate').value = '';
+    document.getElementById('vehType').value = '';
+    document.getElementById('vehCapacity').value = '';
+    loadVehicles();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadVehicles() {
+  const out = document.getElementById('vehiclesOut');
+  try {
+    const data = await authedFetch('/fleet/vehicles');
+    renderTable(out, data.results, [
+      { label: 'Plate', key: 'plate_number' },
+      { label: 'Type', key: 'vehicle_type' },
+      { label: 'Capacity (kg)', key: 'capacity_kg' },
+      { label: 'Status', render: r => `<span class="badge ${r.status === 'available' ? 'approved' : r.status === 'maintenance' ? 'denied' : 'pending'}">${r.status}</span>` },
+      { label: 'ID', render: r => `<span style="font-size:10px;color:#888;">${r.id}</span>` },
+      { label: 'Actions', render: r =>
+          `<button class="rowBtn edit" onclick="editVehicle('${r.id}','${escapeAttr(r.plate_number)}','${escapeAttr(r.vehicle_type)}','${r.capacity_kg}','${r.status}')">Edit</button>` +
+          `<button class="rowBtn delete" onclick="deleteVehicle('${r.id}')">Delete</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading vehicles.</div>'; }
+}
+
+async function editVehicle(id, plate, type, capacity, status) {
+  const newPlate = prompt('Plate number:', plate);
+  if (newPlate === null) return;
+  const newType = prompt('Vehicle type:', type);
+  if (newType === null) return;
+  const newCapacity = prompt('Capacity (kg):', capacity);
+  if (newCapacity === null) return;
+  const newStatus = prompt('Status (available / in_use / maintenance):', status);
+  if (newStatus === null) return;
+  try {
+    await authedPost('/fleet/vehicles/' + id, {
+      plate_number: newPlate, vehicle_type: newType, capacity_kg: newCapacity, status: newStatus
+    }, 'PUT');
+    loadVehicles();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteVehicle(id) {
+  if (!confirm('Delete this vehicle?')) return;
+  try {
+    await authedDelete('/fleet/vehicles/' + id);
+    loadVehicles();
+  } catch (e) { alert(e.message); }
+}
+
+// ---- Fleet: Drivers ----
+
+async function createDriver() {
+  const name = document.getElementById('drvName').value.trim();
+  const phone = document.getElementById('drvPhone').value.trim();
+  const passcode = document.getElementById('drvPasscode').value.trim();
+  const vehicle_id = document.getElementById('drvVehicleId').value.trim();
+  if (!name || !passcode) { alert('Name and passcode are required'); return; }
+  try {
+    await authedPost('/fleet/drivers', { name, phone, passcode, vehicle_id });
+    document.getElementById('drvName').value = '';
+    document.getElementById('drvPhone').value = '';
+    document.getElementById('drvPasscode').value = '';
+    document.getElementById('drvVehicleId').value = '';
+    loadDrivers();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadDrivers() {
+  const out = document.getElementById('driversOut');
+  try {
+    const data = await authedFetch('/fleet/drivers');
+    renderTable(out, data.results, [
+      { label: 'Name', key: 'name' },
+      { label: 'Phone', key: 'phone' },
+      { label: 'Status', render: r => `<span class="badge ${r.status === 'on_duty' ? 'approved' : 'pending'}">${r.status}</span>` },
+      { label: 'Last Location', render: r => r.current_lat ? `${r.current_lat.toFixed(4)}, ${r.current_lon.toFixed(4)}` : '—' },
+      { label: 'ID', render: r => `<span style="font-size:10px;color:#888;">${r.id}</span>` },
+      { label: 'Active', render: r => r.is_active ? 'Yes' : 'No' },
+      { label: 'Actions', render: r =>
+          `<button class="rowBtn edit" onclick="editDriver('${r.id}','${escapeAttr(r.name)}','${escapeAttr(r.phone || '')}','${r.is_active}')">Edit</button>` +
+          `<button class="rowBtn delete" onclick="deleteDriver('${r.id}')">Delete</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading drivers.</div>'; }
+}
+
+async function editDriver(id, name, phone, isActive) {
+  const newName = prompt('Driver name:', name);
+  if (newName === null) return;
+  const newPhone = prompt('Phone:', phone);
+  if (newPhone === null) return;
+  const activeInput = prompt('Active? (yes/no):', isActive === 'true' || isActive === '1' ? 'yes' : 'no');
+  if (activeInput === null) return;
+  try {
+    await authedPost('/fleet/drivers/' + id, {
+      name: newName, phone: newPhone, is_active: activeInput.toLowerCase().startsWith('y') ? 'true' : 'false'
+    }, 'PUT');
+    loadDrivers();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteDriver(id) {
+  if (!confirm('Delete this driver?')) return;
+  try {
+    await authedDelete('/fleet/drivers/' + id);
+    loadDrivers();
+  } catch (e) { alert(e.message); }
+}
+
+// ---- Fleet: Dispatch Tasks ----
+
+async function createTask() {
+  const task_type = document.getElementById('taskType').value;
+  const location_text = document.getElementById('taskLocation').value.trim();
+  const shipment_number = document.getElementById('taskShipNum').value.trim();
+  const driver_id = document.getElementById('taskDriverId').value.trim();
+  const notes = document.getElementById('taskNotes').value.trim();
+  if (!location_text) { alert('Location is required'); return; }
+  try {
+    await authedPost('/dispatch/tasks', { task_type, location_text, shipment_number, driver_id, notes });
+    document.getElementById('taskLocation').value = '';
+    document.getElementById('taskShipNum').value = '';
+    document.getElementById('taskDriverId').value = '';
+    document.getElementById('taskNotes').value = '';
+    loadTasks();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadTasks() {
+  const out = document.getElementById('tasksOut');
+  const driverId = document.getElementById('taskFilterDriver').value.trim();
+  try {
+    const url = '/dispatch/tasks' + (driverId ? ('?driver_id=' + encodeURIComponent(driverId)) : '');
+    const data = await authedFetch(url);
+    renderTable(out, data.results, [
+      { label: '#', key: 'task_number' },
+      { label: 'Type', render: r => r.task_type.replace(/_/g, ' ') },
+      { label: 'Location', key: 'location_text' },
+      { label: 'Status', render: r => `<span class="badge ${r.status}">${r.status.replace(/_/g,' ')}</span>` },
+      { label: 'Photo', render: r => r.photo_url
+          ? `<img class="photoThumb" src="${r.photo_url}" onclick="window.open('${r.photo_url}','_blank')" />`
+          : '<span class="noPhoto">missing</span>'
+      },
+      { label: 'Actions', render: r =>
+          `<button class="rowBtn edit" onclick="reassignTask('${r.id}')">Reassign</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading tasks.</div>'; }
+}
+
+async function reassignTask(taskId) {
+  const driverId = prompt('New driver ID:');
+  if (driverId === null) return;
+  try {
+    await authedPost('/dispatch/tasks/' + taskId + '/assign', { driver_id: driverId }, 'PUT');
+    loadTasks();
+  } catch (e) { alert(e.message); }
+}
+
+// ---- Fleet: Photo Audit ----
+
+async function loadPhotoAudit() {
+  const out = document.getElementById('photoAuditOut');
+  const driverId = document.getElementById('auditFilterDriver').value.trim();
+  try {
+    const url = '/dispatch/photo-audit' + (driverId ? ('?driver_id=' + encodeURIComponent(driverId)) : '');
+    const data = await authedFetch(url);
+    out.innerHTML = `
+      <div class="formBox">
+        <div style="font-size:14px;">Total proof-required tasks: <strong>${data.total_proof_required_tasks}</strong></div>
+        <div style="font-size:14px;color:#1a7a37;">With photo: <strong>${data.tasks_with_photo}</strong></div>
+        <div style="font-size:14px;color:#a30000;">Missing photo: <strong>${data.tasks_missing_photo}</strong></div>
+      </div>
+    `;
+    if (data.missing.length) {
+      const div = document.createElement('div');
+      renderTable(div, data.missing, [
+        { label: '#', key: 'task_number' },
+        { label: 'Type', render: r => r.task_type.replace(/_/g,' ') },
+        { label: 'Location', key: 'location_text' },
+        { label: 'Status', key: 'status' },
+      ]);
+      out.appendChild(div);
+    }
+  } catch (e) { out.innerHTML = '<div class="empty">Error running audit.</div>'; }
 }
 
 // ---- Staff ----
