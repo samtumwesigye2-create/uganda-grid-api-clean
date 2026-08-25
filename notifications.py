@@ -5,17 +5,18 @@ delivery status is updated by an admin.
 Two channels, both best-effort (a failure in one, or both, never
 blocks the admin status update itself — it just gets logged):
 
-  - Email via Gmail SMTP (smtplib, stdlib only)
-  - SMS via Africa's Talking REST API (urllib, stdlib only — same
-    pattern as the Flutterwave calls in shipments.py, no new
-    dependency needed)
+  - Email via Resend (https://resend.com) — REST API, urllib only,
+    no new dependency needed (same pattern as the Africa's Talking
+    and Flutterwave calls elsewhere in this codebase)
+  - SMS via Africa's Talking REST API (urllib, stdlib only)
 
 Env vars needed:
-  GMAIL_ADDRESS              — the Gmail address to send from
-  GMAIL_APP_PASSWORD         — a Gmail "app password" (NOT your normal
-                                 Gmail password — generate one at
-                                 https://myaccount.google.com/apppasswords,
-                                 requires 2-Step Verification to be on)
+  RESEND_API_KEY              — from https://resend.com/api-keys
+  RESEND_FROM_ADDRESS          — sender address. Use
+                                 "onboarding@resend.dev" to start
+                                 sending immediately with no setup, or
+                                 "notifications@ugandagrid.com" once
+                                 that domain is verified in Resend
 
   AFRICASTALKING_API_KEY     — from your Africa's Talking dashboard
   AFRICASTALKING_USERNAME    — your AT username ("sandbox" while testing,
@@ -32,14 +33,13 @@ breaking anything).
 
 import json
 import os
-import smtplib
 import urllib.error
 import urllib.parse
 import urllib.request
-from email.mime.text import MIMEText
 
-GMAIL_ADDRESS = os.environ.get("GMAIL_ADDRESS", "")
-GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_FROM_ADDRESS = os.environ.get("RESEND_FROM_ADDRESS", "onboarding@resend.dev")
+RESEND_URL = "https://api.resend.com/emails"
 
 AFRICASTALKING_API_KEY = os.environ.get("AFRICASTALKING_API_KEY", "")
 AFRICASTALKING_USERNAME = os.environ.get("AFRICASTALKING_USERNAME", "sandbox")
@@ -67,18 +67,31 @@ def _normalize_ug_phone(phone: str) -> str:
 
 
 def send_email(to_address: str, subject: str, body: str) -> bool:
-    if not to_address or not GMAIL_ADDRESS or not GMAIL_APP_PASSWORD:
+    if not to_address or not RESEND_API_KEY:
         return False
     try:
-        msg = MIMEText(body)
-        msg["Subject"] = subject
-        msg["From"] = GMAIL_ADDRESS
-        msg["To"] = to_address
+        # Resend expects HTML (or text) content. We send plain body as
+        # both, wrapping newlines as <br> for the HTML version so it
+        # renders reasonably in email clients.
+        html_body = body.replace("\n", "<br>")
+        payload = json.dumps({
+            "from": RESEND_FROM_ADDRESS,
+            "to": [to_address],
+            "subject": subject,
+            "text": body,
+            "html": html_body,
+        }).encode()
 
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=15) as server:
-            server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-            server.sendmail(GMAIL_ADDRESS, [to_address], msg.as_string())
-        return True
+        req = urllib.request.Request(RESEND_URL, data=payload, method="POST")
+        req.add_header("Authorization", f"Bearer {RESEND_API_KEY}")
+        req.add_header("Content-Type", "application/json")
+
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read().decode())
+        return bool(result.get("id"))
+    except urllib.error.HTTPError as e:
+        print(f"[notifications] email send failed to {to_address}: {e.read().decode()}")
+        return False
     except Exception as e:
         print(f"[notifications] email send failed to {to_address}: {e}")
         return False
