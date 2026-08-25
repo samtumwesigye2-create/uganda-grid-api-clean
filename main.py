@@ -40,15 +40,13 @@ except Exception:
 
 
 def save_addresses(updated_addresses):
-    """Persist the addresses list back to entebbe_database.json so approved
-    building submissions and commercial applications survive a restart."""
     global addresses
     addresses = updated_addresses
     try:
         with open(DATABASE, "w", encoding="utf-8") as file:
             json.dump(addresses, file, ensure_ascii=False, indent=2)
     except Exception:
-        pass  # best-effort; in-memory list is still updated either way
+        pass
 
 
 REPORTS = []
@@ -62,46 +60,29 @@ ALLOWED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "vi
 MAX_MEDIA_BYTES = 15 * 1024 * 1024
 
 
-# --- Wire in shipments.py (domestic + international shipping routes) ---
 from shipments import router as shipments_router, register_rate_routes
-
 register_rate_routes(lambda: addresses)
 app.include_router(shipments_router)
 
-
-# --- Wire in commercial.py (landlord/company commercial address registration) ---
 from commercial import router as commercial_router, register_commercial_routes
-
 register_commercial_routes(lambda: addresses, save_addresses)
 app.include_router(commercial_router)
 
-
-# --- Wire in auth.py (staff accounts + delegated permissions) ---
 from auth import router as auth_router
 app.include_router(auth_router)
 
-
-# --- Wire in inventory.py (warehouse stock, reorder alerts, forecasting) ---
 from inventory import router as inventory_router
 app.include_router(inventory_router)
 
-
-# --- Wire in invoicing.py (invoices + bills of lading, generated from shipments) ---
 from invoicing import router as invoicing_router
 app.include_router(invoicing_router)
 
-
-# --- Wire in mailing.py (email subscription list) ---
 from mailing import router as mailing_router
 app.include_router(mailing_router)
 
-
-# --- Wire in data_hub.py (generic form/data collection, export, stats) ---
 from data_hub import router as data_router
 app.include_router(data_router)
 
-
-# --- Wire in users.py (customer accounts: signup, login, profile) ---
 from users import router as users_router
 app.include_router(users_router)
 
@@ -192,6 +173,51 @@ def get_address(grid_id: str):
         if stored_id == search_id:
             return item
     raise HTTPException(status_code=404, detail="Address not found")
+
+
+@app.put("/address/{grid_id}")
+def update_address(
+    grid_id: str,
+    address: str = Form(None),
+    latitude: float = Form(None),
+    longitude: float = Form(None),
+    address_type: str = Form(None),
+    x_admin_passcode: str = Header(default=""),
+):
+    """Admin override: edit any address record directly — including ones
+    that came from citizen submissions or commercial approvals — without
+    going through the normal submission flow."""
+    check_admin(x_admin_passcode)
+    search_id = grid_id.strip().lower()
+    found = None
+    updated_list = []
+    for item in addresses:
+        if str(item.get("grid_id", "")).strip().lower() == search_id:
+            if address is not None:
+                item["address"] = address
+            if latitude is not None:
+                item["latitude"] = latitude
+            if longitude is not None:
+                item["longitude"] = longitude
+            if address_type is not None:
+                item["address_type"] = address_type
+            found = item
+        updated_list.append(item)
+    if not found:
+        raise HTTPException(status_code=404, detail="Address not found")
+    save_addresses(updated_list)
+    return found
+
+
+@app.delete("/address/{grid_id}")
+def delete_address(grid_id: str, x_admin_passcode: str = Header(default="")):
+    check_admin(x_admin_passcode)
+    search_id = grid_id.strip().lower()
+    updated_list = [a for a in addresses if str(a.get("grid_id", "")).strip().lower() != search_id]
+    if len(updated_list) == len(addresses):
+        raise HTTPException(status_code=404, detail="Address not found")
+    save_addresses(updated_list)
+    return {"grid_id": grid_id, "deleted": True}
 
 
 @app.get("/stats")
