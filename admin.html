@@ -118,6 +118,35 @@
   </div>
 
   <div class="panel" id="panel-shipments">
+    <div class="formBox">
+      <h3 style="margin-top:0;">Create Shipment</h3>
+      <div class="row2">
+        <input id="newShipPickup" placeholder="Pickup grid ID or address" />
+        <input id="newShipDelivery" placeholder="Delivery grid ID or address" />
+      </div>
+      <div class="row2">
+        <input id="newShipWeight" type="number" step="0.1" placeholder="Weight (kg)" />
+        <select id="newShipSpeed">
+          <option value="seven_day">7-Day</option>
+          <option value="three_day">3-Day</option>
+          <option value="two_day" selected>2-Day</option>
+          <option value="one_day">1-Day</option>
+          <option value="overnight">Overnight</option>
+          <option value="express">Express</option>
+        </select>
+      </div>
+      <div class="row2">
+        <input id="newShipSenderName" placeholder="Sender name (optional)" />
+        <input id="newShipSenderPhone" placeholder="Sender phone (optional)" />
+      </div>
+      <div class="row2">
+        <input id="newShipRecipientName" placeholder="Recipient name (optional)" />
+        <input id="newShipRecipientPhone" placeholder="Recipient phone (optional)" />
+      </div>
+      <button onclick="createShipment()">Create Shipment</button>
+      <div id="newShipResult" style="margin-top:10px; font-size:13px;"></div>
+    </div>
+
     <div class="customDropdown" id="shipStatusDropdown">
       <button type="button" class="dropdownToggle" id="shipStatusToggle">All statuses <span class="caret">▾</span></button>
       <div class="dropdownMenu" id="shipStatusMenu">
@@ -211,7 +240,6 @@
       <button class="refreshBtn" onclick="loadInventory()">Refresh Products</button>
       <div id="inventoryOut"></div>
     </div>
-
     <div class="subpanel" id="subpanel-warehouses">
       <div class="formBox">
         <h3 style="margin-top:0;">Add Warehouse</h3>
@@ -501,6 +529,51 @@ async function loadMailing() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading mailing list.</div>'; }
 }
 
+async function createShipment() {
+  const pickup = document.getElementById('newShipPickup').value.trim();
+  const delivery = document.getElementById('newShipDelivery').value.trim();
+  const weight_kg = document.getElementById('newShipWeight').value.trim();
+  const speed_tier = document.getElementById('newShipSpeed').value;
+  const sender_name = document.getElementById('newShipSenderName').value.trim();
+  const sender_phone = document.getElementById('newShipSenderPhone').value.trim();
+  const recipient_name = document.getElementById('newShipRecipientName').value.trim();
+  const recipient_phone = document.getElementById('newShipRecipientPhone').value.trim();
+  const resultBox = document.getElementById('newShipResult');
+
+  if (!pickup || !delivery || !weight_kg) {
+    alert('Pickup, delivery, and weight are required');
+    return;
+  }
+
+  resultBox.textContent = 'Creating…';
+  try {
+    const res = await fetch('/ship/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        pickup, delivery, weight_kg, speed_tier,
+        sender_name, sender_phone, recipient_name, recipient_phone
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || ('Request failed: ' + res.status));
+
+    resultBox.innerHTML = `
+      <span style="color:#1a7a37;">Created ${data.shipment_number}</span> —
+      UGX ${Number(data.rate_ugx).toLocaleString()} —
+      <a class="viewLink" href="${data.receipt_url}" target="_blank">View Receipt</a> —
+      <a class="viewLink" href="/track?ship=${encodeURIComponent(data.shipment_number)}" target="_blank">Track</a>
+    `;
+
+    ['newShipPickup','newShipDelivery','newShipWeight','newShipSenderName','newShipSenderPhone','newShipRecipientName','newShipRecipientPhone']
+      .forEach(id => document.getElementById(id).value = '');
+
+    loadShipments();
+  } catch (e) {
+    resultBox.innerHTML = `<span style="color:#e2593a;">${e.message}</span>`;
+  }
+}
+
 async function loadShipments() {
   const out = document.getElementById('shipmentsOut');
   const filter = shipStatusFilter;
@@ -649,6 +722,7 @@ async function loadInvoices() {
 
 async function createBol() {
   const params = {
+    shipment_number: document.getElementById('bolShipNum').value.trim(),
     shipment_number: document.getElementById('bolShipNum').value.trim(),
     shipper_name: document.getElementById('bolShipperName').value.trim(),
     shipper_address: document.getElementById('bolShipperAddr').value.trim(),
