@@ -19,7 +19,6 @@ ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "uganda2026")
 
 router = APIRouter()
 
-# --- Domestic (Uganda) speed tiers ---
 SPEED_TIERS = {
     "seven_day": {"label": "7-Day", "multiplier": 1.0, "eta_days": 7},
     "three_day": {"label": "3-Day", "multiplier": 1.3, "eta_days": 3},
@@ -29,18 +28,15 @@ SPEED_TIERS = {
     "express": {"label": "Express", "multiplier": 3.5, "eta_days": 0},
 }
 
-BASE_RATE_PER_KG = 1500  # UGX per kg
-BASE_RATE_PER_KM = 200   # UGX per km
-MINIMUM_CHARGE = 3000    # UGX floor
+BASE_RATE_PER_KG = 1500
+BASE_RATE_PER_KM = 200
+MINIMUM_CHARGE = 3000
 
-# --- International speed tiers ---
 INTL_TIERS = {
     "intl_standard": {"label": "International Standard", "multiplier": 1.0, "eta_days": 14},
     "intl_express": {"label": "International Express", "multiplier": 1.8, "eta_days": 5},
 }
 
-# Countries grouped into zones. Zone 1 = cheapest (neighboring East Africa),
-# Zone 4 = default for anywhere not listed.
 INTL_ZONE_MAP = {
     "kenya": 1, "tanzania": 1, "rwanda": 1, "burundi": 1, "south sudan": 1,
     "democratic republic of congo": 1, "dr congo": 1,
@@ -61,7 +57,6 @@ ZONE_RATES = {
     4: {"base": 55000, "per_kg": 20000},
 }
 
-# --- Delivery status lifecycle (separate from payment status) ---
 DELIVERY_STATUSES = [
     "created", "picked_up", "in_transit", "out_for_delivery",
     "delivered", "failed_delivery", "returned", "cancelled",
@@ -105,21 +100,16 @@ def init_db():
         )
         """
     )
-    conn.execute(
-        "INSERT OR IGNORE INTO shipment_counter (id, next_number) VALUES (1, 1)"
-    )
+    conn.execute("INSERT OR IGNORE INTO shipment_counter (id, next_number) VALUES (1, 1)")
 
-    # In case this table already existed from before this update, make sure
-    # the new columns exist too.
     try:
         conn.execute("ALTER TABLE shipments ADD COLUMN shipment_type TEXT DEFAULT 'domestic'")
     except sqlite3.OperationalError:
-        pass  # column already exists
-
+        pass
     try:
         conn.execute("ALTER TABLE shipments ADD COLUMN delivery_status TEXT DEFAULT 'created'")
     except sqlite3.OperationalError:
-        pass  # column already exists
+        pass
 
     conn.commit()
     conn.close()
@@ -191,12 +181,6 @@ def all_tier_labels():
 
 
 def register_rate_routes(addresses_ref):
-    """
-    addresses_ref: a zero-arg callable returning the current `addresses` list
-    from main.py, so this module can look up coordinates without importing
-    main.py directly (avoids circular imports).
-    """
-
     @router.get("/ship/rates")
     def get_rates(
         pickup: str = Query(...),
@@ -214,18 +198,13 @@ def register_rate_routes(addresses_ref):
         for key, tier in SPEED_TIERS.items():
             rate = calculate_rate(distance_km, weight_kg, key)
             quotes.append({
-                "speed_tier": key,
-                "label": tier["label"],
-                "eta_days": tier["eta_days"],
-                "rate_ugx": rate,
+                "speed_tier": key, "label": tier["label"],
+                "eta_days": tier["eta_days"], "rate_ugx": rate,
             })
 
         return {
-            "pickup": pickup,
-            "delivery": delivery,
-            "weight_kg": weight_kg,
-            "distance_km": distance_km,
-            "quotes": quotes,
+            "pickup": pickup, "delivery": delivery, "weight_kg": weight_kg,
+            "distance_km": distance_km, "quotes": quotes,
         }
 
     @router.get("/ship/international/rates")
@@ -238,18 +217,10 @@ def register_rate_routes(addresses_ref):
         for key, tier in INTL_TIERS.items():
             rate = calculate_international_rate(zone, weight_kg, key)
             quotes.append({
-                "speed_tier": key,
-                "label": tier["label"],
-                "eta_days": tier["eta_days"],
-                "rate_ugx": rate,
+                "speed_tier": key, "label": tier["label"],
+                "eta_days": tier["eta_days"], "rate_ugx": rate,
             })
-
-        return {
-            "country": country,
-            "zone": zone,
-            "weight_kg": weight_kg,
-            "quotes": quotes,
-        }
+        return {"country": country, "zone": zone, "weight_kg": weight_kg, "quotes": quotes}
 
     @router.post("/ship/create")
     def create_shipment(
@@ -283,24 +254,18 @@ def register_rate_routes(addresses_ref):
              recipient_name, recipient_phone, shipment_type, delivery_status, created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
-            (
-                shipment_id, shipment_number, pickup, delivery, weight_kg,
-                distance_km, speed_tier, rate, "pending_payment",
-                sender_name, sender_phone, recipient_name, recipient_phone,
-                "domestic", "created", time.time(),
-            ),
+            (shipment_id, shipment_number, pickup, delivery, weight_kg,
+             distance_km, speed_tier, rate, "pending_payment",
+             sender_name, sender_phone, recipient_name, recipient_phone,
+             "domestic", "created", time.time()),
         )
         conn.commit()
         conn.close()
 
         return {
-            "id": shipment_id,
-            "shipment_number": shipment_number,
-            "rate_ugx": rate,
-            "distance_km": distance_km,
-            "status": "pending_payment",
-            "delivery_status": "created",
-            "receipt_url": f"/ship/receipt/{shipment_number}",
+            "id": shipment_id, "shipment_number": shipment_number, "rate_ugx": rate,
+            "distance_km": distance_km, "status": "pending_payment",
+            "delivery_status": "created", "receipt_url": f"/ship/receipt/{shipment_number}",
         }
 
     @router.post("/ship/international/create")
@@ -329,40 +294,29 @@ def register_rate_routes(addresses_ref):
              recipient_name, recipient_phone, shipment_type, delivery_status, created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
-            (
-                shipment_id, shipment_number, "Uganda (origin)",
-                f"{country} — {recipient_address}", weight_kg, 0,
-                speed_tier, rate, "pending_payment",
-                sender_name, sender_phone, recipient_name, recipient_phone,
-                "international", "created", time.time(),
-            ),
+            (shipment_id, shipment_number, "Uganda (origin)",
+             f"{country} — {recipient_address}", weight_kg, 0,
+             speed_tier, rate, "pending_payment",
+             sender_name, sender_phone, recipient_name, recipient_phone,
+             "international", "created", time.time()),
         )
         conn.commit()
         conn.close()
 
         return {
-            "id": shipment_id,
-            "shipment_number": shipment_number,
-            "rate_ugx": rate,
-            "status": "pending_payment",
-            "delivery_status": "created",
+            "id": shipment_id, "shipment_number": shipment_number, "rate_ugx": rate,
+            "status": "pending_payment", "delivery_status": "created",
             "receipt_url": f"/ship/receipt/{shipment_number}",
         }
 
     @router.post("/ship/{shipment_number}/pay")
     def mark_paid(shipment_number: str):
         conn = get_conn()
-        row = conn.execute(
-            "SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)).fetchone()
         if not row:
             conn.close()
             raise HTTPException(status_code=404, detail="Shipment not found")
-
-        conn.execute(
-            "UPDATE shipments SET status = 'paid' WHERE shipment_number = ?",
-            (shipment_number,),
-        )
+        conn.execute("UPDATE shipments SET status = 'paid' WHERE shipment_number = ?", (shipment_number,))
         conn.commit()
         conn.close()
         return {"shipment_number": shipment_number, "status": "paid"}
@@ -376,15 +330,11 @@ def register_rate_routes(addresses_ref):
         check_admin(x_admin_passcode)
         if delivery_status not in DELIVERY_STATUSES:
             raise HTTPException(status_code=400, detail="Invalid status")
-
         conn = get_conn()
-        row = conn.execute(
-            "SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)).fetchone()
         if not row:
             conn.close()
             raise HTTPException(status_code=404, detail="Shipment not found")
-
         conn.execute(
             "UPDATE shipments SET delivery_status = ? WHERE shipment_number = ?",
             (delivery_status, shipment_number),
@@ -393,12 +343,72 @@ def register_rate_routes(addresses_ref):
         conn.close()
         return {"shipment_number": shipment_number, "delivery_status": delivery_status}
 
+    @router.put("/ship/{shipment_number}")
+    def update_shipment(
+        shipment_number: str,
+        pickup: str = Form(None),
+        delivery: str = Form(None),
+        weight_kg: float = Form(None),
+        speed_tier: str = Form(None),
+        rate_ugx: float = Form(None),
+        sender_name: str = Form(None),
+        sender_phone: str = Form(None),
+        recipient_name: str = Form(None),
+        recipient_phone: str = Form(None),
+        x_admin_passcode: str = Header(default=""),
+    ):
+        """Admin override: edit any field of an existing shipment directly.
+        rate_ugx can be set explicitly rather than recalculated, since admin
+        may be correcting a route/weight change manually."""
+        check_admin(x_admin_passcode)
+        conn = get_conn()
+        row = conn.execute("SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)).fetchone()
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Shipment not found")
+
+        new_pickup = pickup if pickup is not None else row["pickup"]
+        new_delivery = delivery if delivery is not None else row["delivery"]
+        new_weight = weight_kg if weight_kg is not None else row["weight_kg"]
+        new_speed_tier = speed_tier if speed_tier is not None else row["speed_tier"]
+        new_rate = rate_ugx if rate_ugx is not None else row["rate_ugx"]
+        new_sender_name = sender_name if sender_name is not None else row["sender_name"]
+        new_sender_phone = sender_phone if sender_phone is not None else row["sender_phone"]
+        new_recipient_name = recipient_name if recipient_name is not None else row["recipient_name"]
+        new_recipient_phone = recipient_phone if recipient_phone is not None else row["recipient_phone"]
+
+        conn.execute(
+            """
+            UPDATE shipments SET pickup=?, delivery=?, weight_kg=?, speed_tier=?,
+            rate_ugx=?, sender_name=?, sender_phone=?, recipient_name=?, recipient_phone=?
+            WHERE shipment_number=?
+            """,
+            (new_pickup, new_delivery, new_weight, new_speed_tier, new_rate,
+             new_sender_name, new_sender_phone, new_recipient_name, new_recipient_phone,
+             shipment_number),
+        )
+        conn.commit()
+        conn.close()
+        return {
+            "shipment_number": shipment_number, "pickup": new_pickup, "delivery": new_delivery,
+            "weight_kg": new_weight, "speed_tier": new_speed_tier, "rate_ugx": new_rate,
+        }
+
+    @router.delete("/ship/{shipment_number}")
+    def delete_shipment(shipment_number: str, x_admin_passcode: str = Header(default="")):
+        check_admin(x_admin_passcode)
+        conn = get_conn()
+        result = conn.execute("DELETE FROM shipments WHERE shipment_number = ?", (shipment_number,))
+        conn.commit()
+        conn.close()
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Shipment not found")
+        return {"shipment_number": shipment_number, "deleted": True}
+
     @router.get("/ship/receipt/{shipment_number}", response_class=HTMLResponse)
     def receipt(shipment_number: str):
         conn = get_conn()
-        row = conn.execute(
-            "SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)).fetchone()
         conn.close()
         if not row:
             raise HTTPException(status_code=404, detail="Shipment not found")
