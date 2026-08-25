@@ -1,4 +1,3 @@
-
 """
 commercial.py — Commercial address registration.
 
@@ -10,8 +9,8 @@ existing citizen-facing building submission flow in main.py, which stays
 residential-only.
 
 On approval, one master address is created with a list of unit labels
-attached directly to it (e.g. "Apt 1", "Suite 3B"). Units are NOT separate
-searchable grid_id records — they only exist as labels under their master.
+attached directly to it. Units are NOT separate searchable grid_id
+records — they only exist as labels under their master.
 """
 
 import os
@@ -68,9 +67,7 @@ def init_db():
         )
         """
     )
-    conn.execute(
-        "INSERT OR IGNORE INTO commercial_grid_counter (id, next_number) VALUES (1, 1)"
-    )
+    conn.execute("INSERT OR IGNORE INTO commercial_grid_counter (id, next_number) VALUES (1, 1)")
     conn.commit()
     conn.close()
 
@@ -87,25 +84,13 @@ def next_commercial_grid_id():
     conn = get_conn()
     cur = conn.execute("SELECT next_number FROM commercial_grid_counter WHERE id = 1")
     n = cur.fetchone()["next_number"]
-    conn.execute(
-        "UPDATE commercial_grid_counter SET next_number = ? WHERE id = 1", (n + 1,)
-    )
+    conn.execute("UPDATE commercial_grid_counter SET next_number = ? WHERE id = 1", (n + 1,))
     conn.commit()
     conn.close()
     return f"UG-COM-{n:06d}"
 
 
 def register_commercial_routes(addresses_ref, save_addresses_ref):
-    """
-    addresses_ref: zero-arg callable returning the current `addresses` list
-    from main.py (avoids circular imports, same pattern as shipments.py).
-
-    save_addresses_ref: callable(addresses_list) that persists the list back
-    to disk (e.g. rewrites entebbe_database.json), so approved commercial
-    addresses survive a restart and show up immediately in /search and
-    /address/{grid_id}.
-    """
-
     @router.post("/commercial/apply")
     async def apply_commercial(
         company_name: str = Form(...),
@@ -115,7 +100,7 @@ def register_commercial_routes(addresses_ref, save_addresses_ref):
         address_text: str = Form(...),
         latitude: float = Form(...),
         longitude: float = Form(...),
-        units: str = Form(...),  # comma-separated, e.g. "Apt 1, Apt 2, Suite 3B"
+        units: str = Form(...),
         proof: UploadFile = File(None),
     ):
         unit_list = [u.strip() for u in units.split(",") if u.strip()]
@@ -146,20 +131,14 @@ def register_commercial_routes(addresses_ref, save_addresses_ref):
              assigned_grid_id, created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
-            (
-                application_id, company_name, applicant_name, applicant_phone,
-                building_name, address_text, latitude, longitude,
-                ",".join(unit_list), proof_url, "pending", "", time.time(),
-            ),
+            (application_id, company_name, applicant_name, applicant_phone,
+             building_name, address_text, latitude, longitude,
+             ",".join(unit_list), proof_url, "pending", "", time.time()),
         )
         conn.commit()
         conn.close()
 
-        return {
-            "id": application_id,
-            "status": "pending",
-            "unit_count": len(unit_list),
-        }
+        return {"id": application_id, "status": "pending", "unit_count": len(unit_list)}
 
     @router.get("/commercial/applications")
     def list_commercial_applications(
@@ -190,9 +169,7 @@ def register_commercial_routes(addresses_ref, save_addresses_ref):
             raise HTTPException(status_code=400, detail="Invalid action")
 
         conn = get_conn()
-        row = conn.execute(
-            "SELECT * FROM commercial_applications WHERE id = ?", (application_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM commercial_applications WHERE id = ?", (application_id,)).fetchone()
         if not row:
             conn.close()
             raise HTTPException(status_code=404, detail="Application not found")
@@ -229,12 +206,38 @@ def register_commercial_routes(addresses_ref, save_addresses_ref):
         })
         save_addresses_ref(addresses)
 
-        return {
-            "id": application_id,
-            "status": "approved",
-            "grid_id": grid_id,
-            "units": unit_list,
-        }
+        return {"id": application_id, "status": "approved", "grid_id": grid_id, "units": unit_list}
+
+    @router.post("/commercial/applications/{application_id}/reverse")
+    def reverse_commercial_decision(
+        application_id: str,
+        x_admin_passcode: str = Header(default=""),
+    ):
+        """Admin override: undo an approval. Puts the application back to
+        pending and removes the address record that approval created."""
+        check_admin(x_admin_passcode)
+        conn = get_conn()
+        row = conn.execute("SELECT * FROM commercial_applications WHERE id = ?", (application_id,)).fetchone()
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Application not found")
+        if row["status"] != "approved":
+            conn.close()
+            raise HTTPException(status_code=400, detail="Only approved applications can be reversed")
+
+        grid_id = row["assigned_grid_id"]
+        conn.execute(
+            "UPDATE commercial_applications SET status = 'pending', assigned_grid_id = '' WHERE id = ?",
+            (application_id,),
+        )
+        conn.commit()
+        conn.close()
+
+        addresses = addresses_ref()
+        updated = [a for a in addresses if str(a.get("grid_id", "")).strip().lower() != grid_id.strip().lower()]
+        save_addresses_ref(updated)
+
+        return {"id": application_id, "status": "pending", "removed_grid_id": grid_id}
 
     @router.get("/commercial/{grid_id}/units")
     def get_units(grid_id: str):
