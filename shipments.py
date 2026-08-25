@@ -102,6 +102,20 @@ def init_db():
     )
     conn.execute("INSERT OR IGNORE INTO shipment_counter (id, next_number) VALUES (1, 1)")
 
+    # --- Status history: every status a shipment has passed through, in order.
+    # Powers the customer-facing tracking box (click status -> timeline).
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS shipment_status_history (
+            id TEXT PRIMARY KEY,
+            shipment_number TEXT NOT NULL,
+            status TEXT NOT NULL,
+            note TEXT,
+            created_at REAL NOT NULL
+        )
+        """
+    )
+
     try:
         conn.execute("ALTER TABLE shipments ADD COLUMN shipment_type TEXT DEFAULT 'domestic'")
     except sqlite3.OperationalError:
@@ -131,6 +145,17 @@ def next_shipment_number():
     conn.commit()
     conn.close()
     return f"UG-SHIP-{n:06d}"
+
+
+def log_status(shipment_number: str, status: str, note: str = ""):
+    """Append one entry to the shipment's status history timeline."""
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO shipment_status_history (id, shipment_number, status, note, created_at) VALUES (?,?,?,?,?)",
+        (str(uuid.uuid4()), shipment_number, status, note, time.time()),
+    )
+    conn.commit()
+    conn.close()
 
 
 def haversine_km(lat1, lon1, lat2, lon2):
@@ -262,6 +287,8 @@ def register_rate_routes(addresses_ref):
         conn.commit()
         conn.close()
 
+        log_status(shipment_number, "created")
+
         return {
             "id": shipment_id, "shipment_number": shipment_number, "rate_ugx": rate,
             "distance_km": distance_km, "status": "pending_payment",
@@ -303,6 +330,8 @@ def register_rate_routes(addresses_ref):
         conn.commit()
         conn.close()
 
+        log_status(shipment_number, "created")
+
         return {
             "id": shipment_id, "shipment_number": shipment_number, "rate_ugx": rate,
             "status": "pending_payment", "delivery_status": "created",
@@ -325,6 +354,7 @@ def register_rate_routes(addresses_ref):
     def update_delivery_status(
         shipment_number: str,
         delivery_status: str = Form(...),
+        note: str = Form(""),
         x_admin_passcode: str = Header(default=""),
     ):
         check_admin(x_admin_passcode)
@@ -341,7 +371,56 @@ def register_rate_routes(addresses_ref):
         )
         conn.commit()
         conn.close()
+
+        log_status(shipment_number, delivery_status, note)
+
         return {"shipment_number": shipment_number, "delivery_status": delivery_status}
+
+    @router.get("/ship/{shipment_number}/track")
+    def track_shipment(shipment_number: str):
+        """Public tracking endpoint — no admin passcode required.
+        Returns current status + full history timeline for the customer-facing
+        tracking box. Deliberately omits rate, phone numbers, and other
+        admin-only fields."""
+        conn = get_conn()
+        row = conn.execute(
+            """
+            SELECT shipment_number, pickup, delivery, delivery_status,
+                   shipment_type, created_at
+            FROM shipments WHERE shipment_number = ?
+            """,
+            (shipment_number,),
+        ).fetchone()
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Shipment not found")
+
+        history_rows = conn.execute(
+            """
+            SELECT status, note, created_at
+            FROM shipment_status_history
+            WHERE shipment_number = ?
+            ORDER BY created_at ASC
+            """,
+            (shipment_number,),
+        ).fetchall()
+        conn.close()
+
+        return {
+            "shipment_number": row["shipment_number"],
+            "pickup": row["pickup"],
+            "delivery": row["delivery"],
+            "current_status": row["delivery_status"],
+            "shipment_type": row["shipment_type"],
+            "history": [
+                {
+                    "status": h["status"],
+                    "note": h["note"],
+                    "at": time.strftime("%Y-%m-%d %H:%M", time.localtime(h["created_at"])),
+                }
+                for h in history_rows
+            ],
+        }
 
     @router.put("/ship/{shipment_number}")
     def update_shipment(
