@@ -2,20 +2,56 @@
 shipments.py — Ship & Mail: rate calculation, shipment creation, receipts.
 
 Covers both domestic (Uganda grid-to-grid) and international shipping.
+
+PAYMENT MODEL:
+  1. POST /ship/create (or /ship/international/create) makes an unpaid
+     DRAFT — it gets a UUID `id` and a placeholder `DRAFT-XXXXXXXX` number,
+     status='awaiting_payment'. No real tracking number yet.
+  2. Customer pays one of three ways:
+       - card / mobile money -> /ship/pay/flutterwave/initiate returns a
+         hosted payment link. Flutterwave redirects back to
+         /ship/pay/callback, and also fires /ship/webhook/flutterwave
+         (the reliable source of truth, since users can close the tab
+         before the redirect happens).
+       - cash -> staff hits /ship/{id}/pay/cash with the admin passcode
+         after confirming payment in person.
+  3. Only when a payment is verified do we call next_shipment_number()
+     and assign the real UG-SHIP-###### number, flip status to 'paid',
+     and log the tracking history. Receipts and tracking are gated on
+     that — an awaiting_payment draft has nothing to show.
+
+Env vars needed:
+  FLUTTERWAVE_SECRET_KEY   — from your Flutterwave dashboard (live or test)
+  FLUTTERWAVE_WEBHOOK_HASH — the "secret hash" you set on the webhook in
+                              the Flutterwave dashboard, used to verify
+                              inbound webhook calls are really from them
+  FRONTEND_BASE_URL        — public base URL used as the Flutterwave
+                              redirect_url, e.g.
+                              https://uganda-grid-api-clean-production.up.railway.app
 """
 
+import json
 import math
 import os
 import sqlite3
 import time
+import urllib.error
+import urllib.request
 import uuid
 
-from fastapi import APIRouter, Form, Header, HTTPException, Query
+from fastapi import APIRouter, Form, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data_hub.db")
 ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "uganda2026")
+
+FLUTTERWAVE_SECRET_KEY = os.environ.get("FLUTTERWAVE_SECRET_KEY", "")
+FLUTTERWAVE_WEBHOOK_HASH = os.environ.get("FLUTTERWAVE_WEBHOOK_HASH", "")
+FLUTTERWAVE_BASE_URL = "https://api.flutterwave.com/v3"
+FRONTEND_BASE_URL = os.environ.get(
+    "FRONTEND_BASE_URL", "https://uganda-grid-api-clean-production.up.railway.app"
+)
 
 router = APIRouter()
 
@@ -104,6 +140,7 @@ def init_db():
 
     # --- Status history: every status a shipment has passed through, in order.
     # Powers the customer-facing tracking box (click status -> timeline).
+    # Only starts once a real (paid) shipment_number exists.
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS shipment_status_history (
@@ -116,14 +153,16 @@ def init_db():
         """
     )
 
-    try:
-        conn.execute("ALTER TABLE shipments ADD COLUMN shipment_type TEXT DEFAULT 'domestic'")
-    except sqlite3.OperationalError:
-        pass
-    try:
-        conn.execute("ALTER TABLE shipments ADD COLUMN delivery_status TEXT DEFAULT 'created'")
-    except sqlite3.OperationalError:
-        pass
+    for ddl in (
+        "ALTER TABLE shipments ADD COLUMN shipment_type TEXT DEFAULT 'domestic'",
+        "ALTER TABLE shipments ADD COLUMN delivery_status TEXT DEFAULT 'created'",
+        "ALTER TABLE shipments ADD COLUMN payment_ref TEXT",
+        "ALTER TABLE shipments ADD COLUMN payment_method TEXT",
+    ):
+        try:
+            conn.execute(ddl)
+        except sqlite3.OperationalError:
+            pass
 
     conn.commit()
     conn.close()
@@ -205,6 +244,62 @@ def all_tier_labels():
     return {**SPEED_TIERS, **INTL_TIERS}
 
 
+# ---------------------------------------------------------------------------
+# Flutterwave helpers
+# ---------------------------------------------------------------------------
+
+def flutterwave_request(method: str, path: str, payload: dict = None):
+    if not FLUTTERWAVE_SECRET_KEY:
+        raise HTTPException(status_code=503, detail="Payment provider not configured")
+    url = f"{FLUTTERWAVE_BASE_URL}{path}"
+    data = json.dumps(payload).encode() if payload is not None else None
+    req = urllib.request.Request(url, data=data, method=method)
+    req.add_header("Authorization", f"Bearer {FLUTTERWAVE_SECRET_KEY}")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        try:
+            return json.loads(e.read().decode())
+        except Exception:
+            raise HTTPException(status_code=502, detail="Payment provider request failed")
+
+
+def _finalize_payment(row, method_label: str, amount_paid: float = None):
+    """Turn an awaiting_payment draft into a real, paid shipment.
+    Idempotent: if it's already paid, just returns the existing number."""
+    if row["status"] == "paid":
+        return row["shipment_number"]
+
+    if amount_paid is not None and float(amount_paid) < float(row["rate_ugx"]):
+        raise HTTPException(status_code=400, detail="Amount paid did not match the shipment rate")
+
+    shipment_number = next_shipment_number()
+    conn = get_conn()
+    conn.execute(
+        "UPDATE shipments SET shipment_number = ?, status = 'paid', payment_method = ? WHERE id = ?",
+        (shipment_number, method_label, row["id"]),
+    )
+    conn.commit()
+    conn.close()
+
+    log_status(shipment_number, "created")
+    log_status(shipment_number, "paid", note=f"via {method_label}")
+    return shipment_number
+
+
+def _payment_result_page(success: bool, message: str, shipment_number: str = None):
+    color = "#1a7a37" if success else "#a33"
+    extra = (
+        f'<p><a href="/ship/receipt/{shipment_number}">View receipt</a></p>'
+        if shipment_number else ""
+    )
+    return f"""<!DOCTYPE html><html><body style="font-family:-apple-system,sans-serif;max-width:420px;margin:60px auto;text-align:center;">
+    <h2 style="color:{color}">{'Payment Successful' if success else 'Payment Issue'}</h2>
+    <p>{message}</p>{extra}</body></html>"""
+
+
 def register_rate_routes(addresses_ref):
     @router.get("/ship/rates")
     def get_rates(
@@ -247,6 +342,10 @@ def register_rate_routes(addresses_ref):
             })
         return {"country": country, "zone": zone, "weight_kg": weight_kg, "quotes": quotes}
 
+    # -----------------------------------------------------------------
+    # Draft creation — NO tracking number yet. status='awaiting_payment'.
+    # -----------------------------------------------------------------
+
     @router.post("/ship/create")
     def create_shipment(
         pickup: str = Form(...),
@@ -268,7 +367,7 @@ def register_rate_routes(addresses_ref):
         rate = calculate_rate(distance_km, weight_kg, speed_tier)
 
         shipment_id = str(uuid.uuid4())
-        shipment_number = next_shipment_number()
+        draft_number = f"DRAFT-{shipment_id[:8].upper()}"
 
         conn = get_conn()
         conn.execute(
@@ -279,20 +378,20 @@ def register_rate_routes(addresses_ref):
              recipient_name, recipient_phone, shipment_type, delivery_status, created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
-            (shipment_id, shipment_number, pickup, delivery, weight_kg,
-             distance_km, speed_tier, rate, "pending_payment",
+            (shipment_id, draft_number, pickup, delivery, weight_kg,
+             distance_km, speed_tier, rate, "awaiting_payment",
              sender_name, sender_phone, recipient_name, recipient_phone,
              "domestic", "created", time.time()),
         )
         conn.commit()
         conn.close()
 
-        log_status(shipment_number, "created")
-
         return {
-            "id": shipment_id, "shipment_number": shipment_number, "rate_ugx": rate,
-            "distance_km": distance_km, "status": "pending_payment",
-            "delivery_status": "created", "receipt_url": f"/ship/receipt/{shipment_number}",
+            "id": shipment_id, "status": "awaiting_payment", "rate_ugx": rate,
+            "distance_km": distance_km,
+            "message": "No tracking number yet — pay to receive one.",
+            "pay_card_or_momo_endpoint": "/ship/pay/flutterwave/initiate",
+            "pay_cash_endpoint": f"/ship/{shipment_id}/pay/cash",
         }
 
     @router.post("/ship/international/create")
@@ -310,7 +409,7 @@ def register_rate_routes(addresses_ref):
         rate = calculate_international_rate(zone, weight_kg, speed_tier)
 
         shipment_id = str(uuid.uuid4())
-        shipment_number = next_shipment_number()
+        draft_number = f"DRAFT-{shipment_id[:8].upper()}"
 
         conn = get_conn()
         conn.execute(
@@ -321,34 +420,154 @@ def register_rate_routes(addresses_ref):
              recipient_name, recipient_phone, shipment_type, delivery_status, created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
-            (shipment_id, shipment_number, "Uganda (origin)",
+            (shipment_id, draft_number, "Uganda (origin)",
              f"{country} — {recipient_address}", weight_kg, 0,
-             speed_tier, rate, "pending_payment",
+             speed_tier, rate, "awaiting_payment",
              sender_name, sender_phone, recipient_name, recipient_phone,
              "international", "created", time.time()),
         )
         conn.commit()
         conn.close()
 
-        log_status(shipment_number, "created")
-
         return {
-            "id": shipment_id, "shipment_number": shipment_number, "rate_ugx": rate,
-            "status": "pending_payment", "delivery_status": "created",
-            "receipt_url": f"/ship/receipt/{shipment_number}",
+            "id": shipment_id, "status": "awaiting_payment", "rate_ugx": rate,
+            "message": "No tracking number yet — pay to receive one.",
+            "pay_card_or_momo_endpoint": "/ship/pay/flutterwave/initiate",
+            "pay_cash_endpoint": f"/ship/{shipment_id}/pay/cash",
         }
 
-    @router.post("/ship/{shipment_number}/pay")
-    def mark_paid(shipment_number: str):
+    # -----------------------------------------------------------------
+    # Card / mobile money via Flutterwave
+    # -----------------------------------------------------------------
+
+    @router.post("/ship/pay/flutterwave/initiate")
+    def initiate_flutterwave_payment(
+        draft_id: str = Form(...),
+        payment_option: str = Form("card,mobilemoneyuganda"),
+        customer_email: str = Form(...),
+        customer_phone: str = Form(""),
+        customer_name: str = Form(""),
+    ):
         conn = get_conn()
-        row = conn.execute("SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)).fetchone()
+        row = conn.execute("SELECT * FROM shipments WHERE id = ?", (draft_id,)).fetchone()
         if not row:
             conn.close()
-            raise HTTPException(status_code=404, detail="Shipment not found")
-        conn.execute("UPDATE shipments SET status = 'paid' WHERE shipment_number = ?", (shipment_number,))
+            raise HTTPException(status_code=404, detail="Shipment draft not found")
+        if row["status"] != "awaiting_payment":
+            conn.close()
+            raise HTTPException(status_code=400, detail=f"Draft already {row['status']}")
+
+        tx_ref = f"{draft_id}-{uuid.uuid4().hex[:6]}"
+        conn.execute(
+            "UPDATE shipments SET payment_ref = ?, payment_method = ? WHERE id = ?",
+            (tx_ref, payment_option, draft_id),
+        )
         conn.commit()
         conn.close()
-        return {"shipment_number": shipment_number, "status": "paid"}
+
+        payload = {
+            "tx_ref": tx_ref,
+            "amount": row["rate_ugx"],
+            "currency": "UGX",
+            "redirect_url": f"{FRONTEND_BASE_URL}/ship/pay/callback",
+            "payment_options": payment_option,
+            "customer": {
+                "email": customer_email,
+                "phonenumber": customer_phone,
+                "name": customer_name or "Customer",
+            },
+            "customizations": {
+                "title": "Uganda National Grid Shipping",
+                "description": f"Shipment payment — draft {draft_id[:8]}",
+            },
+        }
+        result = flutterwave_request("POST", "/payments", payload)
+        if result.get("status") != "success":
+            raise HTTPException(
+                status_code=502,
+                detail=f"Payment init failed: {result.get('message', 'unknown error')}",
+            )
+
+        return {"payment_link": result["data"]["link"], "tx_ref": tx_ref}
+
+    @router.get("/ship/pay/callback", response_class=HTMLResponse)
+    def flutterwave_callback(
+        status: str = Query(""),
+        tx_ref: str = Query(""),
+        transaction_id: str = Query(""),
+    ):
+        """User-facing redirect after a Flutterwave payment attempt.
+        Best-effort UI feedback — the webhook below is the real source
+        of truth in case the user closes the tab before this loads."""
+        if status != "successful" or not transaction_id:
+            return _payment_result_page(False, "Payment was not completed. You can try again.")
+
+        verify = flutterwave_request("GET", f"/transactions/{transaction_id}/verify")
+        data = verify.get("data", {})
+        if verify.get("status") != "success" or data.get("status") != "successful" or data.get("currency") != "UGX":
+            return _payment_result_page(False, "We could not verify this payment.")
+
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT * FROM shipments WHERE payment_ref = ?", (data.get("tx_ref", tx_ref),)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return _payment_result_page(False, "Payment verified but no matching shipment was found.")
+
+        try:
+            shipment_number = _finalize_payment(row, row["payment_method"] or "card/mobile money", data.get("amount"))
+        except HTTPException as e:
+            return _payment_result_page(False, e.detail)
+
+        return _payment_result_page(True, f"Payment received. Tracking number: {shipment_number}", shipment_number)
+
+    @router.post("/ship/webhook/flutterwave")
+    async def flutterwave_webhook(request: Request, verif_hash: str = Header(default="", alias="verif-hash")):
+        """Async notification from Flutterwave — this is the reliable
+        confirmation path, independent of whether the customer's browser
+        made it back to /ship/pay/callback."""
+        if not FLUTTERWAVE_WEBHOOK_HASH or verif_hash != FLUTTERWAVE_WEBHOOK_HASH:
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+        body = await request.json()
+        data = body.get("data", {})
+        if data.get("status") != "successful" or data.get("currency") != "UGX":
+            return {"received": True, "action": "ignored"}
+
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT * FROM shipments WHERE payment_ref = ?", (data.get("tx_ref", ""),)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return {"received": True, "action": "no matching draft"}
+
+        shipment_number = _finalize_payment(row, row["payment_method"] or "card/mobile money", data.get("amount"))
+        return {"received": True, "shipment_number": shipment_number}
+
+    # -----------------------------------------------------------------
+    # Cash — staff confirms in person, admin passcode required
+    # -----------------------------------------------------------------
+
+    @router.post("/ship/{draft_id}/pay/cash")
+    def confirm_cash_payment(draft_id: str, x_admin_passcode: str = Header(default="")):
+        check_admin(x_admin_passcode)
+        conn = get_conn()
+        row = conn.execute("SELECT * FROM shipments WHERE id = ?", (draft_id,)).fetchone()
+        conn.close()
+        if not row:
+            raise HTTPException(status_code=404, detail="Shipment draft not found")
+        if row["status"] != "awaiting_payment":
+            raise HTTPException(status_code=400, detail=f"Draft already {row['status']}")
+
+        shipment_number = _finalize_payment(row, "cash")
+        return {"id": draft_id, "shipment_number": shipment_number, "status": "paid"}
+
+    # -----------------------------------------------------------------
+    # Everything below is unchanged, except receipt/track now gate on
+    # the shipment actually being paid.
+    # -----------------------------------------------------------------
 
     @router.post("/ship/{shipment_number}/status")
     def update_delivery_status(
@@ -365,6 +584,9 @@ def register_rate_routes(addresses_ref):
         if not row:
             conn.close()
             raise HTTPException(status_code=404, detail="Shipment not found")
+        if row["status"] != "paid":
+            conn.close()
+            raise HTTPException(status_code=400, detail="Shipment is not paid yet")
         conn.execute(
             "UPDATE shipments SET delivery_status = ? WHERE shipment_number = ?",
             (delivery_status, shipment_number),
@@ -379,19 +601,17 @@ def register_rate_routes(addresses_ref):
     @router.get("/ship/{shipment_number}/track")
     def track_shipment(shipment_number: str):
         """Public tracking endpoint — no admin passcode required.
-        Returns current status + full history timeline for the customer-facing
-        tracking box. Deliberately omits rate, phone numbers, and other
-        admin-only fields."""
+        Only works for paid shipments; drafts have nothing to track."""
         conn = get_conn()
         row = conn.execute(
             """
-            SELECT shipment_number, pickup, delivery, delivery_status,
+            SELECT shipment_number, pickup, delivery, delivery_status, status,
                    shipment_type, created_at
             FROM shipments WHERE shipment_number = ?
             """,
             (shipment_number,),
         ).fetchone()
-        if not row:
+        if not row or row["status"] != "paid":
             conn.close()
             raise HTTPException(status_code=404, detail="Shipment not found")
 
@@ -491,6 +711,14 @@ def register_rate_routes(addresses_ref):
         conn.close()
         if not row:
             raise HTTPException(status_code=404, detail="Shipment not found")
+        if row["status"] != "paid":
+            return HTMLResponse(
+                "<body style='font-family:-apple-system,sans-serif;max-width:420px;"
+                "margin:60px auto;text-align:center;'><h2>Payment required</h2>"
+                "<p>This shipment doesn't have a receipt yet because it hasn't "
+                "been paid for.</p></body>",
+                status_code=402,
+            )
 
         tier = all_tier_labels().get(row["speed_tier"], {"label": row["speed_tier"]})
         date_str = time.strftime("%Y-%m-%d %H:%M", time.localtime(row["created_at"]))
@@ -512,7 +740,6 @@ def register_rate_routes(addresses_ref):
                 .total {{ font-size:18px; font-weight:bold; margin-top:16px; }}
                 .status {{ display:inline-block; padding:4px 10px; border-radius:6px; font-size:13px; margin-right:6px; }}
                 .paid {{ background:#d4f4dd; color:#1a7a37; }}
-                .pending {{ background:#fde8d4; color:#a35b00; }}
                 .delivery {{ background:#dbe6ff; color:#2a3a7a; }}
                 button {{ margin-top:20px; padding:10px 16px; border:none; border-radius:6px; background:#e2593a; color:#fff; font-size:15px; margin-right:8px; cursor:pointer; }}
                 a.trackBtn {{ display:inline-block; margin-top:20px; padding:10px 16px; border-radius:6px; background:#3b5bfd; color:#fff; font-size:15px; text-decoration:none; }}
@@ -521,9 +748,7 @@ def register_rate_routes(addresses_ref):
         <body>
             <h1>Uganda National Grid — Shipping Receipt</h1>
             <p>Receipt #: <strong>{row['shipment_number']}</strong><br>Date: {date_str}</p>
-            <span class="status {'paid' if row['status'] == 'paid' else 'pending'}">
-                {'PAID' if row['status'] == 'paid' else 'PENDING PAYMENT'}
-            </span>
+            <span class="status paid">PAID ({(row['payment_method'] or '').upper() or 'CONFIRMED'})</span>
             <span class="status delivery">{delivery_status.replace('_', ' ').upper()}</span>
             <table>
                 <tr><td>Type</td><td>{'International' if is_intl else 'Domestic'}</td></tr>
