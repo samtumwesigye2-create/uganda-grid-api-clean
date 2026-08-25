@@ -514,7 +514,8 @@ def register_rate_routes(addresses_ref):
                 .paid {{ background:#d4f4dd; color:#1a7a37; }}
                 .pending {{ background:#fde8d4; color:#a35b00; }}
                 .delivery {{ background:#dbe6ff; color:#2a3a7a; }}
-                button {{ margin-top:20px; padding:10px 16px; border:none; border-radius:6px; background:#e2593a; color:#fff; font-size:15px; }}
+                button {{ margin-top:20px; padding:10px 16px; border:none; border-radius:6px; background:#e2593a; color:#fff; font-size:15px; margin-right:8px; cursor:pointer; }}
+                a.trackBtn {{ display:inline-block; margin-top:20px; padding:10px 16px; border-radius:6px; background:#3b5bfd; color:#fff; font-size:15px; text-decoration:none; }}
             </style>
         </head>
         <body>
@@ -535,7 +536,10 @@ def register_rate_routes(addresses_ref):
                 <tr><td>Recipient</td><td>{row['recipient_name'] or '—'} {row['recipient_phone'] or ''}</td></tr>
             </table>
             <div class="total">Total: UGX {row['rate_ugx']:,.0f}</div>
-            <button onclick="window.print()">Print Receipt</button>
+            <div>
+                <button onclick="window.print()">Print Receipt</button>
+                <a class="trackBtn" href="/track?ship={row['shipment_number']}">Track This Shipment</a>
+            </div>
         </body>
         </html>
         """
