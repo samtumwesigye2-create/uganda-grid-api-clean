@@ -1,131 +1,104 @@
-l<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Create Test Shipment</title>
+<title>Uganda National Grid Admin</title>
 <style>
   * { box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    background:#0f1220; color:#eee; margin:0; padding:16px; min-height:100vh;
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#0f1220; color:#eee; margin:0; padding:16px; }
+  h1 { font-size:22px; text-align:center; margin-bottom:20px; }
+  h3 { font-size:15px; margin:16px 0 8px; }
+  #passGate { max-width:320px; margin:80px auto; text-align:center; }
+  #passGate input { width:100%; padding:10px; border-radius:8px; border:1px solid #333; background:#1a1d2e; color:#eee; margin-bottom:10px; }
+  #passGate button { width:100%; padding:10px; border-radius:8px; border:none; background:#e2593a; color:#fff; font-size:15px; }
+  #main { display:none; max-width:900px; margin:0 auto; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:20px; }
+  .tab { padding:10px 16px; border-radius:8px; border:1px solid #333; background:#1a1d2e; color:#ccc; cursor:pointer; font-size:14px; }
+  .tab.active { background:#3b5bfd; color:#fff; border-color:#3b5bfd; }
+  .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .subtab { padding:7px 12px; border-radius:6px; border:1px solid #2a2d3e; background:#171a2b; color:#aaa; cursor:pointer; font-size:12px; }
+  .subtab.active { background:#2a3a7a; color:#fff; border-color:#2a3a7a; }
+  .subpanel { display:none; }
+  .subpanel.active { display:block; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
+  th, td { border:1px solid #2a2d3e; padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:#1a1d2e; }
+  .refreshBtn { padding:8px 12px; border-radius:6px; border:none; background:#3b5bfd; color:#fff; margin-bottom:10px; margin-right:6px; font-size:13px; cursor:pointer; }
+  .empty { color:#888; padding:20px; text-align:center; }
+  .badge { padding:2px 8px; border-radius:6px; font-size:12px; }
+  .pending, .unpaid, .assigned { background:#fde8d4; color:#a35b00; }
+  .approved, .paid, .completed, .dropped_off_customer, .dropped_off_warehouse { background:#d4f4dd; color:#1a7a37; }
+  .denied, .void, .failed, .cancelled { background:#fbd4d4; color:#a30000; }
+  .formBox { background:#1a1d2e; border:1px solid #2a2d3e; border-radius:8px; padding:12px; margin-bottom:14px; }
+  .formBox input, .formBox select { width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0f1220; color:#eee; margin-bottom:8px; font-size:13px; }
+  .formBox .row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .formBox button { padding:9px 14px; border-radius:6px; border:none; background:#3b5bfd; color:#fff; font-size:13px; cursor:pointer; }
+  .formBox button.danger { background:#e2593a; }
+  a.viewLink { color:#8fa3ff; }
+  .rowBtn { padding:4px 8px; border-radius:5px; border:none; font-size:11px; cursor:pointer; margin-right:4px; color:#fff; }
+  .rowBtn.edit { background:#3b5bfd; }
+  .rowBtn.delete { background:#e2593a; }
+  .rowBtn.toggle { background:#5a5f7a; }
+  select.statusSelect { padding:5px 6px; border-radius:5px; border:1px solid #333; background:#0f1220; color:#eee; font-size:12px; }
+  .photoThumb { max-width:60px; max-height:60px; border-radius:6px; display:block; }
+  .noPhoto { color:#e2593a; font-size:11px; font-weight:700; }
+
+  .customDropdown { position:relative; display:inline-block; margin-bottom:10px; }
+  .dropdownToggle { padding:9px 14px; border-radius:6px; border:1px solid #333; background:#1a1d2e; color:#eee; font-size:13px; cursor:pointer; }
+  .dropdownToggle .caret { font-size:11px; margin-left:4px; }
+  .dropdownMenu { display:none; position:absolute; top:100%; left:0; margin-top:4px; background:#1a1d2e; border:1px solid #333; border-radius:8px; min-width:180px; z-index:50; max-height:260px; overflow-y:auto; box-shadow:0 6px 16px rgba(0,0,0,.4); }
+  .dropdownMenu.open { display:block; }
+  .dropdownItem { padding:9px 12px; font-size:13px; color:#ccc; cursor:pointer; }
+  .dropdownItem:hover, .dropdownItem.selected { background:#2a3a7a; color:#fff; }
+
+  .notifyToast {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:#132a18; border:1px solid #275c34; color:#a3f0b8;
+    border-radius:8px; padding:10px 16px; font-size:13px; max-width:90%;
+    text-align:center; z-index:100; display:none;
   }
-  .wrap { max-width:480px; margin:0 auto; }
-  h1 { font-size:20px; text-align:center; margin:24px 0 6px; }
-  .subtitle { text-align:center; color:#999; font-size:13px; margin-bottom:24px; }
-  label { display:block; font-size:12px; color:#999; margin:14px 0 6px; }
-  input {
-    width:100%; padding:10px; border-radius:8px; border:1px solid #333;
-    background:#1a1d2e; color:#eee; font-size:14px; font-family:inherit;
-  }
-  button {
-    width:100%; margin-top:20px; padding:12px; border:none; border-radius:8px;
-    background:#3b5bfd; color:#fff; font-size:15px; font-weight:600; cursor:pointer;
-  }
-  button:disabled { opacity:.6; }
-  .box {
-    display:none; border-radius:8px; padding:12px 14px; font-size:13px; margin-top:16px;
-    word-break: break-word;
-  }
-  .box.show { display:block; }
-  .errorBox { background:#2a1414; border:1px solid #5a2a2a; color:#f0a3a3; }
-  .successBox { background:#132a18; border:1px solid #275c34; color:#a3f0b8; }
-  .num { font-weight:700; font-size:16px; user-select:all; }
+  .notifyToast.show { display:block; }
+  .notifyToast.error { background:#2a1414; border-color:#5a2a2a; color:#f0a3a3; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>Create Test Shipment</h1>
-  <div class="subtitle">Creates a draft, then marks it paid (cash) so it's ready to test in Shipment Admin.</div>
 
-  <label>Base URL (your Railway app)</label>
-  <input id="baseUrl" value="https://uganda-grid-api-clean-production.up.railway.app" />
-
-  <label>Admin passcode</label>
-  <input id="passcode" placeholder="same one set in Shipment Admin" />
-
-  <label>Pickup (grid ID or address)</label>
-  <input id="pickup" value="UG-ENT-000001" />
-
-  <label>Delivery (grid ID or address)</label>
-  <input id="delivery" value="UG-ENT-000002" />
-
-  <label>Weight (kg)</label>
-  <input id="weight" value="2" />
-
-  <label>Recipient email (for the notification test)</label>
-  <input id="recipientEmail" value="samtumwesigye2@gmail.com" />
-
-  <label>Recipient name</label>
-  <input id="recipientName" value="Test Customer" />
-
-  <button id="btn" onclick="run()">Create &amp; Mark Paid</button>
-
-  <div class="box errorBox" id="errorBox"></div>
-  <div class="box successBox" id="successBox"></div>
+<div id="passGate">
+  <h1>Admin Login</h1>
+  <input id="pass" type="password" placeholder="Admin passcode" />
+  <button onclick="unlock()">Enter</button>
 </div>
 
-<script>
-async function run() {
-  const btn = document.getElementById('btn');
-  const errorBox = document.getElementById('errorBox');
-  const successBox = document.getElementById('successBox');
-  errorBox.classList.remove('show');
-  successBox.classList.remove('show');
+<div id="main">
+  <h1>Uganda National Grid Admin</h1>
+  <div class="tabs">
+    <div class="tab active" data-tab="submissions">Submissions</div>
+    <div class="tab" data-tab="reports">Reports</div>
+    <div class="tab" data-tab="mailing">Mailing</div>
+    <div class="tab" data-tab="shipments">Shipments</div>
+    <div class="tab" data-tab="invoices">Invoices</div>
+    <div class="tab" data-tab="bol">Bill of Lading</div>
+    <div class="tab" data-tab="inventory">Inventory</div>
+    <div class="tab" data-tab="fleet">Fleet</div>
+    <div class="tab" data-tab="staff">Staff</div>
+    <div class="tab" data-tab="data">Data</div>
+  </div>
 
-  const base = document.getElementById('baseUrl').value.trim().replace(/\/$/, '');
-  const passcode = document.getElementById('passcode').value;
-  if (!passcode) {
-    errorBox.textContent = 'Enter the admin passcode.';
-    errorBox.classList.add('show');
-    return;
-  }
+  <div class="panel active" id="panel-submissions">
+    <button class="refreshBtn" onclick="loadSubmissions()">Refresh</button>
+    <div id="submissionsOut"></div>
+  </div>
 
-  btn.disabled = true;
-  try {
-    // Step 1: create the draft
-    const createBody = new URLSearchParams({
-      pickup: document.getElementById('pickup').value,
-      delivery: document.getElementById('delivery').value,
-      weight_kg: document.getElementById('weight').value,
-      speed_tier: 'seven_day',
-      recipient_name: document.getElementById('recipientName').value,
-      recipient_email: document.getElementById('recipientEmail').value,
-    });
-    const createRes = await fetch(base + '/ship/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: createBody.toString(),
-    });
-    if (!createRes.ok) {
-      const d = await createRes.json().catch(() => ({}));
-      throw new Error('Create failed: ' + (d.detail || createRes.status));
-    }
-    const createData = await createRes.json();
-    const draftId = createData.id;
+  <div class="panel" id="panel-reports">
+    <button class="refreshBtn" onclick="loadReports()">Refresh</button>
+    <div id="reportsOut"></div>
+  </div>
 
-    // Step 2: mark it paid via cash
-    const payRes = await fetch(base + '/ship/' + encodeURIComponent(draftId) + '/pay/cash', {
-      method: 'POST',
-      headers: { 'X-Admin-Passcode': passcode },
-    });
-    if (!payRes.ok) {
-      const d = await payRes.json().catch(() => ({}));
-      throw new Error('Cash-pay failed: ' + (d.detail || payRes.status));
-    }
-    const payData = await payRes.json();
+  <div class="panel" id="panel-mailing">
+    <button class="refreshBtn" onclick="loadMailing()">Refresh</button>
+    
 
-    successBox.innerHTML = 'Created and paid! Tracking number:<br>' +
-      '<span class="num">' + payData.shipment_number + '</span><br><br>' +
-      'Copy this into Shipment Admin\'s Look Up box.';
-    successBox.classList.add('show');
-  } catch (e) {
-    errorBox.textContent = e.message;
-    errorBox.classList.add('show');
-  } finally {
-    btn.disabled = false;
-  }
-}
-</script>
-</body>
-</html>
+   
