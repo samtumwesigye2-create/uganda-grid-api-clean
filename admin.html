@@ -29,7 +29,7 @@
   .refreshBtn { padding:8px 12px; border-radius:6px; border:none; background:#3b5bfd; color:#fff; margin-bottom:10px; margin-right:6px; font-size:13px; cursor:pointer; }
   .empty { color:#888; padding:20px; text-align:center; }
   .badge { padding:2px 8px; border-radius:6px; font-size:12px; }
-  .pending, .unpaid, .assigned { background:#fde8d4; color:#a35b00; }
+  .pending, .unpaid, .assigned, .awaiting_payment { background:#fde8d4; color:#a35b00; }
   .approved, .paid, .completed, .dropped_off_customer, .dropped_off_warehouse { background:#d4f4dd; color:#1a7a37; }
   .denied, .void, .failed, .cancelled { background:#fbd4d4; color:#a30000; }
   .formBox { background:#1a1d2e; border:1px solid #2a2d3e; border-radius:8px; padding:12px; margin-bottom:14px; }
@@ -42,6 +42,7 @@
   .rowBtn.edit { background:#3b5bfd; }
   .rowBtn.delete { background:#e2593a; }
   .rowBtn.toggle { background:#5a5f7a; }
+  .rowBtn.cash { background:#1a7a37; }
   select.statusSelect { padding:5px 6px; border-radius:5px; border:1px solid #333; background:#0f1220; color:#eee; font-size:12px; }
   .photoThumb { max-width:60px; max-height:60px; border-radius:6px; display:block; }
   .noPhoto { color:#e2593a; font-size:11px; font-weight:700; }
@@ -145,6 +146,15 @@
       </div>
       <button onclick="createShipment()">Create Shipment</button>
       <div id="newShipResult" style="margin-top:10px; font-size:13px;"></div>
+    </div>
+
+    <div class="formBox">
+      <h3 style="margin-top:0;">Look Up / Update Shipment</h3>
+      <div class="row2" style="grid-template-columns:2fr 1fr;">
+        <input id="trackSearchInput" placeholder="Shipment number (e.g. UG-SHIP-000001)" onkeydown="if(event.key==='Enter') lookupShipment()" />
+        <button onclick="lookupShipment()">Look Up</button>
+      </div>
+      <div style="color:#888; font-size:12px; margin-top:2px;">e.g. a driver calls to say a delivery failed — look it up here, set status to "Failed delivery", and add the reason as a note.</div>
     </div>
 
     <div class="customDropdown" id="shipStatusDropdown">
@@ -529,6 +539,10 @@ async function loadMailing() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading mailing list.</div>'; }
 }
 
+// ---- Shipments: creation now produces an unpaid DRAFT, not a shipment.
+// A real tracking number only exists once /ship/{id}/pay/cash or the
+// Flutterwave flow (card / mobile money) confirms payment. ----
+
 async function createShipment() {
   const pickup = document.getElementById('newShipPickup').value.trim();
   const delivery = document.getElementById('newShipDelivery').value.trim();
@@ -558,11 +572,13 @@ async function createShipment() {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || ('Request failed: ' + res.status));
 
+    // No shipment_number yet — data.id is the draft's id, used to collect payment.
     resultBox.innerHTML = `
-      <span style="color:#1a7a37;">Created ${data.shipment_number}</span> —
-      UGX ${Number(data.rate_ugx).toLocaleString()} —
-      <a class="viewLink" href="${data.receipt_url}" target="_blank">View Receipt</a> —
-      <a class="viewLink" href="/track?ship=${encodeURIComponent(data.shipment_number)}" target="_blank">Track</a>
+      <div style="color:#a35b00;">Draft created — UGX ${Number(data.rate_ugx).toLocaleString()}. No tracking number until payment clears.</div>
+      <div style="margin-top:8px;">
+        <button class="rowBtn edit" onclick="sendPayLinkForRow('${escapeAttr(data.id)}')">Send Pay Link</button>
+        <button class="rowBtn cash" onclick="confirmCashForRow('${escapeAttr(data.id)}')">Confirm Cash</button>
+      </div>
     `;
 
     ['newShipPickup','newShipDelivery','newShipWeight','newShipSenderName','newShipSenderPhone','newShipRecipientName','newShipRecipientPhone']
@@ -572,6 +588,36 @@ async function createShipment() {
   } catch (e) {
     resultBox.innerHTML = `<span style="color:#e2593a;">${e.message}</span>`;
   }
+}
+
+// Card or mobile money via Flutterwave — prompts for the customer's email
+// (required to generate a payment link), then shows the link to send them.
+async function sendPayLinkForRow(draftId) {
+  const email = prompt('Customer email (required to generate the payment link):');
+  if (!email) return;
+  const phone = prompt('Customer phone (optional, helps mobile money):') || '';
+  const name = prompt('Customer name (optional):') || '';
+  try {
+    const data = await authedPost('/ship/pay/flutterwave/initiate', {
+      draft_id: draftId,
+      payment_option: 'card,mobilemoneyuganda',
+      customer_email: email,
+      customer_phone: phone,
+      customer_name: name
+    });
+    prompt('Payment link — copy and send to the customer:', data.payment_link);
+  } catch (e) { alert(e.message); }
+}
+
+// Cash — staff confirms payment was received in person. Assigns the
+// real tracking number immediately.
+async function confirmCashForRow(draftId) {
+  if (!confirm('Confirm cash payment received for this shipment?')) return;
+  try {
+    const data = await authedPost('/ship/' + encodeURIComponent(draftId) + '/pay/cash', {});
+    alert('Paid — tracking number: ' + data.shipment_number);
+    loadShipments();
+  } catch (e) { alert(e.message); }
 }
 
 async function loadShipments() {
@@ -586,11 +632,16 @@ async function loadShipments() {
       { label: 'Delivery', key: 'delivery' },
       { label: 'Weight', render: r => r.weight_kg + ' kg' },
       { label: 'Rate', render: r => 'UGX ' + Number(r.rate_ugx).toLocaleString() },
-      { label: 'Payment', render: r => `<span class="badge ${r.status === 'paid' ? 'paid' : 'pending'}">${r.status}</span>` },
+      { label: 'Payment', render: r => `<span class="badge ${r.status === 'paid' ? 'paid' : 'awaiting_payment'}">${r.status.replace(/_/g,' ')}</span>` },
       { label: 'Delivery Status', render: r => {
+          if (r.status !== 'paid') return '<span style="color:#888;">—</span>';
           const current = (r.delivery_status || 'created').replace('_',' ');
           return `<button class="rowBtn edit" onclick="openTrackingModal('${escapeAttr(r.shipment_number)}')">${current}</button>`;
         }
+      },
+      { label: 'Payment Actions', render: r => r.status === 'paid' ? '' :
+          `<button class="rowBtn edit" onclick="sendPayLinkForRow('${escapeAttr(r.id)}')">Pay Link</button>` +
+          `<button class="rowBtn cash" onclick="confirmCashForRow('${escapeAttr(r.id)}')">Cash</button>`
       },
     ]);
   } catch (e) { out.innerHTML = '<div class="empty">Error loading shipments.</div>'; }
@@ -602,6 +653,16 @@ async function loadShipments() {
 
 function closeTrackingModal() {
   document.getElementById('trackModalOverlay').classList.remove('open');
+}
+
+// Manual lookup by shipment number — for cases like a driver calling in
+// about a shipment that isn't necessarily visible in the current table
+// filter. Opens the same tracking modal, which already has the status +
+// note update form.
+function lookupShipment() {
+  const num = document.getElementById('trackSearchInput').value.trim().toUpperCase();
+  if (!num) { alert('Enter a shipment number'); return; }
+  openTrackingModal(num);
 }
 
 async function openTrackingModal(shipmentNumber) {
