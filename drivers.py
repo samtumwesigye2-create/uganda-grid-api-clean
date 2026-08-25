@@ -2,15 +2,13 @@
 drivers.py — Driver management: fleet, dispatch tasks, live location,
 photo-verified pickups/dropoffs.
 
-Driver auth is passcode-based, same pattern as staff (auth.py) — each
-driver gets their own passcode set by admin, checked directly against
-their record rather than a session token. Simple, matches the rest of
-this app's auth style.
+Photo proof is REQUIRED (not optional) on the three statuses that
+represent a physical handoff: picked_up, dropped_off_customer,
+dropped_off_warehouse. This is enforced server-side so a driver can't
+skip proof under time pressure — 20 assigned dropoffs means 20 photos,
+guaranteed by the API itself, not by UI discipline.
 
-Dispatch tasks are the core unit: one task = one pickup or one dropoff,
-optionally linked to an existing shipment_number. A full pickup-then-
-deliver job is just two tasks (pickup task + dropoff task) so partial
-completion, reassignment, and delays are all trackable per-leg.
+Driver auth is passcode-based, same pattern as staff (auth.py).
 """
 
 import os
@@ -37,6 +35,7 @@ TASK_STATUSES = [
     "en_route_dropoff", "arrived_dropoff", "dropped_off_customer",
     "dropped_off_warehouse", "completed", "failed", "cancelled",
 ]
+PHOTO_REQUIRED_STATUSES = {"picked_up", "dropped_off_customer", "dropped_off_warehouse"}
 DRIVER_STATUSES = ["available", "on_duty", "off_duty"]
 VEHICLE_STATUSES = ["available", "in_use", "maintenance"]
 
@@ -353,7 +352,6 @@ def post_location(
     longitude: float = Form(...),
     x_driver_passcode: str = Header(default=""),
 ):
-    """Driver's app calls this periodically while on duty."""
     driver = require_driver(x_driver_passcode)
     conn = get_conn()
     conn.execute(
@@ -476,7 +474,7 @@ def reassign_task(
         "UPDATE dispatch_tasks SET driver_id=?, vehicle_id=? WHERE id=?",
         (driver_id or None, vehicle_id or None, task_id),
     )
-    log_task_history(conn, task_id, row["status"], f"Reassigned", None)
+    log_task_history(conn, task_id, row["status"], "Reassigned", None)
     conn.commit()
     conn.close()
     return {"id": task_id, "reassigned": True}
@@ -491,17 +489,23 @@ async def update_task_status(
     x_driver_passcode: str = Header(default=""),
     x_admin_passcode: str = Header(default=""),
 ):
-    """Either the assigned driver OR an admin can update. Photo is optional
-    but expected for 'dropped_off_customer' / 'dropped_off_warehouse' as
-    proof of delivery."""
+    """Photo is REQUIRED for picked_up / dropped_off_customer /
+    dropped_off_warehouse — enforced here, not just in the UI, so proof
+    can't be skipped."""
     driver = None
     if x_admin_passcode == ADMIN_PASSCODE:
-        pass  # admin override, always allowed
+        pass  # admin override, always allowed, still must supply photo below if required
     else:
         driver = require_driver(x_driver_passcode)
 
     if status not in TASK_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid status")
+
+    if status in PHOTO_REQUIRED_STATUSES and (photo is None or not photo.filename):
+        raise HTTPException(
+            status_code=400,
+            detail=f"A photo is required to mark this task as '{status.replace('_', ' ')}'",
+        )
 
     conn = get_conn()
     row = conn.execute("SELECT * FROM dispatch_tasks WHERE id = ?", (task_id,)).fetchone()
@@ -551,3 +555,33 @@ def task_history(task_id: str, x_admin_passcode: str = Header(default="")):
     ).fetchall()
     conn.close()
     return {"count": len(rows), "results": [dict(r) for r in rows]}
+
+
+@router.get("/dispatch/photo-audit")
+def photo_audit(
+    driver_id: str = Query(default=""),
+    x_admin_passcode: str = Header(default=""),
+):
+    """Reconciliation view: for every task that reached a proof-required
+    status, confirm a photo actually exists. Flags any gap — this is how
+    you verify '20 dropoffs = 20 photos' at a glance."""
+    check_admin(x_admin_passcode)
+    conn = get_conn()
+    query = "SELECT * FROM dispatch_tasks WHERE status IN ('picked_up','dropped_off_customer','dropped_off_warehouse')"
+    params = []
+    if driver_id:
+        query += " AND driver_id = ?"
+        params.append(driver_id)
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+
+    total = len(rows)
+    with_photo = sum(1 for r in rows if r["photo_url"])
+    missing = [dict(r) for r in rows if not r["photo_url"]]
+
+    return {
+        "total_proof_required_tasks": total,
+        "tasks_with_photo": with_photo,
+        "tasks_missing_photo": len(missing),
+        "missing": missing,
+    }
