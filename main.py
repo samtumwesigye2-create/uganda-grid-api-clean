@@ -26,6 +26,7 @@ REVIEW_FILE = os.path.join(BASE_DIR, "review.html")
 ADMIN_FILE = os.path.join(BASE_DIR, "admin.html")
 SHIP_FILE = os.path.join(BASE_DIR, "ship.html")
 DRIVER_FILE = os.path.join(BASE_DIR, "driver.html")
+TEST_TOOL_FILE = os.path.join(BASE_DIR, "test-tool.html")
 
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
@@ -179,6 +180,13 @@ def driver_page():
     if not os.path.exists(DRIVER_FILE):
         raise HTTPException(status_code=404, detail="driver.html not found")
     return FileResponse(DRIVER_FILE, media_type="text/html")
+
+
+@app.get("/test-tool")
+def test_tool_page():
+    if not os.path.exists(TEST_TOOL_FILE):
+        raise HTTPException(status_code=404, detail="test-tool.html not found")
+    return FileResponse(TEST_TOOL_FILE, media_type="text/html")
 
 
 @app.get("/search")
