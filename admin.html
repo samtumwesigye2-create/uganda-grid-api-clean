@@ -111,6 +111,9 @@
   </div>
 
   <div class="panel" id="panel-shipments">
+    <div class="formBox">
+      <input id="shipSearchInput" placeholder="Search by tracking number (e.g. UG-SHIP-000001)" />
+    </div>
     <div class="customDropdown" id="shipStatusDropdown">
       <button type="button" class="dropdownToggle" id="shipStatusToggle">All statuses <span class="caret">▾</span></button>
       <div class="dropdownMenu" id="shipStatusMenu">
@@ -497,27 +500,41 @@ async function loadMailing() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading mailing list.</div>'; }
 }
 
+let lastShipments = [];
+
 async function loadShipments() {
   const out = document.getElementById('shipmentsOut');
   const filter = shipStatusFilter;
   try {
     const url = '/ship/list' + (filter ? ('?delivery_status=' + encodeURIComponent(filter)) : '');
     const data = await authedFetch(url);
-    renderTable(out, data.results, [
-      { label: '#', key: 'shipment_number' },
-      { label: 'Pickup', key: 'pickup' },
-      { label: 'Delivery', key: 'delivery' },
-      { label: 'Weight', render: r => r.weight_kg + ' kg' },
-      { label: 'Rate', render: r => 'UGX ' + Number(r.rate_ugx).toLocaleString() },
-      { label: 'Payment', render: r => `<span class="badge ${r.status === 'paid' ? 'paid' : 'pending'}">${r.status}</span>` },
-      { label: 'Delivery Status', render: r => {
-          const current = (r.delivery_status || 'created').replace('_',' ');
-          return `<button class="rowBtn edit" onclick="openStatusUpdate('${r.shipment_number}')">${current}</button>`;
-        }
-      },
-    ]);
+    lastShipments = data.results;
+    renderFilteredShipments();
   } catch (e) { out.innerHTML = '<div class="empty">Error loading shipments.</div>'; }
 }
+
+function renderFilteredShipments() {
+  const out = document.getElementById('shipmentsOut');
+  const query = document.getElementById('shipSearchInput').value.trim().toLowerCase();
+  const rows = query
+    ? lastShipments.filter(r => (r.shipment_number || '').toLowerCase().includes(query))
+    : lastShipments;
+  renderTable(out, rows, [
+    { label: '#', key: 'shipment_number' },
+    { label: 'Pickup', key: 'pickup' },
+    { label: 'Delivery', key: 'delivery' },
+    { label: 'Weight', render: r => r.weight_kg + ' kg' },
+    { label: 'Rate', render: r => 'UGX ' + Number(r.rate_ugx).toLocaleString() },
+    { label: 'Payment', render: r => `<span class="badge ${r.status === 'paid' ? 'paid' : 'pending'}">${r.status}</span>` },
+    { label: 'Delivery Status', render: r => {
+        const current = (r.delivery_status || 'created').replace('_',' ');
+        return `<button class="rowBtn edit" onclick="openStatusUpdate('${r.shipment_number}')">${current}</button>`;
+      }
+    },
+  ]);
+}
+
+document.getElementById('shipSearchInput').addEventListener('input', renderFilteredShipments);
 
 function openStatusUpdate(shipmentNumber) {
   const opts = ['created','picked_up','in_transit','out_for_delivery','delivered','failed_delivery','returned','cancelled','delayed'];
