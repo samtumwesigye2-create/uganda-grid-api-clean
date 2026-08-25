@@ -20,6 +20,12 @@ PAYMENT MODEL:
      and log the tracking history. Receipts and tracking are gated on
      that — an awaiting_payment draft has nothing to show.
 
+NOTIFICATIONS:
+  Whenever an admin updates a shipment's delivery_status (via
+  POST /ship/{shipment_number}/status), notify_shipment_update() in
+  notifications.py fires an email + SMS to the customer. Best-effort —
+  a notification failure never blocks or fails the status update itself.
+
 Env vars needed:
   FLUTTERWAVE_SECRET_KEY   — from your Flutterwave dashboard (live or test)
   FLUTTERWAVE_WEBHOOK_HASH — the "secret hash" you set on the webhook in
@@ -28,6 +34,7 @@ Env vars needed:
   FRONTEND_BASE_URL        — public base URL used as the Flutterwave
                               redirect_url, e.g.
                               https://uganda-grid-api-clean-production.up.railway.app
+  (see notifications.py for the email/SMS env vars)
 """
 
 import json
@@ -41,6 +48,8 @@ import uuid
 
 from fastapi import APIRouter, Form, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
+
+from notifications import notify_shipment_update
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data_hub.db")
@@ -158,6 +167,8 @@ def init_db():
         "ALTER TABLE shipments ADD COLUMN delivery_status TEXT DEFAULT 'created'",
         "ALTER TABLE shipments ADD COLUMN payment_ref TEXT",
         "ALTER TABLE shipments ADD COLUMN payment_method TEXT",
+        "ALTER TABLE shipments ADD COLUMN sender_email TEXT",
+        "ALTER TABLE shipments ADD COLUMN recipient_email TEXT",
     ):
         try:
             conn.execute(ddl)
@@ -354,8 +365,10 @@ def register_rate_routes(addresses_ref):
         speed_tier: str = Form(...),
         sender_name: str = Form(""),
         sender_phone: str = Form(""),
+        sender_email: str = Form(""),
         recipient_name: str = Form(""),
         recipient_phone: str = Form(""),
+        recipient_email: str = Form(""),
     ):
         addresses = addresses_ref()
         p = lookup_coords(pickup, addresses)
@@ -374,13 +387,15 @@ def register_rate_routes(addresses_ref):
             """
             INSERT INTO shipments
             (id, shipment_number, pickup, delivery, weight_kg, distance_km,
-             speed_tier, rate_ugx, status, sender_name, sender_phone,
-             recipient_name, recipient_phone, shipment_type, delivery_status, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             speed_tier, rate_ugx, status, sender_name, sender_phone, sender_email,
+             recipient_name, recipient_phone, recipient_email, shipment_type,
+             delivery_status, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (shipment_id, draft_number, pickup, delivery, weight_kg,
              distance_km, speed_tier, rate, "awaiting_payment",
-             sender_name, sender_phone, recipient_name, recipient_phone,
+             sender_name, sender_phone, sender_email,
+             recipient_name, recipient_phone, recipient_email,
              "domestic", "created", time.time()),
         )
         conn.commit()
@@ -402,8 +417,10 @@ def register_rate_routes(addresses_ref):
         speed_tier: str = Form(...),
         sender_name: str = Form(""),
         sender_phone: str = Form(""),
+        sender_email: str = Form(""),
         recipient_name: str = Form(""),
         recipient_phone: str = Form(""),
+        recipient_email: str = Form(""),
     ):
         zone = get_zone(country)
         rate = calculate_international_rate(zone, weight_kg, speed_tier)
@@ -416,14 +433,16 @@ def register_rate_routes(addresses_ref):
             """
             INSERT INTO shipments
             (id, shipment_number, pickup, delivery, weight_kg, distance_km,
-             speed_tier, rate_ugx, status, sender_name, sender_phone,
-             recipient_name, recipient_phone, shipment_type, delivery_status, created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             speed_tier, rate_ugx, status, sender_name, sender_phone, sender_email,
+             recipient_name, recipient_phone, recipient_email, shipment_type,
+             delivery_status, created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (shipment_id, draft_number, "Uganda (origin)",
              f"{country} — {recipient_address}", weight_kg, 0,
              speed_tier, rate, "awaiting_payment",
-             sender_name, sender_phone, recipient_name, recipient_phone,
+             sender_name, sender_phone, sender_email,
+             recipient_name, recipient_phone, recipient_email,
              "international", "created", time.time()),
         )
         conn.commit()
@@ -566,7 +585,8 @@ def register_rate_routes(addresses_ref):
 
     # -----------------------------------------------------------------
     # Everything below is unchanged, except receipt/track now gate on
-    # the shipment actually being paid.
+    # the shipment actually being paid, and status updates notify the
+    # customer by email + SMS.
     # -----------------------------------------------------------------
 
     @router.post("/ship/{shipment_number}/status")
@@ -596,7 +616,19 @@ def register_rate_routes(addresses_ref):
 
         log_status(shipment_number, delivery_status, note)
 
-        return {"shipment_number": shipment_number, "delivery_status": delivery_status}
+        # Best-effort customer notification — never blocks or fails the
+        # status update itself if email/SMS sending has a problem.
+        notify_result = {"email_sent": False, "sms_sent": False}
+        try:
+            notify_result = notify_shipment_update(dict(row), delivery_status, note)
+        except Exception as e:
+            print(f"[shipments] notify_shipment_update failed for {shipment_number}: {e}")
+
+        return {
+            "shipment_number": shipment_number,
+            "delivery_status": delivery_status,
+            "notified": notify_result,
+        }
 
     @router.get("/ship/{shipment_number}/track")
     def track_shipment(shipment_number: str):
@@ -632,6 +664,49 @@ def register_rate_routes(addresses_ref):
             "delivery": row["delivery"],
             "current_status": row["delivery_status"],
             "shipment_type": row["shipment_type"],
+            "history": [
+                {
+                    "status": h["status"],
+                    "note": h["note"],
+                    "at": time.strftime("%Y-%m-%d %H:%M", time.localtime(h["created_at"])),
+                }
+                for h in history_rows
+            ],
+        }
+
+    @router.get("/ship/{shipment_number}/admin-lookup")
+    def admin_lookup_shipment(shipment_number: str, x_admin_passcode: str = Header(default="")):
+        """Same idea as /track, but for admin.html: works even if the
+        shipment somehow isn't paid, and includes contact info so the
+        admin panel can show who a status update will notify."""
+        check_admin(x_admin_passcode)
+        conn = get_conn()
+        row = conn.execute("SELECT * FROM shipments WHERE shipment_number = ?", (shipment_number,)).fetchone()
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Shipment not found")
+
+        history_rows = conn.execute(
+            """
+            SELECT status, note, created_at
+            FROM shipment_status_history
+            WHERE shipment_number = ?
+            ORDER BY created_at ASC
+            """,
+            (shipment_number,),
+        ).fetchall()
+        conn.close()
+
+        return {
+            "shipment_number": row["shipment_number"],
+            "pickup": row["pickup"],
+            "delivery": row["delivery"],
+            "status": row["status"],
+            "current_status": row["delivery_status"],
+            "shipment_type": row["shipment_type"],
+            "recipient_name": row["recipient_name"],
+            "recipient_phone": row["recipient_phone"],
+            "recipient_email": row["recipient_email"],
             "history": [
                 {
                     "status": h["status"],
@@ -749,43 +824,5 @@ def register_rate_routes(addresses_ref):
             <h1>Uganda National Grid — Shipping Receipt</h1>
             <p>Receipt #: <strong>{row['shipment_number']}</strong><br>Date: {date_str}</p>
             <span class="status paid">PAID ({(row['payment_method'] or '').upper() or 'CONFIRMED'})</span>
-            <span class="status delivery">{delivery_status.replace('_', ' ').upper()}</span>
-            <table>
-                <tr><td>Type</td><td>{'International' if is_intl else 'Domestic'}</td></tr>
-                <tr><td>Pickup</td><td>{row['pickup']}</td></tr>
-                <tr><td>Delivery</td><td>{row['delivery']}</td></tr>
-                <tr><td>Weight</td><td>{row['weight_kg']} kg</td></tr>
-                {'' if is_intl else f"<tr><td>Distance</td><td>{row['distance_km']} km</td></tr>"}
-                <tr><td>Speed</td><td>{tier.get('label', row['speed_tier'])}</td></tr>
-                <tr><td>Sender</td><td>{row['sender_name'] or '—'} {row['sender_phone'] or ''}</td></tr>
-                <tr><td>Recipient</td><td>{row['recipient_name'] or '—'} {row['recipient_phone'] or ''}</td></tr>
-            </table>
-            <div class="total">Total: UGX {row['rate_ugx']:,.0f}</div>
-            <div>
-                <button onclick="window.print()">Print Receipt</button>
-                <a class="trackBtn" href="/track?ship={row['shipment_number']}">Track This Shipment</a>
-            </div>
-        </body>
-        </html>
-        """
+            
 
-    @router.get("/ship/list")
-    def list_shipments(
-        status: str = Query(default=""),
-        delivery_status: str = Query(default=""),
-        x_admin_passcode: str = Header(default=""),
-    ):
-        check_admin(x_admin_passcode)
-        conn = get_conn()
-        query = "SELECT * FROM shipments WHERE 1=1"
-        params = []
-        if status:
-            query += " AND status = ?"
-            params.append(status)
-        if delivery_status:
-            query += " AND delivery_status = ?"
-            params.append(delivery_status)
-        query += " ORDER BY created_at DESC"
-        rows = conn.execute(query, params).fetchall()
-        conn.close()
-        return {"count": len(rows), "results": [dict(r) for r in rows]}
