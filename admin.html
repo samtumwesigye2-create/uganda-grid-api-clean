@@ -1,327 +1,124 @@
- <!DOCTYPE html>
+l<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Admin — Shipment Status</title>
+<title>Create Test Shipment</title>
 <style>
   * { box-sizing: border-box; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-    background:#0f1220; color:#eee; margin:0; padding:16px;
-    min-height:100vh;
+    background:#0f1220; color:#eee; margin:0; padding:16px; min-height:100vh;
   }
   .wrap { max-width:480px; margin:0 auto; }
   h1 { font-size:20px; text-align:center; margin:24px 0 6px; }
   .subtitle { text-align:center; color:#999; font-size:13px; margin-bottom:24px; }
-
-  .searchBox { display:flex; gap:8px; margin-bottom:8px; }
-  .searchBox input {
-    flex:1; padding:12px; border-radius:8px; border:1px solid #333;
-    background:#1a1d2e; color:#eee; font-size:15px;
-  }
-  .searchBox button {
-    padding:12px 18px; border-radius:8px; border:none;
-    background:#e2593a; color:#fff; font-size:15px; cursor:pointer;
-  }
-  .searchBox button:disabled { opacity:.6; cursor:default; }
-  .hint { color:#777; font-size:12px; margin-bottom:24px; }
-
-  .passcodeRow { display:flex; gap:8px; align-items:center; margin-bottom:20px; font-size:12px; color:#888; }
-  .passcodeRow button { background:none; border:1px solid #333; color:#aaa; padding:4px 10px; border-radius:6px; cursor:pointer; font-size:12px; }
-
-  .card {
-    background:#171a2b; border:1px solid #2a2d3e; border-radius:12px;
-    padding:18px; margin-bottom:16px; display:none;
-  }
-  .card.show { display:block; }
-
-  .shipNum { font-size:16px; font-weight:700; margin-bottom:2px; }
-  .shipType { color:#999; font-size:12px; margin-bottom:14px; }
-
-  .route {
-    background:#0f1220; border:1px solid #2a2d3e; border-radius:8px;
-    padding:10px 12px; font-size:13px; margin-bottom:14px;
-  }
-  .route div { margin-bottom:4px; }
-  .route .label { color:#888; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
-
-  .contact {
-    background:#0f1220; border:1px solid #2a2d3e; border-radius:8px;
-    padding:10px 12px; font-size:13px; margin-bottom:16px;
-  }
-  .contact .label { color:#888; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
-  .contact .none { color:#666; font-style:italic; }
-
-  .currentStatus {
-    display:inline-block; padding:6px 14px; border-radius:999px;
-    background:#2a3a7a; color:#dbe6ff; font-size:13px; font-weight:600;
-    text-transform:capitalize; margin-bottom:18px;
-  }
-
-  .paidBadge { display:inline-block; padding:4px 10px; border-radius:6px; font-size:12px; margin-left:8px; }
-  .paidBadge.paid { background:#d4f4dd; color:#1a7a37; }
-  .paidBadge.unpaid { background:#4a2020; color:#f0a3a3; }
-
   label { display:block; font-size:12px; color:#999; margin:14px 0 6px; }
-  select, textarea {
+  input {
     width:100%; padding:10px; border-radius:8px; border:1px solid #333;
     background:#1a1d2e; color:#eee; font-size:14px; font-family:inherit;
   }
-  textarea { resize:vertical; min-height:60px; }
-
-  .updateBtn {
-    width:100%; margin-top:16px; padding:12px; border:none; border-radius:8px;
+  button {
+    width:100%; margin-top:20px; padding:12px; border:none; border-radius:8px;
     background:#3b5bfd; color:#fff; font-size:15px; font-weight:600; cursor:pointer;
   }
-  .updateBtn:disabled { opacity:.6; cursor:default; }
-
-  .timeline { list-style:none; margin:18px 0 0; padding:0; }
-  .timeline li {
-    position:relative; padding:0 0 18px 22px; border-left:2px solid #2a2d3e;
+  button:disabled { opacity:.6; }
+  .box {
+    display:none; border-radius:8px; padding:12px 14px; font-size:13px; margin-top:16px;
+    word-break: break-word;
   }
-  .timeline li:last-child { border-left:2px solid transparent; padding-bottom:0; }
-  .timeline li::before {
-    content:''; position:absolute; left:-7px; top:2px; width:12px; height:12px;
-    border-radius:50%; background:#3b5bfd; border:2px solid #171a2b;
-  }
-  .timeline li.current::before { background:#e2593a; }
-  .tStatus { font-size:13px; font-weight:600; text-transform:capitalize; }
-  .tNote { font-size:12px; color:#bbb; margin-top:2px; }
-  .tWhen { font-size:11px; color:#777; margin-top:2px; }
-
-  .errorBox {
-    display:none; background:#2a1414; border:1px solid #5a2a2a; color:#f0a3a3;
-    border-radius:8px; padding:12px 14px; font-size:13px; margin-bottom:16px;
-  }
-  .errorBox.show { display:block; }
-
-  .successBox {
-    display:none; background:#132a18; border:1px solid #275c34; color:#a3f0b8;
-    border-radius:8px; padding:12px 14px; font-size:13px; margin-top:14px;
-  }
-  .successBox.show { display:block; }
-
-  .loadingBox {
-    display:none; text-align:center; color:#999; font-size:13px; padding:20px 0;
-  }
-  .loadingBox.show { display:block; }
+  .box.show { display:block; }
+  .errorBox { background:#2a1414; border:1px solid #5a2a2a; color:#f0a3a3; }
+  .successBox { background:#132a18; border:1px solid #275c34; color:#a3f0b8; }
+  .num { font-weight:700; font-size:16px; user-select:all; }
 </style>
 </head>
 <body>
-
 <div class="wrap">
-  <h1>Shipment Admin</h1>
-  <div class="subtitle">Look up a tracking number and update its status</div>
+  <h1>Create Test Shipment</h1>
+  <div class="subtitle">Creates a draft, then marks it paid (cash) so it's ready to test in Shipment Admin.</div>
 
-  <div class="passcodeRow">
-    <span id="passcodeStatus">Passcode not set</span>
-    <button onclick="setPasscode()">Set / change passcode</button>
-  </div>
+  <label>Base URL (your Railway app)</label>
+  <input id="baseUrl" value="https://uganda-grid-api-clean-production.up.railway.app" />
 
-  <div class="searchBox">
-    <input id="trackInput" placeholder="e.g. UG-SHIP-000001" autocomplete="off" />
-    <button id="trackBtn" onclick="doLookup()">Look up</button>
-  </div>
-  <div class="hint">Enter the shipment tracking number to search</div>
+  <label>Admin passcode</label>
+  <input id="passcode" placeholder="same one set in Shipment Admin" />
 
-  <div class="errorBox" id="errorBox"></div>
-  <div class="loadingBox" id="loadingBox">Looking up shipment…</div>
+  <label>Pickup (grid ID or address)</label>
+  <input id="pickup" value="UG-ENT-000001" />
 
-  <div class="card" id="resultCard">
-    <div class="shipNum" id="rShipNum"></div>
-    <div class="shipType" id="rShipType"></div>
+  <label>Delivery (grid ID or address)</label>
+  <input id="delivery" value="UG-ENT-000002" />
 
-    <div class="route">
-      <div><span class="label">Pickup</span><br><span id="rPickup"></span></div>
-      <div><span class="label">Delivery</span><br><span id="rDelivery"></span></div>
-    </div>
+  <label>Weight (kg)</label>
+  <input id="weight" value="2" />
 
-    <div class="contact">
-      <span class="label">Will notify</span><br>
-      <span id="rContact"></span>
-    </div>
+  <label>Recipient email (for the notification test)</label>
+  <input id="recipientEmail" value="samtumwesigye2@gmail.com" />
 
-    <div id="rCurrentStatus"></div>
+  <label>Recipient name</label>
+  <input id="recipientName" value="Test Customer" />
 
-    <label for="statusSelect">Update status to</label>
-    <select id="statusSelect">
-      <option value="created">Created</option>
-      <option value="picked_up">Picked up</option>
-      <option value="in_transit">In transit</option>
-      <option value="out_for_delivery">Out for delivery</option>
-      <option value="delivered">Delivered</option>
-      <option value="failed_delivery">Failed delivery</option>
-      <option value="returned">Returned</option>
-      <option value="cancelled">Cancelled</option>
-    </select>
+  <button id="btn" onclick="run()">Create &amp; Mark Paid</button>
 
-    <label for="noteInput">Note (optional, shown to customer)</label>
-    <textarea id="noteInput" placeholder="e.g. Left at the front gate"></textarea>
-
-    <button class="updateBtn" id="updateBtn" onclick="doUpdate()">Update Status &amp; Notify Customer</button>
-
-    <div class="successBox" id="successBox"></div>
-
-    <ul class="timeline" id="rTimeline"></ul>
-  </div>
+  <div class="box errorBox" id="errorBox"></div>
+  <div class="box successBox" id="successBox"></div>
 </div>
 
 <script>
-function escapeHtml(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-  }[c]));
-}
-
-function getPasscode() {
-  return sessionStorage.getItem('admin_passcode') || '';
-}
-
-function setPasscode() {
-  const current = getPasscode();
-  const next = prompt('Enter admin passcode', current || '');
-  if (next !== null) {
-    sessionStorage.setItem('admin_passcode', next);
-    updatePasscodeStatus();
-  }
-}
-
-function updatePasscodeStatus() {
-  document.getElementById('passcodeStatus').textContent =
-    getPasscode() ? 'Passcode set' : 'Passcode not set';
-}
-updatePasscodeStatus();
-
-const input = document.getElementById('trackInput');
-input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLookup(); });
-
-let currentShipmentNumber = '';
-
-async function doLookup() {
-  const shipmentNumber = input.value.trim();
+async function run() {
+  const btn = document.getElementById('btn');
   const errorBox = document.getElementById('errorBox');
-  const loadingBox = document.getElementById('loadingBox');
-  const card = document.getElementById('resultCard');
-  const btn = document.getElementById('trackBtn');
   const successBox = document.getElementById('successBox');
-
   errorBox.classList.remove('show');
   successBox.classList.remove('show');
-  card.classList.remove('show');
 
-  if (!getPasscode()) {
-    errorBox.textContent = 'Set the admin passcode first.';
-    errorBox.classList.add('show');
-    return;
-  }
-  if (!shipmentNumber) {
-    errorBox.textContent = 'Enter a tracking number to search.';
+  const base = document.getElementById('baseUrl').value.trim().replace(/\/$/, '');
+  const passcode = document.getElementById('passcode').value;
+  if (!passcode) {
+    errorBox.textContent = 'Enter the admin passcode.';
     errorBox.classList.add('show');
     return;
   }
 
   btn.disabled = true;
-  loadingBox.classList.add('show');
-
   try {
-    const res = await fetch('/ship/' + encodeURIComponent(shipmentNumber) + '/admin-lookup', {
-      headers: { 'X-Admin-Passcode': getPasscode() }
+    // Step 1: create the draft
+    const createBody = new URLSearchParams({
+      pickup: document.getElementById('pickup').value,
+      delivery: document.getElementById('delivery').value,
+      weight_kg: document.getElementById('weight').value,
+      speed_tier: 'seven_day',
+      recipient_name: document.getElementById('recipientName').value,
+      recipient_email: document.getElementById('recipientEmail').value,
     });
-    if (!res.ok) {
-      if (res.status === 401) throw new Error('Wrong admin passcode.');
-      if (res.status === 404) throw new Error("No shipment found with that tracking number.");
-      throw new Error('Something went wrong (status ' + res.status + ').');
-    }
-    const data = await res.json();
-    currentShipmentNumber = data.shipment_number;
-    renderResult(data);
-  } catch (e) {
-    errorBox.textContent = e.message;
-    errorBox.classList.add('show');
-  } finally {
-    btn.disabled = false;
-    loadingBox.classList.remove('show');
-  }
-}
-
-function renderResult(data) {
-  document.getElementById('rShipNum').innerHTML =
-    escapeHtml(data.shipment_number) +
-    `<span class="paidBadge ${data.status === 'paid' ? 'paid' : 'unpaid'}">${data.status === 'paid' ? 'PAID' : data.status.toUpperCase()}</span>`;
-  document.getElementById('rShipType').textContent =
-    (data.shipment_type === 'international' ? 'International' : 'Domestic') + ' shipment';
-  document.getElementById('rPickup').textContent = data.pickup;
-  document.getElementById('rDelivery').textContent = data.delivery;
-
-  const contactParts = [];
-  if (data.recipient_name) contactParts.push(escapeHtml(data.recipient_name));
-  if (data.recipient_email) contactParts.push(escapeHtml(data.recipient_email));
-  if (data.recipient_phone) contactParts.push(escapeHtml(data.recipient_phone));
-  document.getElementById('rContact').innerHTML = contactParts.length
-    ? contactParts.join(' · ')
-    : '<span class="none">No recipient contact on file — nothing will be sent</span>';
-
-  document.getElementById('rCurrentStatus').innerHTML =
-    `<span class="currentStatus">Current: ${escapeHtml((data.current_status || '').replace(/_/g, ' '))}</span>`;
-  document.getElementById('statusSelect').value = data.current_status;
-
-  const timelineEl = document.getElementById('rTimeline');
-  if (!data.history.length) {
-    timelineEl.innerHTML = '<li>No status history yet.</li>';
-  } else {
-    timelineEl.innerHTML = data.history.map((h, i) => {
-      const isCurrent = i === data.history.length - 1;
-      return `
-        <li class="${isCurrent ? 'current' : ''}">
-          <div class="tStatus">${escapeHtml(h.status.replace(/_/g, ' '))}</div>
-          ${h.note ? `<div class="tNote">${escapeHtml(h.note)}</div>` : ''}
-          <div class="tWhen">${escapeHtml(h.at)}</div>
-        </li>
-      `;
-    }).join('');
-  }
-
-  document.getElementById('resultCard').classList.add('show');
-}
-
-async function doUpdate() {
-  const errorBox = document.getElementById('errorBox');
-  const successBox = document.getElementById('successBox');
-  const btn = document.getElementById('updateBtn');
-  const status = document.getElementById('statusSelect').value;
-  const note = document.getElementById('noteInput').value.trim();
-
-  errorBox.classList.remove('show');
-  successBox.classList.remove('show');
-
-  if (!currentShipmentNumber) return;
-
-  btn.disabled = true;
-  try {
-    const body = new URLSearchParams({ delivery_status: status, note: note });
-    const res = await fetch('/ship/' + encodeURIComponent(currentShipmentNumber) + '/status', {
+    const createRes = await fetch(base + '/ship/create', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'X-Admin-Passcode': getPasscode()
-      },
-      body: body.toString()
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: createBody.toString(),
     });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.detail || ('Update failed (status ' + res.status + ')'));
+    if (!createRes.ok) {
+      const d = await createRes.json().catch(() => ({}));
+      throw new Error('Create failed: ' + (d.detail || createRes.status));
     }
-    const data = await res.json();
-    const notified = data.notified || {};
-    const parts = [];
-    if (notified.email_sent) parts.push('email sent');
-    if (notified.sms_sent) parts.push('SMS sent');
-    successBox.textContent = parts.length
-      ? `Status updated to "${status.replace(/_/g, ' ')}" — ${parts.join(' and ')}.`
-      : `Status updated to "${status.replace(/_/g, ' ')}" — no contact info on file, nothing sent.`;
+    const createData = await createRes.json();
+    const draftId = createData.id;
+
+    // Step 2: mark it paid via cash
+    const payRes = await fetch(base + '/ship/' + encodeURIComponent(draftId) + '/pay/cash', {
+      method: 'POST',
+      headers: { 'X-Admin-Passcode': passcode },
+    });
+    if (!payRes.ok) {
+      const d = await payRes.json().catch(() => ({}));
+      throw new Error('Cash-pay failed: ' + (d.detail || payRes.status));
+    }
+    const payData = await payRes.json();
+
+    successBox.innerHTML = 'Created and paid! Tracking number:<br>' +
+      '<span class="num">' + payData.shipment_number + '</span><br><br>' +
+      'Copy this into Shipment Admin\'s Look Up box.';
     successBox.classList.add('show');
-    doLookup();
   } catch (e) {
     errorBox.textContent = e.message;
     errorBox.classList.add('show');
