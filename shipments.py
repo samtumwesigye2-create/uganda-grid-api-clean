@@ -353,6 +353,25 @@ def register_rate_routes(addresses_ref):
             })
         return {"country": country, "zone": zone, "weight_kg": weight_kg, "quotes": quotes}
 
+    @router.get("/ship/list")
+    def list_shipments(
+        delivery_status: str = Query(default=""),
+        x_admin_passcode: str = Header(default=""),
+    ):
+        check_admin(x_admin_passcode)
+        conn = get_conn()
+        if delivery_status:
+            rows = conn.execute(
+                "SELECT * FROM shipments WHERE status = 'paid' AND delivery_status = ? ORDER BY created_at DESC",
+                (delivery_status,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM shipments WHERE status = 'paid' ORDER BY created_at DESC"
+            ).fetchall()
+        conn.close()
+        return {"count": len(rows), "results": [dict(r) for r in rows]}
+
     # -----------------------------------------------------------------
     # Draft creation — NO tracking number yet. status='awaiting_payment'.
     # -----------------------------------------------------------------
