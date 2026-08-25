@@ -53,6 +53,30 @@
   .dropdownMenu.open { display:block; }
   .dropdownItem { padding:9px 12px; font-size:13px; color:#ccc; cursor:pointer; }
   .dropdownItem:hover, .dropdownItem.selected { background:#2a3a7a; color:#fff; }
+
+  /* ---- Tracking modal ---- */
+  .modalOverlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; align-items:center; justify-content:center; padding:16px; }
+  .modalOverlay.open { display:flex; }
+  .modalBox { background:#171a2b; border:1px solid #2a2d3e; border-radius:12px; max-width:460px; width:100%; max-height:85vh; overflow-y:auto; padding:18px; }
+  .modalBox h2 { font-size:17px; margin:0 0 4px; }
+  .modalBox .modalSub { color:#999; font-size:12px; margin-bottom:14px; }
+  .modalClose { float:right; background:none; border:none; color:#999; font-size:20px; cursor:pointer; line-height:1; }
+  .trackRoute { background:#0f1220; border:1px solid #2a2d3e; border-radius:8px; padding:10px 12px; font-size:13px; margin-bottom:14px; }
+  .trackRoute div { margin-bottom:4px; }
+  .trackRoute .label { color:#888; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+  .timeline { list-style:none; margin:0 0 16px; padding:0; }
+  .timeline li { position:relative; padding:0 0 16px 22px; border-left:2px solid #2a2d3e; }
+  .timeline li:last-child { border-left:2px solid transparent; padding-bottom:0; }
+  .timeline li::before { content:''; position:absolute; left:-7px; top:2px; width:12px; height:12px; border-radius:50%; background:#3b5bfd; border:2px solid #171a2b; }
+  .timeline li.current::before { background:#e2593a; }
+  .timeline .tStatus { font-size:13px; font-weight:600; text-transform:capitalize; }
+  .timeline .tNote { font-size:12px; color:#bbb; margin-top:2px; }
+  .timeline .tWhen { font-size:11px; color:#777; margin-top:2px; }
+  .updateBox { border-top:1px solid #2a2d3e; padding-top:14px; }
+  .updateBox label { display:block; font-size:12px; color:#999; margin-bottom:4px; }
+  .updateBox select, .updateBox input { width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0f1220; color:#eee; margin-bottom:8px; font-size:13px; }
+  .updateBox button { width:100%; padding:10px; border-radius:6px; border:none; background:#3b5bfd; color:#fff; font-size:14px; cursor:pointer; }
+  .trackError { color:#e2593a; font-size:13px; padding:10px 0; }
 </style>
 </head>
 <body>
@@ -302,8 +326,22 @@
   </div>
 </div>
 
+<!-- ---- Tracking modal: click a shipment status to open ---- -->
+<div class="modalOverlay" id="trackModalOverlay" onclick="if(event.target===this) closeTrackingModal()">
+  <div class="modalBox">
+    <button class="modalClose" onclick="closeTrackingModal()">&times;</button>
+    <h2 id="trackModalTitle">Shipment</h2>
+    <div class="modalSub" id="trackModalSub"></div>
+    <div id="trackModalBody">Loading…</div>
+  </div>
+</div>
+
 <script>
 let PASS = "";
+const DELIVERY_STATUS_OPTIONS = [
+  "created","picked_up","in_transit","out_for_delivery",
+  "delivered","failed_delivery","returned","cancelled"
+];
 
 function unlock() {
   PASS = document.getElementById('pass').value;
@@ -371,6 +409,7 @@ shipStatusMenu.querySelectorAll('.dropdownItem').forEach(item => {
 });
 
 document.addEventListener('click', () => shipStatusMenu.classList.remove('open'));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTrackingModal(); });
 
 function authHeaders() {
   return { 'X-Admin-Passcode': PASS, 'x-access-code': PASS };
@@ -418,6 +457,11 @@ function renderTable(container, rows, columns) {
 }
 
 function escapeAttr(s) { return String(s).replace(/'/g, "\\'"); }
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
 
 async function loadSubmissions() {
   const out = document.getElementById('submissionsOut');
@@ -472,30 +516,100 @@ async function loadShipments() {
       { label: 'Payment', render: r => `<span class="badge ${r.status === 'paid' ? 'paid' : 'pending'}">${r.status}</span>` },
       { label: 'Delivery Status', render: r => {
           const current = (r.delivery_status || 'created').replace('_',' ');
-          return `<button class="rowBtn edit" onclick="openStatusUpdate('${r.shipment_number}')">${current}</button>`;
+          return `<button class="rowBtn edit" onclick="openTrackingModal('${escapeAttr(r.shipment_number)}')">${current}</button>`;
         }
       },
     ]);
   } catch (e) { out.innerHTML = '<div class="empty">Error loading shipments.</div>'; }
 }
 
-function openStatusUpdate(shipmentNumber) {
-  const opts = ['created','picked_up','in_transit','out_for_delivery','delivered','failed_delivery','returned','cancelled','delayed'];
-  const optionsList = opts.map((o, i) => `${i + 1}. ${o.replace('_',' ')}`).join('\n');
-  const choice = prompt('Update status for ' + shipmentNumber + ':\n' + optionsList + '\n\nEnter the number:');
-  if (choice === null) return;
-  const idx = parseInt(choice.trim(), 10) - 1;
-  if (isNaN(idx) || idx < 0 || idx >= opts.length) { alert('Invalid choice'); return; }
-  const newStatus = opts[idx];
-  const note = prompt('Message for the customer (optional):') || '';
-  updateShipStatus(shipmentNumber, newStatus, note);
+// ---- Tracking modal: shows the full status timeline for a shipment,
+// plus an admin control to push a new status (which the customer will
+// then see reflected in the same timeline via the public /track endpoint). ----
+
+function closeTrackingModal() {
+  document.getElementById('trackModalOverlay').classList.remove('open');
 }
 
-async function updateShipStatus(shipmentNumber, newStatus, note) {
+async function openTrackingModal(shipmentNumber) {
+  const overlay = document.getElementById('trackModalOverlay');
+  const title = document.getElementById('trackModalTitle');
+  const sub = document.getElementById('trackModalSub');
+  const body = document.getElementById('trackModalBody');
+
+  title.textContent = shipmentNumber;
+  sub.textContent = '';
+  body.innerHTML = 'Loading…';
+  overlay.classList.add('open');
+
   try {
-    await authedPost('/ship/' + shipmentNumber + '/status', { delivery_status: newStatus, note: note || '' });
+    const data = await fetch('/ship/' + encodeURIComponent(shipmentNumber) + '/track').then(res => {
+      if (!res.ok) throw new Error('Could not load tracking info (status ' + res.status + ')');
+      return res.json();
+    });
+    renderTrackingModal(shipmentNumber, data);
+  } catch (e) {
+    body.innerHTML = `<div class="trackError">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderTrackingModal(shipmentNumber, data) {
+  const sub = document.getElementById('trackModalSub');
+  const body = document.getElementById('trackModalBody');
+
+  sub.textContent = (data.shipment_type === 'international' ? 'International' : 'Domestic') + ' shipment';
+
+  const routeHtml = `
+    <div class="trackRoute">
+      <div><span class="label">Pickup</span><br>${escapeHtml(data.pickup)}</div>
+      <div><span class="label">Delivery</span><br>${escapeHtml(data.delivery)}</div>
+    </div>
+  `;
+
+  const historyHtml = data.history.length
+    ? '<ul class="timeline">' + data.history.map((h, i) => {
+        const isCurrent = i === data.history.length - 1;
+        return `
+          <li class="${isCurrent ? 'current' : ''}">
+            <div class="tStatus">${escapeHtml(h.status.replace(/_/g, ' '))}</div>
+            ${h.note ? `<div class="tNote">${escapeHtml(h.note)}</div>` : ''}
+            <div class="tWhen">${escapeHtml(h.at)}</div>
+          </li>
+        `;
+      }).join('') + '</ul>'
+    : '<div class="empty">No status history yet.</div>';
+
+  const optionsHtml = DELIVERY_STATUS_OPTIONS.map(o =>
+    `<option value="${o}" ${o === data.current_status ? 'selected' : ''}>${o.replace(/_/g,' ')}</option>`
+  ).join('');
+
+  const updateHtml = `
+    <div class="updateBox">
+      <label>Update status</label>
+      <select id="trackNewStatus">${optionsHtml}</select>
+      <label>Note for customer (optional)</label>
+      <input id="trackNewNote" placeholder="e.g. Held at Kampala hub, resuming tomorrow" />
+      <button onclick="submitTrackingUpdate('${escapeAttr(shipmentNumber)}')">Update Status</button>
+    </div>
+  `;
+
+  body.innerHTML = routeHtml + historyHtml + updateHtml;
+}
+
+async function submitTrackingUpdate(shipmentNumber) {
+  const newStatus = document.getElementById('trackNewStatus').value;
+  const note = document.getElementById('trackNewNote').value.trim();
+  try {
+    await authedPost('/ship/' + encodeURIComponent(shipmentNumber) + '/status', {
+      delivery_status: newStatus,
+      note: note
+    });
+    // Refresh the modal's timeline in place, and the shipments table behind it.
+    await openTrackingModal(shipmentNumber);
     loadShipments();
-  } catch (e) { alert(e.message); }
+  } catch (e) {
+    alert(e.message);
+  }
 }
 
 async function createInvoice() {
