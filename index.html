@@ -586,5 +586,43 @@ navigator.serviceWorker.register('/sw.js').catch(function () {});
 }
 })();
 </script>
+
+<script id="ugandaNewsFallbackV1">
+(function(){
+  let loading=false, loaded=false;
+  const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function findFailedNewsNode(){
+    const all=[...document.querySelectorAll('div,p,span')];
+    return all.find(el=>el.children.length===0 && /unable to load news/i.test((el.textContent||'').trim()));
+  }
+  async function repair(){
+    if(loading||loaded)return;
+    const node=findFailedNewsNode();
+    if(!node)return;
+    loading=true;
+    try{
+      const r=await fetch('/news/uganda',{cache:'no-store'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const d=await r.json();
+      const items=Array.isArray(d.results)?d.results:[];
+      if(!items.length)throw new Error('No headlines');
+      node.innerHTML=items.slice(0,6).map(x=>
+        '<a class="newsItem" href="'+esc(x.url)+'" target="_blank" rel="noopener" style="display:block;margin:0 0 7px">'+
+        '<div class="newsTitle">'+esc(x.title)+'</div>'+
+        '<div class="newsSource">'+esc(x.source||'News')+'</div></a>'
+      ).join('');
+      node.style.color='inherit';
+      loaded=true;
+    }catch(e){
+      node.textContent='News temporarily unavailable — tap More again to retry.';
+    }finally{loading=false;}
+  }
+  const observer=new MutationObserver(()=>setTimeout(repair,0));
+  observer.observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','style']});
+  document.addEventListener('click',()=>setTimeout(repair,120));
+  window.addEventListener('load',()=>setTimeout(repair,500));
+})();
+</script>
+
 </body>
 </html>

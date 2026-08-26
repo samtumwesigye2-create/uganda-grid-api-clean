@@ -7,6 +7,8 @@ import json
 import os
 import time
 import uuid
+import urllib.request
+import xml.etree.ElementTree as ET
 
 app = FastAPI(title="Uganda National Grid API", version="1.5")
 
@@ -225,6 +227,43 @@ def delete_address(grid_id: str, x_admin_passcode: str = Header(default="")):
         raise HTTPException(status_code=404, detail="Address not found")
     save_addresses(updated_list)
     return {"grid_id": grid_id, "deleted": True}
+
+
+@app.get("/news/uganda")
+def uganda_trending_news():
+    """Same-origin proxy for Uganda headlines so the mobile UI does not
+    depend on third-party browser CORS support."""
+    rss_url = "https://news.google.com/rss/search?q=Uganda&hl=en-UG&gl=UG&ceid=UG:en"
+    req = urllib.request.Request(
+        rss_url,
+        headers={"User-Agent": "Mozilla/5.0 UgandaNationalGrid/1.0"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            root = ET.fromstring(resp.read())
+        items = []
+        for node in root.findall('.//item')[:8]:
+            title = (node.findtext('title') or '').strip()
+            link = (node.findtext('link') or '').strip()
+            pub_date = (node.findtext('pubDate') or '').strip()
+            source_node = node.find('source')
+            source = (source_node.text or '').strip() if source_node is not None else 'News'
+            if title and link:
+                items.append({"title": title, "url": link, "source": source, "published": pub_date})
+        if not items:
+            raise RuntimeError('No headlines returned')
+        return {"count": len(items), "results": items}
+    except Exception as exc:
+        # Keep the UI useful even if the external feed is temporarily unavailable.
+        return {
+            "count": 3,
+            "degraded": True,
+            "results": [
+                {"title": "Uganda news — BBC Africa", "url": "https://www.bbc.com/news/topics/cz4pr2gd85qt", "source": "BBC News", "published": ""},
+                {"title": "Latest Uganda news", "url": "https://www.monitor.co.ug/uganda/news/national", "source": "Daily Monitor", "published": ""},
+                {"title": "Uganda news and current affairs", "url": "https://www.newvision.co.ug/", "source": "New Vision", "published": ""},
+            ],
+        }
 
 
 @app.get("/stats")
