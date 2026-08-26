@@ -1,5 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Uganda National Grid</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+:root{
+--bg-page:#0b1220;
+--bg-header:#0f1830;
+--bg-card:#1c2540;
+--bg-input:#1b2338;
+--text-primary:#f5f7fb;
+--text-secondary:#9aa4bd;
+--border-subtle:rgba(255,255,255,0.08);
+--border-strong:rgba(255,255,255,0.22);
+--accent-red:#e0332f;
+--accent-blue:#3b5bfd;
+--accent-amber:#f5a623;
+--accent-green:#22c55e;
+--success-bg:rgba(16,60,36,0.55);
+--success-text:#6fe3a1;
+--err-bg:rgba(80,20,20,0.55);
+--err-text:#f39a9a;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:var(--bg-page);color:var(--text-primary);display:flex;flex-direction:column;height:100vh;height:calc(var(--vh, 1vh) * 100);overflow:hidden}
+header{flex:0 0 auto;background:var(--bg-header);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border-subtle);transition:padding .2s ease}
+header .icon-btn{background:none;border:0;color:var(--text-primary);font-size:18px;padding:4px;width:auto}
+header .titleWrap{text-align:center;flex:1}
+header h1{margin:0;font-size:15px;font-weight:700}
+header p{margin:1px 0 0;font-size:10px;color:var(--text-secondary)}
+.contentScroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.panel{flex:0 0 auto;max-width:900px;width:100%;margin:0 auto;padding:8px 10px;transition:opacity .15s ease}
+.field{position:relative;margin-bottom:8px}
+label{display:block;font-weight:700;font-size:11px;margin-bottom:4px;color:var(--text-secondary)}
+input,select,textarea{width:100%;font-size:14px;border-radius:10px;padding:10px 36px 10px 12px;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-primary)}
+input::placeholder,textarea::placeholder{color:var(--text-secondary)}
+.fieldIcon{
+position:absolute;
+right:8px;
+top:26px;
+width:24px;
+height:24px;
+display:flex;
+align-items:center;
+justify-content:center;
+color:var(--text-secondary);
+font-size:15px;
+background:none;
+border:0;
+padding:0;
+cursor:pointer;
+}
+#start{ padding-right:40px; }
+button{width:100%;font-size:14px;border-radius:10px;padding:10px;border:0;font-weight:700;cursor:pointer;color:var(--text-primary)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
+select{background:var(--bg-input);padding:10px 12px}
+#navigate{background:var(--accent-red);display:flex;align-items:center;justify-content:center;gap:8px}
+#navigate .btnIcon{flex:0 0 auto;display:block}
+#navigate .navText{display:flex;flex-direction:column;align-items:flex-start;line-height:1.25}
+#navigate .navMain{display:block;font-size:14px}
+#navigate .navSub{display:block;font-size:10px;font-weight:400;opacity:.85}
+.secondaryBtn{background:var(--bg-input);border:1px solid var(--border-subtle)}
+#googleMaps{background:#ffffff;color:#1a73e8;border:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:center;gap:8px}
+#googleMaps .btnIcon{flex:0 0 auto;display:block}
+.suggest{position:absolute;left:0;right:0;top:100%;display:none;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:10px;max-height:220px;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;overscroll-behavior:contain;z-index:3000;box-shadow:0 8px 20px rgba(0,0,0,.5)}
+.suggest div{padding:12px;border-bottom:1px solid var(--border-subtle);cursor:pointer;font-size:14px;color:var(--text-primary)}
+.suggest div:last-child{border-bottom:0}
+.suggest div:active,.suggest div:hover{background:var(--bg-input)}
+.selected{font-size:11px;color:var(--text-secondary);min-height:14px;margin-top:3px}
+.status{font-size:12px;margin:6px 0 0;padding:8px 10px;border-radius:8px;background:var(--bg-input)}
+.status.ok{background:var(--success-bg);color:var(--success-text)}
+.status.err{background:var(--err-bg);color:var(--err-text)}
+#info{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.routecard{background:var(--bg-input);border-radius:999px;padding:5px 9px;font-size:11px}
+
+/* ---- Map + full-screen navigation mode ---- */
+.mapWrap{position:relative;flex:1 1 auto;min-height:160px;width:100%;overflow:hidden;background:#0b1220}
+#map{position:absolute;top:50%;left:50%;width:160%;height:160%;transform:translate(-50%,-50%) rotate(0deg);transform-origin:center center;transition:transform .35s linear}
+#map.no-anim{transition:none}
+.leaflet-tile-pane{transition:filter .3s ease}
+.map-dark .leaflet-tile-pane{filter:invert(92%) hue-rotate(180deg) brightness(0.94) contrast(0.92) saturate(0.9)}
+.nav-arrow-icon{background:transparent !important;border:none !important}
+
+body.navigating .panel{display:none}
+body.navigating .navWrap{display:none}
+body.navigating header{padding:5px 12px}
+body.navigating header p{display:none}
+
+.navOverlayTop{position:absolute;top:10px;left:10px;right:10px;z-index:950;display:flex;flex-direction:column;gap:7px;pointer-events:none}
+.navOverlayTop>*{pointer-events:auto}
+
+.turnBanner{background:var(--bg-card);border:1px solid var(--border-strong);border-radius:12px;padding:10px 12px;display:none;flex-direction:column;gap:5px;box-shadow:0 4px 16px rgba(0,0,0,.5)}
+.turnBanner.active{display:flex}
+.turnBanner .turnRow{display:flex;align-items:center;gap:8px}
+.turnBanner .turnArrowGlyph{font-size:20px;flex:0 0 auto}
+.turnBanner .turnMain{font-size:15px;font-weight:700;flex:1 1 auto}
+.turnBanner .turnSub{font-size:12px;color:var(--text-secondary)}
+.turnBanner .progressTrack{height:4px;border-radius:2px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:2px}
+.turnBanner .progressFill{height:100%;width:0%;background:var(--accent-blue);border-radius:2px;transition:width .4s ease}
+
+.navSummaryBar{display:none;align-items:center;justify-content:space-between;gap:8px;background:rgba(28,37,64,.92);border:1px solid var(--border-subtle);border-radius:10px;padding:7px 10px;font-size:12px;color:var(--text-secondary)}
+.navSummaryBar.active{display:flex}
+.navSummaryBar .etaVal{color:var(--text-primary);font-weight:700;font-size:13px}
+.navSummaryBar .speedPill{background:var(--bg-input);border-radius:999px;padding:4px 9px;font-weight:700;color:var(--text-primary)}
+.navSummaryBar .followBadge{background:rgba(59,91,253,.18);color:#8fa3ff;border-radius:999px;padding:3px 8px;font-size:10px;font-weight:700;display:none}
+.navSummaryBar .followBadge.show{display:inline-block}
+
+.navControls{display:none;gap:6px;width:100%}
+.navControls.active{display:grid;grid-template-columns:1fr 1fr 1fr 1fr}
+.navControls button{font-size:11px;padding:9px 4px;background:var(--bg-input);border:1px solid var(--border-subtle);width:100%}
+.navControls button#navRecenter.due{border-color:var(--accent-blue);color:#8fa3ff}
+
+.recenterFab{position:absolute;right:14px;bottom:64px;width:40px;height:40px;border-radius:50%;background:var(--accent-blue);color:#fff;font-size:16px;display:none;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
+.recenterFab.show{display:flex}
+
+.startTripBtn{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);width:auto;display:none;align-items:center;gap:8px;background:#d7f2ff;color:#0f4c5c;font-weight:800;font-size:15px;padding:12px 26px;border-radius:999px;border:0;box-shadow:0 6px 18px rgba(0,0,0,.45);z-index:930}
+.startTripBtn.show{display:inline-flex}
+
+.compassFab{position:absolute;right:14px;bottom:156px;width:38px;height:38px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
+.compassFab.locked circle{stroke:var(--accent-blue)}
+#compassNeedle{transform-origin:12px 12px;transition:transform .2s linear}
+
+.satelliteFab{position:absolute;right:14px;bottom:110px;width:38px;height:38px;border-radius:50%;background:#fff;color:#111;font-size:16px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
+.satelliteFab.on{background:#0f4c5c;color:#fff}
+
+.locateFab{position:absolute;right:14px;bottom:14px;width:44px;height:44px;border-radius:50%;background:#fff;color:#111;font-size:17px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900}
+.voiceFab{position:absolute;left:14px;bottom:14px;width:40px;height:40px;border-radius:50%;background:#fff;color:#111;font-size:16px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900;transition:opacity .15s}
+.voiceFab.muted{opacity:.45}
+.nightFab{position:absolute;left:14px;bottom:62px;width:36px;height:36px;border-radius:50%;background:#fff;color:#111;font-size:14px;display:flex;align-items:center;justify-content:center;border:0;box-shadow:0 2px 8px rgba(0,0,0,.4);z-index:900;transition:opacity .15s}
+.nightFab.on{background:#1c2540;color:#f5f7fb}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:5000;align-items:center;justify-content:center;padding:16px}
+.modal-overlay.active{display:flex}
+.modal-box{background:var(--bg-card);border-radius:14px;padding:16px;max-width:420px;width:100%;max-height:85vh;overflow:auto}
+.modal-box h3{margin:0 0 10px;font-size:15px}
+.modal-box textarea{min-height:70px;font-family:inherit;resize:vertical}
+.modal-box input[type=file]{padding:8px;border:1px dashed var(--border-subtle)}
+#modalStatus{font-size:12px;color:var(--text-secondary);min-height:16px;margin-top:6px}
+.modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.modal-actions button{background:var(--bg-input);border:1px solid var(--border-subtle)}
+#modalSubmit{background:var(--accent-blue);border:0}
+.navWrap{flex:0 0 auto;position:relative;background:var(--bg-header);border-top:1px solid var(--border-subtle)}
+.bottomNav{display:flex;justify-content:space-around;padding:6px 0 max(6px, env(safe-area-inset-bottom));overflow-x:auto}
+.navTab{background:none;border:0;color:var(--text-secondary);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:9px;width:auto;padding:4px 6px;flex:0 0 auto}
+.navTab.active{color:var(--text-primary)}
+.navTab .tabIcon{font-size:16px}
+.reportMenu{position:absolute;left:10px;right:10px;bottom:100%;margin-bottom:8px;display:none;grid-template-columns:1fr 1fr 1fr;gap:6px;background:var(--bg-card);border:1px solid var(--border-strong);border-radius:12px;padding:8px;box-shadow:0 8px 24px rgba(0,0,0,.6);z-index:4000}
+.reportMenu button{background:var(--bg-input);border:1px solid var(--border-subtle);font-weight:600;font-size:11px;padding:9px 4px}
+.newsItem{display:block;background:var(--bg-input);border-radius:10px;padding:9px 10px;text-decoration:none;color:var(--text-primary)}
+.newsItem .newsTitle{font-size:13px;font-weight:600}
+.newsItem .newsSource{font-size:11px;color:var(--text-secondary);margin-top:2px}
+.weatherCard{flex:0 0 auto;background:var(--bg-input);border-radius:10px;padding:8px 10px;text-align:center;min-width:58px}
+.weatherCard .wDay{font-size:11px;color:var(--text-secondary)}
+.weatherCard .wIcon{font-size:20px;margin:4px 0}
+.weatherCard .wHi{font-size:12px}
+.weatherCard .wLo{font-size:11px;color:var(--text-secondary)}
+input:disabled{opacity:.6}
+.authTab{width:auto;flex:1;padding:8px;background:var(--bg-input);border:1px solid var(--border-subtle);font-size:13px;font-weight:600;color:var(--text-secondary)}
+.authTab.active{background:var(--accent-blue);color:#fff;border-color:var(--accent-blue)}
+
+.tripItem{background:var(--bg-input);border-radius:10px;padding:10px 12px;margin-bottom:8px}
+.tripItem .tripDest{font-size:13px;font-weight:700}
+.tripItem .tripMeta{font-size:11px;color:var(--text-secondary);margin-top:3px;display:flex;gap:10px;flex-wrap:wrap}
+.emptyState{font-size:12px;color:var(--text-secondary);text-align:center;padding:18px 8px}
+
+.quoteCard{background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:10px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.quoteCard .qLabel{font-size:13px;font-weight:700}
+.quoteCard .qEta{font-size:11px;color:var(--text-secondary)}
+.quoteCard .qPrice{font-size:13px;font-weight:700;color:var(--accent-amber)}
+.quoteCard button{width:auto;padding:8px 14px;background:var(--accent-blue);border:0;font-size:12px}
+
+.adminPanel{margin-top:4px}
+.adminRow{background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:12px}
+.adminRow .arTitle{font-size:13px;font-weight:700;margin-bottom:3px}
+.adminRow .arMeta{color:var(--text-secondary);margin-bottom:6px}
+.adminRow .arActions{display:flex;gap:6px}
+.adminRow .arActions button{width:auto;padding:7px 12px;font-size:11px}
+.adminRow .arApprove{background:var(--accent-green);border:0}
+.adminRow .arDeny{background:var(--accent-red);border:0}
+.adminMiniForm{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;background:var(--bg-input);border-radius:10px;padding:10px;border:1px solid var(--border-subtle)}
+.adminMiniForm button{background:var(--accent-blue);border:0}
+</style>
+
+<style id="ungGlobalBrandStyle">
+  .ungGlobalBrand{
+    flex:0 0 auto;
+    width:100%;
+    min-height:58px;
+    padding:5px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#fff;
+    border-bottom:1px solid rgba(15,23,42,.12);
+    position:relative;
+    z-index:4200;
+  }
+  .ungGlobalBrand a{display:flex;align-items:center;justify-content:center;text-decoration:none;line-height:0;}
+  .ungGlobalBrand img{
+    display:block;
+    width:min(230px,62vw);
+    max-height:56px;
+    object-fit:contain;
+  }
+  @media(max-width:600px){
+    .ungGlobalBrand{min-height:52px;padding:4px 10px;}
+    .ungGlobalBrand img{width:min(205px,68vw);max-height:50px;}
+  }
+  @media print{
+    .ungGlobalBrand{border-bottom:0;padding:0 0 8px;min-height:0;}
+    .ungGlobalBrand img{width:190px;max-height:50px;}
+  }
+</style>
+
+</head>
 <body>
-<div class="ungGlobalBrand" id="ungGlobalBrand"><a href="/" aria-label="Uganda National Grid home"><img src="/assets/uganda-national-grid-logo.jpg?v=official" alt="Uganda National Grid" /></a></div>
+<div class="ungGlobalBrand" id="ungGlobalBrand"><a href="/" aria-label="Uganda National Grid home"><img src="/assets/uganda-national-grid-logo.png" alt="Uganda National Grid" /></a></div>
 
 <header>
 <button class="icon-btn" id="menuBtn" aria-label="Menu">&#9776;</button>
@@ -59,3 +278,373 @@ Google Maps
 <span id="turnSub" class="turnSub"></span>
 <div class="progressTrack"><div id="turnProgressFill" class="progressFill"></div></div>
 </div>
+<div id="navSummaryBar" class="navSummaryBar">
+<span id="navEta">ETA <span class="etaVal">--:--</span></span>
+<span id="navSpeedPill" class="speedPill">-- km/h</span>
+<span id="followBadge" class="followBadge">Following</span>
+</div>
+<div id="navControls" class="navControls">
+<button id="navRecenter">Recenter</button>
+<button id="navPause">Pause</button>
+<button id="navShare">Share ETA</button>
+<button id="navCancel">Cancel</button>
+</div>
+</div>
+
+<button class="startTripBtn" id="startTripBtn" type="button">
+<svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M12 2 L19 21 L12 17 L5 21 Z" fill="#0f4c5c"/></svg>
+Start
+</button>
+
+<button class="compassFab" id="compassBtn" aria-label="Reset to north">
+<svg width="22" height="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+<circle cx="12" cy="12" r="10" fill="none" stroke="#c9ced9" stroke-width="1.5"/>
+<g id="compassNeedle">
+<path d="M12 3 L15 12 L12 10.5 L9 12 Z" fill="#e0332f"/>
+<path d="M12 21 L9 12 L12 13.5 L15 12 Z" fill="#9aa4bd"/>
+</g>
+</svg>
+</button>
+<button class="satelliteFab" id="satelliteToggle" aria-label="Toggle satellite view">&#128758;</button>
+<button class="recenterFab" id="recenterFab" aria-label="Recenter">&#8982;</button>
+<button class="nightFab" id="nightToggle" aria-label="Toggle night mode" aria-pressed="false">&#127769;</button>
+<button class="voiceFab" id="voiceToggle" aria-label="Toggle voice guidance" aria-pressed="false">&#128266;</button>
+<button class="locateFab" id="mapLocateBtn" aria-label="Locate me">&#8982;</button>
+</div>
+</div>
+<div id="reportModalOverlay" class="modal-overlay">
+<div class="modal-box">
+<h3 id="modalTitle">Report</h3>
+<div class="field">
+<label for="reportNote">Message (optional)</label>
+<textarea id="reportNote" placeholder="Add details..."></textarea>
+</div>
+<div class="field">
+<label for="reportFile">Photo or video (optional)</label>
+<input type="file" id="reportFile" accept="image/*,video/*" />
+</div>
+<div id="modalStatus"></div>
+<div class="modal-actions">
+<button id="modalCancel" type="button">Cancel</button>
+<button id="modalSubmit" type="button">Submit</button>
+</div>
+</div>
+</div>
+<div id="profileOverlay" class="modal-overlay">
+<div class="modal-box">
+<h3 id="profileTitle">Account</h3>
+<div id="authTabs" style="display:flex;gap:6px;margin-bottom:10px;">
+<button type="button" id="tabLogin" class="authTab active">Log in</button>
+<button type="button" id="tabSignup" class="authTab">Sign up</button>
+</div>
+<div id="loginForm">
+<div class="field">
+<label for="loginEmail">Email</label>
+<input id="loginEmail" type="email" placeholder="you@example.com" />
+</div>
+<div class="field">
+<label for="loginPassword">Password</label>
+<input id="loginPassword" type="password" placeholder="Password" />
+</div>
+</div>
+<div id="signupForm" style="display:none;">
+<div class="field">
+<label for="suName">Name</label>
+<input id="suName" placeholder="Full name" />
+</div>
+<div class="field">
+<label for="suEmail">Email</label>
+<input id="suEmail" type="email" placeholder="you@example.com" />
+</div>
+<div class="field">
+<label for="suPassword">Password</label>
+<input id="suPassword" type="password" placeholder="At least 6 characters" />
+</div>
+<div class="field">
+<label for="suPhone">Phone number</label>
+<input id="suPhone" placeholder="+256 7xx xxx xxx" />
+</div>
+<div class="field">
+<label for="suAddress">Location address</label>
+<input id="suAddress" placeholder="Address, place or grid ID" />
+</div>
+</div>
+<div id="accountView" style="display:none;">
+<div class="field">
+<label for="accName">Name</label>
+<input id="accName" placeholder="Full name" />
+</div>
+<div class="field">
+<label for="accEmail">Email</label>
+<input id="accEmail" disabled />
+</div>
+<div class="field">
+<label for="accPhone">Phone number</label>
+<input id="accPhone" placeholder="+256 7xx xxx xxx" />
+</div>
+<div class="field">
+<label for="accAddress">Location address</label>
+<input id="accAddress" placeholder="Address, place or grid ID" />
+</div>
+</div>
+<div id="profileStatus" style="font-size:12px;color:var(--text-secondary);min-height:16px;margin-top:4px;"></div>
+<div class="modal-actions" id="authActions">
+<button id="profileCancel" type="button">Close</button>
+<button id="profileSubmit" type="button" style="background:var(--accent-blue);border:0;">Log in</button>
+</div>
+<div class="modal-actions" id="accountActions" style="display:none;">
+<button id="profileLogout" type="button">Log out</button>
+<button id="profileSave" type="button" style="background:var(--accent-blue);border:0;">Save</button>
+</div>
+</div>
+</div>
+<div id="moreOverlay" class="modal-overlay">
+<div class="modal-box" style="max-width:480px;">
+<h3>More</h3>
+<div class="field">
+<label for="weatherRegion">Weather region</label>
+<select id="weatherRegion">
+<option>Kampala</option>
+<option>Entebbe</option>
+<option>Jinja</option>
+<option>Mbarara</option>
+<option>Gulu</option>
+<option>Mbale</option>
+<option>Fort Portal</option>
+<option>Arua</option>
+<option>Masaka</option>
+<option>Lira</option>
+</select>
+</div>
+<div id="weatherForecast" style="display:flex;gap:6px;overflow-x:auto;padding:4px 0;"></div>
+<h3 style="margin-top:16px;">Trending in Uganda</h3>
+<div id="newsList" style="display:flex;flex-direction:column;gap:8px;"></div>
+<div class="modal-actions">
+<button id="moreClose" type="button" style="grid-column:1 / -1;">Close</button>
+</div>
+</div>
+</div>
+<div id="tripsOverlay" class="modal-overlay">
+<div class="modal-box" style="max-width:480px;">
+<h3>Recent trips</h3>
+<div id="tripsList"></div>
+<div class="modal-actions">
+<button id="tripsClose" type="button" style="grid-column:1 / -1;">Close</button>
+</div>
+</div>
+</div>
+
+<div id="shipOverlay" class="modal-overlay">
+<div class="modal-box" style="max-width:480px;">
+<h3>Ship &amp; Mail</h3>
+<div class="row" style="margin-bottom:10px;">
+<button type="button" id="shipTabDomestic" class="authTab active">Domestic (Uganda)</button>
+<button type="button" id="shipTabIntl" class="authTab">International</button>
+</div>
+<div id="shipDomesticForm">
+<div class="field"><label for="shipPickup">Pickup (address or grid ID)</label><input id="shipPickup" placeholder="e.g. UG-ENT-000001" /></div>
+<div class="field"><label for="shipDelivery">Delivery (address or grid ID)</label><input id="shipDelivery" placeholder="e.g. UG-ENT-000400" /></div>
+<div class="field"><label for="shipWeight">Weight (kg)</label><input id="shipWeight" type="number" step="0.1" placeholder="e.g. 2.5" /></div>
+</div>
+<div id="shipIntlForm" style="display:none;">
+<div class="field"><label for="shipCountry">Destination country</label><input id="shipCountry" placeholder="e.g. Kenya" /></div>
+<div class="field"><label for="shipRecipientAddress">Recipient address</label><input id="shipRecipientAddress" placeholder="Recipient's address" /></div>
+<div class="field"><label for="shipWeightIntl">Weight (kg)</label><input id="shipWeightIntl" type="number" step="0.1" placeholder="e.g. 2.5" /></div>
+</div>
+<button id="shipGetRates" type="button" style="background:var(--accent-red);border:0;margin-top:6px;">Get Rates</button>
+<div id="shipQuotes" style="margin-top:10px;display:flex;flex-direction:column;gap:8px;"></div>
+<div id="shipCreateForm" style="display:none;margin-top:12px;">
+<div class="field"><label for="shipSenderName">Sender name</label><input id="shipSenderName" placeholder="Your name" /></div>
+<div class="field"><label for="shipSenderPhone">Sender phone</label><input id="shipSenderPhone" placeholder="+256 7xx xxx xxx" /></div>
+<div class="field"><label for="shipRecipientName">Recipient name</label><input id="shipRecipientName" placeholder="Recipient's name" /></div>
+<div class="field"><label for="shipRecipientPhone">Recipient phone</label><input id="shipRecipientPhone" placeholder="+256 7xx xxx xxx" /></div>
+<button id="shipConfirmCreate" type="button" style="background:var(--accent-blue);border:0;">Create Shipment</button>
+</div>
+<div id="shipStatus" style="font-size:12px;color:var(--text-secondary);min-height:16px;margin-top:8px;"></div>
+<div class="modal-actions">
+<button id="shipClose" type="button" style="grid-column:1 / -1;">Close</button>
+</div>
+</div>
+</div>
+
+<div id="commercialOverlay" class="modal-overlay">
+<div class="modal-box" style="max-width:480px;">
+<h3>Register a Commercial Address</h3>
+<p style="font-size:12px;color:var(--text-secondary);margin-top:-6px;">For landlords and companies registering a building with multiple units. Reviewed by an admin before approval.</p>
+<div class="field"><label for="comCompany">Company name</label><input id="comCompany" placeholder="Company or landlord name" /></div>
+<div class="field"><label for="comApplicantName">Your name</label><input id="comApplicantName" placeholder="Applicant name" /></div>
+<div class="field"><label for="comApplicantPhone">Your phone</label><input id="comApplicantPhone" placeholder="+256 7xx xxx xxx" /></div>
+<div class="field"><label for="comBuildingName">Building name</label><input id="comBuildingName" placeholder="e.g. Walter Apartments" /></div>
+<div class="field"><label for="comAddressText">Address</label><input id="comAddressText" placeholder="Street address" /></div>
+<div class="row">
+<div class="field"><label for="comLat">Latitude</label><input id="comLat" type="number" step="0.0001" placeholder="0.3476" /></div>
+<div class="field"><label for="comLon">Longitude</label><input id="comLon" type="number" step="0.0001" placeholder="32.5825" /></div>
+</div>
+<div class="field"><label for="comUnits">Units (comma-separated)</label><input id="comUnits" placeholder="Apt 1, Apt 2, Suite 3B" /></div>
+<div class="field"><label for="comProof">Proof of ownership (optional)</label><input type="file" id="comProof" accept="image/*,application/pdf" /></div>
+<button id="comSubmit" type="button" style="background:var(--accent-blue);border:0;">Submit Application</button>
+<div id="comStatus" style="font-size:12px;color:var(--text-secondary);min-height:16px;margin-top:8px;"></div>
+<div class="modal-actions">
+<button id="commercialClose" type="button" style="grid-column:1 / -1;">Close</button>
+</div>
+</div>
+</div>
+
+<div id="adminOverlay" class="modal-overlay">
+<div class="modal-box" style="max-width:520px;">
+<h3>Admin</h3>
+<div id="adminLoginView">
+<div class="field"><label for="adminAccessCode">Access code</label><input id="adminAccessCode" type="password" placeholder="Admin or staff passcode" /></div>
+<button id="adminUnlock" type="button" style="background:var(--accent-blue);border:0;">Unlock</button>
+<div id="adminLoginStatus" style="font-size:12px;color:var(--text-secondary);min-height:16px;margin-top:8px;"></div>
+</div>
+<div id="adminDashboard" style="display:none;">
+<div class="row" style="grid-template-columns:1fr 1fr 1fr;margin-bottom:6px;">
+<button type="button" class="authTab adminTab active" id="adminTabSubmissions">Submissions</button>
+<button type="button" class="authTab adminTab" id="adminTabCommercial">Commercial</button>
+<button type="button" class="authTab adminTab" id="adminTabInventory">Inventory</button>
+</div>
+<div class="row" style="grid-template-columns:1fr 1fr;margin-bottom:10px;">
+<button type="button" class="authTab adminTab" id="adminTabInvoices">Invoices</button>
+<button type="button" class="authTab adminTab" id="adminTabStaff">Staff</button>
+</div>
+<div id="adminPanelSubmissions" class="adminPanel"></div>
+<div id="adminPanelCommercial" class="adminPanel" style="display:none;"></div>
+<div id="adminPanelInventory" class="adminPanel" style="display:none;"></div>
+<div id="adminPanelInvoices" class="adminPanel" style="display:none;"></div>
+<div id="adminPanelStaff" class="adminPanel" style="display:none;"></div>
+<button id="adminLock" type="button" style="margin-top:12px;">Lock</button>
+</div>
+<div class="modal-actions">
+<button id="adminClose" type="button" style="grid-column:1 / -1;">Close</button>
+</div>
+</div>
+</div>
+
+<div class="navWrap">
+<div id="reportMenu" class="reportMenu">
+<button class="reportType" data-category="police">Police</button>
+<button class="reportType" data-category="accident">Accident</button>
+<button class="reportType" data-category="road_closure">Closure</button>
+<button class="reportType" data-category="bridge">Bridge</button>
+<button class="reportType" data-category="traffic">Traffic</button>
+<button class="reportType" data-category="weather">Weather</button>
+</div>
+<nav class="bottomNav">
+<button class="navTab active" id="tabHome"><span class="tabIcon">&#8962;</span>Home</button>
+<button class="navTab" id="tabAddress"><span class="tabIcon">&#128205;</span>Address</button>
+<button class="navTab" id="tabSaved"><span class="tabIcon">&#128278;</span>Saved</button>
+<button class="navTab" id="reportBtn"><span class="tabIcon">&#9888;</span>Report</button>
+<button class="navTab" id="tabMore"><span class="tabIcon">&#8943;</span>More</button>
+</nav>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/app.js?v=8"></script>
+<script>
+(function () {
+function setVH() {
+document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px');
+}
+setVH();
+window.addEventListener('resize', setVH);
+
+var tabs = ['tabHome','tabAddress','tabSaved','reportBtn','tabMore'];
+function setActiveTab(id) {
+tabs.forEach(function (t) {
+var el = document.getElementById(t);
+if (el) el.classList.toggle('active', t === id);
+});
+}
+
+var homeBtn = document.getElementById('tabHome');
+if (homeBtn) homeBtn.addEventListener('click', function () { setActiveTab('tabHome'); });
+
+var addressBtn = document.getElementById('tabAddress');
+if (addressBtn) addressBtn.addEventListener('click', function () {
+window.location.href = '/submit';
+});
+
+var savedBtn = document.getElementById('tabSaved');
+if (savedBtn) savedBtn.addEventListener('click', function () {
+setActiveTab('tabSaved');
+if (window.UGAMAP && window.UGAMAP.openTrips) window.UGAMAP.openTrips();
+});
+
+var moreBtn = document.getElementById('tabMore');
+if (moreBtn) moreBtn.addEventListener('click', function () { setActiveTab('tabMore'); });
+
+var reportBtn = document.getElementById('reportBtn');
+var reportMenu = document.getElementById('reportMenu');
+if (reportBtn && reportMenu) {
+reportBtn.addEventListener('click', function (e) {
+e.stopPropagation();
+var isOpen = reportMenu.style.display === 'grid';
+reportMenu.style.display = isOpen ? 'none' : 'grid';
+setActiveTab(isOpen ? 'tabHome' : 'reportBtn');
+});
+document.addEventListener('click', function (e) {
+if (reportMenu.style.display !== 'grid') return;
+if (reportMenu.contains(e.target) || reportBtn.contains(e.target)) return;
+reportMenu.style.display = 'none';
+});
+}
+
+var mapLocateBtn = document.getElementById('mapLocateBtn');
+if (mapLocateBtn) mapLocateBtn.addEventListener('click', function () {
+var ml = document.getElementById('myLocation');
+if (ml) ml.click();
+});
+
+var startLocateBtn = document.getElementById('startLocateBtn');
+if (startLocateBtn) startLocateBtn.addEventListener('click', function () {
+var ml = document.getElementById('myLocation');
+if (ml) ml.click();
+});
+
+if ('serviceWorker' in navigator) {
+window.addEventListener('load', function () {
+navigator.serviceWorker.register('/sw.js').catch(function () {});
+});
+}
+})();
+</script>
+
+<script id="ugandaNewsFallbackV1">
+(function(){
+  let loading=false, loaded=false;
+  const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function findFailedNewsNode(){
+    const all=[...document.querySelectorAll('div,p,span')];
+    return all.find(el=>el.children.length===0 && /unable to load news/i.test((el.textContent||'').trim()));
+  }
+  async function repair(){
+    if(loading||loaded)return;
+    const node=findFailedNewsNode();
+    if(!node)return;
+    loading=true;
+    try{
+      const r=await fetch('/news/uganda',{cache:'no-store'});
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const d=await r.json();
+      const items=Array.isArray(d.results)?d.results:[];
+      if(!items.length)throw new Error('No headlines');
+      node.innerHTML=items.slice(0,6).map(x=>
+        '<a class="newsItem" href="'+esc(x.url)+'" target="_blank" rel="noopener" style="display:block;margin:0 0 7px">'+
+        '<div class="newsTitle">'+esc(x.title)+'</div>'+
+        '<div class="newsSource">'+esc(x.source||'News')+'</div></a>'
+      ).join('');
+      node.style.color='inherit';
+      loaded=true;
+    }catch(e){
+      node.textContent='News temporarily unavailable — tap More again to retry.';
+    }finally{loading=false;}
+  }
+  const observer=new MutationObserver(()=>setTimeout(repair,0));
+  observer.observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','style']});
+  document.addEventListener('click',()=>setTimeout(repair,120));
+  window.addEventListener('load',()=>setTimeout(repair,500));
+})();
+</script>
+
+</body>
+</html>
