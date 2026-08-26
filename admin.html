@@ -114,7 +114,10 @@
     <div class="formBox">
       <h3 style="margin-top:0;">Look Up &amp; Update a Shipment</h3>
       <input id="shipLookupInput" placeholder="Tracking number (e.g. UG-SHIP-000001)" />
-      <button onclick="lookupShipment()">Look Up</button>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <button onclick="lookupShipment()">Look Up</button>
+        <div id="shipLookupActions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;"></div>
+      </div>
       <div id="shipLookupOut" style="margin-top:12px;"></div>
     </div>
 
@@ -555,17 +558,24 @@ async function loadMailing() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading mailing list.</div>'; }
 }
 
+let shipLookupCurrentNumber = '';
+let shipLookupSelectedStatus = 'created';
+
 async function lookupShipment() {
   const number = document.getElementById('shipLookupInput').value.trim();
   const out = document.getElementById('shipLookupOut');
-  if (!number) { out.innerHTML = '<div class="empty">Enter a tracking number.</div>'; return; }
+  const actions = document.getElementById('shipLookupActions');
+  if (!number) { out.innerHTML = '<div class="empty">Enter a tracking number.</div>'; actions.innerHTML = ''; return; }
   out.innerHTML = '<div class="empty">Looking up…</div>';
+  actions.innerHTML = '';
   try {
     const data = await authedFetch('/ship/' + encodeURIComponent(number) + '/admin-lookup');
     const contact = [data.recipient_name, data.recipient_email, data.recipient_phone]
       .filter(Boolean).join(' · ') || 'No contact info on file';
     const current = (data.current_status || 'created').replace('_', ' ');
     const currentValue = data.current_status || 'created';
+    shipLookupCurrentNumber = data.shipment_number;
+    shipLookupSelectedStatus = currentValue;
 
     out.innerHTML = `
       <div style="margin-bottom:10px;">
@@ -574,20 +584,26 @@ async function lookupShipment() {
         <div style="font-size:12px;color:#999;margin-top:4px;">${data.pickup} → ${data.delivery}</div>
         <div style="font-size:12px;color:#999;margin-top:2px;">Current status: ${current}</div>
         <div style="font-size:12px;color:#999;margin-top:2px;">Will notify: ${contact}</div>
-        <div style="font-size:11px;color:#666;margin-top:6px;">Pick a status below to save and notify instantly.</div>
       </div>
-      ${buildStatusDropdownHtml('shipLookupStatus', currentValue)}
       <input id="shipLookupNote" placeholder="Note for customer (optional)" />
     `;
 
-    wireStatusDropdown('shipLookupStatus', async (newStatus) => {
-      const note = document.getElementById('shipLookupNote').value.trim();
-      await updateShipStatus(data.shipment_number, newStatus, note);
-      lookupShipment();
+    actions.innerHTML = buildStatusDropdownHtml('shipLookupStatus', currentValue) +
+      '<button onclick="saveShipmentStatus()">Save</button>';
+
+    wireStatusDropdown('shipLookupStatus', (newStatus) => {
+      shipLookupSelectedStatus = newStatus;
     });
   } catch (e) {
     out.innerHTML = '<div class="empty">' + e.message + '</div>';
   }
+}
+
+async function saveShipmentStatus() {
+  const noteInput = document.getElementById('shipLookupNote');
+  const note = noteInput ? noteInput.value.trim() : '';
+  await updateShipStatus(shipLookupCurrentNumber, shipLookupSelectedStatus, note);
+  lookupShipment();
 }
 
 let lastShipments = [];
