@@ -1,0 +1,22 @@
+name: Patch Customer Placeholder Values
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-customer-placeholder-values.yml'
+      - 'scripts/patch_customer_placeholder_values.py'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python scripts/patch_customer_placeholder_values.py
+      - name: Commit
+        run: |
+          if git diff --quiet -- index.html; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Add provisional customer-facing business values [skip ci]"
+          git push origin HEAD:main
