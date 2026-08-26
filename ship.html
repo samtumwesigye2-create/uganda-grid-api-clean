@@ -557,6 +557,40 @@ if (heroTrackButtonLive && heroTrackResultLive) {
 }
 </script>
 
+
+<div class="toolDialog" id="poBoxApplicationDialog">
+  <div class="toolDialogBox">
+    <h3>Apply for a P.O. Box</h3>
+    <p style="font-size:13px;color:#666;margin-top:-4px">Applications are reviewed by Uganda National Grid administration before any box number is assigned.</p>
+    <div id="poBoxApplyForm">
+      <label>Full name *</label><input id="poName" placeholder="Applicant name" />
+      <label>Email</label><input id="poEmail" type="email" placeholder="you@example.com" />
+      <label>Phone</label><input id="poPhone" placeholder="+256..." />
+      <label>Physical / National Grid address *</label><input id="poAddress" placeholder="Street address or National Grid address" />
+      <label>Grid ID (recommended)</label><input id="poGridId" placeholder="e.g. UG-ENT-000400" />
+      <label>Preferred service branch *</label>
+      <select id="poBranch">
+        <option value="">Select branch</option>
+        <option>Kampala Central</option><option>Entebbe</option><option>Jinja</option><option>Mbarara</option>
+        <option>Gulu</option><option>Mbale</option><option>Fort Portal</option><option>Arua</option><option>Masaka</option><option>Lira</option>
+      </select>
+      <label>Box size</label>
+      <select id="poSize"><option value="small">Small</option><option value="medium">Medium</option><option value="large">Large</option><option value="business">Business</option></select>
+      <label>Business name (optional)</label><input id="poBusiness" placeholder="Business or organization" />
+      <label>Notes (optional)</label><textarea id="poNotes" placeholder="Any special requirements"></textarea>
+      <div class="toolStatus" id="poApplyStatus"></div>
+      <div class="toolDialogActions"><button type="button" id="poCancel">Cancel</button><button class="btn secondary" type="button" id="poSubmit">Submit Application</button></div>
+    </div>
+    <hr style="border:0;border-top:1px solid #ddd;margin:20px 0">
+    <h3 style="font-size:16px">Check or update an application</h3>
+    <label>Application ID</label><input id="poCheckId" placeholder="UG-POA-XXXXXXXXXX" />
+    <label>Email or phone used on application</label><input id="poCheckContact" placeholder="Email or phone" />
+    <button class="btn secondary" type="button" id="poCheckBtn">Check Status</button>
+    <div class="toolStatus" id="poCheckStatus"></div>
+    <button class="btn" type="button" id="poReviseBtn" style="display:none">Submit Requested Changes Using Form Above</button>
+  </div>
+</div>
+
 <script id="customerQuickToolsJsV1">
 (function(){
 const $=id=>document.getElementById(id); const drawer=$('customerMenuDrawer'); const dialog=$('serviceToolDialog'); let requestType='';
@@ -582,6 +616,47 @@ function run(tool){
 document.addEventListener('click',e=>{const b=e.target.closest('[data-tool]');if(b){e.preventDefault();run(b.dataset.tool)}});
 $('serviceToolCancel')?.addEventListener('click',()=>dialog.classList.remove('open')); dialog?.addEventListener('click',e=>{if(e.target===dialog)dialog.classList.remove('open')});
 $('serviceToolSubmit')?.addEventListener('click',async()=>{const out=$('serviceToolStatus');out.className='toolStatus';out.textContent='Submitting…';const fd=new FormData();fd.append('request_type',requestType);fd.append('name',$('serviceName').value||'');fd.append('email',$('serviceEmail').value||'');fd.append('phone',$('servicePhone').value||'');fd.append('tracking_number',$('serviceTracking').value||'');fd.append('address',$('serviceAddress').value||'');fd.append('details',$('serviceDetails').value||'');try{const r=await fetch('/customer-tools/request',{method:'POST',body:fd});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Unable to submit');out.className='toolStatus ok';out.textContent='Request received: '+d.request_id;}catch(err){out.className='toolStatus err';out.textContent=err.message||'Unable to submit request';}});
+})();
+</script>
+
+
+<script id="poBoxWorkflowJsV1">
+(function(){
+ const $=id=>document.getElementById(id), dlg=$('poBoxApplicationDialog'); let checkedApplication=null;
+ function open(){ dlg?.classList.add('open'); $('poApplyStatus').textContent=''; }
+ function close(){ dlg?.classList.remove('open'); }
+ document.addEventListener('click',function(e){
+   const b=e.target.closest('[data-tool="pobox"]'); if(!b)return;
+   e.preventDefault(); e.stopImmediatePropagation(); open();
+ },true);
+ $('poCancel')?.addEventListener('click',close); dlg?.addEventListener('click',e=>{if(e.target===dlg)close()});
+ function appData(){ return {
+   name:$('poName').value.trim(), email:$('poEmail').value.trim(), phone:$('poPhone').value.trim(),
+   physical_address:$('poAddress').value.trim(), grid_id:$('poGridId').value.trim(), preferred_branch:$('poBranch').value,
+   box_size:$('poSize').value, business_name:$('poBusiness').value.trim(), notes:$('poNotes').value.trim()
+ };}
+ function fillFD(obj){const fd=new FormData();Object.entries(obj).forEach(([k,v])=>fd.append(k,v||''));return fd;}
+ $('poSubmit')?.addEventListener('click',async()=>{
+   const out=$('poApplyStatus'), data=appData(); out.className='toolStatus'; out.textContent='Submitting for review…';
+   try{const r=await fetch('/po-box/apply',{method:'POST',body:fillFD(data)});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Unable to submit');
+     out.className='toolStatus ok';out.innerHTML='Application submitted. <b>'+d.application_id+'</b>. Save this ID to check status.';$('poCheckId').value=d.application_id;
+   }catch(err){out.className='toolStatus err';out.textContent=err.message||'Unable to submit application';}
+ });
+ $('poCheckBtn')?.addEventListener('click',async()=>{
+   const out=$('poCheckStatus'), id=$('poCheckId').value.trim().toUpperCase(), contact=$('poCheckContact').value.trim();
+   out.className='toolStatus';out.textContent='Checking…';$('poReviseBtn').style.display='none'; checkedApplication=null;
+   try{const r=await fetch('/po-box/application/'+encodeURIComponent(id)+'?contact='+encodeURIComponent(contact),{cache:'no-store'});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Unable to check');checkedApplication=d;
+     let text='Status: '+String(d.status).replaceAll('_',' '); if(d.assigned_po_box) text+=' • Assigned: '+d.assigned_po_box; if(d.admin_note) text+=' • Admin note: '+d.admin_note;
+     out.className='toolStatus '+(d.status==='approved'?'ok':'');out.textContent=text;
+     if(d.status==='changes_requested'){$('poReviseBtn').style.display='block';$('poAddress').value=d.physical_address||'';$('poGridId').value=d.grid_id||'';$('poBranch').value=d.preferred_branch||'';$('poSize').value=d.box_size||'small';}
+   }catch(err){out.className='toolStatus err';out.textContent=err.message||'Unable to check application';}
+ });
+ $('poReviseBtn')?.addEventListener('click',async()=>{
+   if(!checkedApplication)return; const out=$('poCheckStatus'),id=checkedApplication.application_id,contact=$('poCheckContact').value.trim(), data=appData(); data.contact=contact;
+   out.className='toolStatus';out.textContent='Submitting requested changes…';
+   try{const r=await fetch('/po-box/application/'+encodeURIComponent(id)+'/revise',{method:'POST',body:fillFD(data)});const d=await r.json();if(!r.ok)throw new Error(d.detail||'Unable to update');out.className='toolStatus ok';out.textContent='Changes submitted. Application returned to admin review.';$('poReviseBtn').style.display='none';}
+   catch(err){out.className='toolStatus err';out.textContent=err.message||'Unable to submit changes';}
+ });
 })();
 </script>
 

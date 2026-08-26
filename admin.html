@@ -255,6 +255,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="dashboard">⌂ Dashboard</div>
     <div class="tab" data-tab="submissions">▤ Submissions</div>
+    <div class="tab" data-tab="poboxes">📮 P.O. Boxes</div>
     <div class="tab" data-tab="orders">🛒 Orders</div>
     <div class="tab" data-tab="analytics">▥ Analytics</div>
     <div class="tab" data-tab="reports">▧ Reports</div>
@@ -272,6 +273,23 @@
   <div class="panel" id="panel-submissions">
     <button class="refreshBtn" onclick="loadSubmissions()">Refresh</button>
     <div id="submissionsOut"></div>
+  </div>
+
+
+  <div class="panel" id="panel-poboxes">
+    <div class="dashboard-actions">
+      <div><div class="welcome-line">P.O. Box Administration</div><div class="welcome-sub">Review applications, prevent duplicate assignments and maintain the national P.O. Box registry.</div></div>
+      <button class="refreshBtn" onclick="loadPoBoxes()">↻ Refresh</button>
+    </div>
+    <div class="subtabs" id="poBoxSubtabs">
+      <button class="subtab active" type="button" data-po-filter="pending">Pending Review</button>
+      <button class="subtab" type="button" data-po-filter="changes_requested">Changes Requested</button>
+      <button class="subtab" type="button" data-po-filter="approved">Approved</button>
+      <button class="subtab" type="button" data-po-filter="rejected">Rejected</button>
+      <button class="subtab" type="button" data-po-filter="">All</button>
+    </div>
+    <div id="poBoxApplicationsOut"></div>
+    <section class="admin-section" style="margin-top:14px"><div class="admin-section-title">ACTIVE P.O. BOX REGISTRY</div><div id="poBoxRegistryOut"></div></section>
   </div>
 
   <div class="panel active" id="panel-dashboard">
@@ -630,6 +648,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     const name = tab.dataset.tab;
     document.getElementById('panel-' + name).classList.add('active');
     if (name === 'submissions') loadSubmissions();
+    if (name === 'poboxes') loadPoBoxes();
     if (name === 'dashboard') loadDashboard();
     if (name === 'orders') loadInboundReceipts();
     if (name === 'analytics') loadAnalytics();
@@ -1660,5 +1679,37 @@ function exportData() {
     });
 }
 </script>
+
+<script id="poBoxAdminJsV1">
+let poBoxFilter='pending';
+function poEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function poDate(ts){try{return new Date(Number(ts)*1000).toLocaleString()}catch(e){return ''}}
+async function poDecision(id,action){
+ let note='', assigned='';
+ if(action==='request_changes'){note=prompt('Tell the customer exactly what must be changed:')||'';if(!note)return;}
+ if(action==='reject'){note=prompt('Reason for rejection (shown to customer):')||'';if(!note)return;}
+ if(action==='approve'){if(!confirm('Approve this application? The system will block duplicate addresses and P.O. Box numbers.'))return;assigned=prompt('Optional: enter a specific P.O. Box number, or leave blank for automatic assignment:')||'';note=prompt('Optional approval note:')||'';}
+ try{const d=await authedPost('/admin/po-box/applications/'+encodeURIComponent(id)+'/decision',{action,admin_note:note,assigned_po_box:assigned});showToast(action==='approve'?'Approved and assigned '+d.po_box:'Application updated');await loadPoBoxes();}
+ catch(e){showToast(e.message||'Unable to update application',true);}
+}
+function renderPoApps(rows){
+ const out=document.getElementById('poBoxApplicationsOut'); if(!out)return;
+ if(!rows.length){out.innerHTML='<div class="empty">No P.O. Box applications in this status.</div>';return;}
+ out.innerHTML=rows.map(r=>`<div class="admin-section" style="margin-bottom:9px">
+   <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b>${poEsc(r.id)}</b><div style="font-size:12px;color:#9aa4bd;margin-top:3px">${poEsc(r.name)} • ${poEsc(r.email||r.phone)}</div></div><span class="badge ${poEsc(r.status)}">${poEsc(String(r.status).replaceAll('_',' '))}</span></div>
+   <div style="font-size:12px;line-height:1.55;margin-top:9px"><b>Physical address:</b> ${poEsc(r.physical_address)} ${r.grid_id?' • <b>Grid ID:</b> '+poEsc(r.grid_id):''}<br><b>Branch:</b> ${poEsc(r.preferred_branch)} • <b>Size:</b> ${poEsc(r.box_size)}${r.business_name?'<br><b>Business:</b> '+poEsc(r.business_name):''}${r.notes?'<br><b>Applicant notes:</b> '+poEsc(r.notes):''}${r.admin_note?'<br><b>Admin note:</b> '+poEsc(r.admin_note):''}${r.assigned_po_box?'<br><b>Assigned P.O. Box:</b> '+poEsc(r.assigned_po_box):''}<br><span style="color:#687489">Revision ${poEsc(r.revision)} • ${poDate(r.created_at)}</span></div>
+   ${r.status==='pending'?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"><button class="rowBtn edit" onclick="poDecision('${poEsc(r.id)}','approve')">Approve</button><button class="rowBtn toggle" onclick="poDecision('${poEsc(r.id)}','request_changes')">Request Change</button><button class="rowBtn delete" onclick="poDecision('${poEsc(r.id)}','reject')">Reject</button></div>`:''}
+ </div>`).join('');
+}
+async function loadPoBoxes(){
+ const appsOut=document.getElementById('poBoxApplicationsOut'),regOut=document.getElementById('poBoxRegistryOut'); if(!appsOut||!regOut)return;
+ appsOut.innerHTML='<div class="empty">Loading applications…</div>';regOut.innerHTML='<div class="empty">Loading registry…</div>';
+ try{const q=poBoxFilter?'?status='+encodeURIComponent(poBoxFilter):'';const [a,r]=await Promise.all([authedFetch('/admin/po-box/applications'+q),authedFetch('/admin/po-box/registry')]);renderPoApps(a.results||[]);
+   const rows=r.results||[];if(!rows.length){regOut.innerHTML='<div class="empty">No P.O. Boxes assigned yet.</div>';}else{renderTable(regOut,rows,[{label:'P.O. Box',key:'po_box'},{label:'Holder',key:'holder_name'},{label:'Physical Address',key:'physical_address'},{label:'Grid ID',key:'grid_id'},{label:'Branch',key:'branch'},{label:'Size',key:'box_size'},{label:'Status',render:x=>'<span class="badge approved">'+poEsc(x.status)+'</span>'}]);}
+ }catch(e){appsOut.innerHTML='<div class="empty">'+poEsc(e.message||'Unable to load')+'</div>';regOut.innerHTML='';}
+}
+document.querySelectorAll('[data-po-filter]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-po-filter]').forEach(x=>x.classList.remove('active'));b.classList.add('active');poBoxFilter=b.dataset.poFilter||'';loadPoBoxes();}));
+</script>
+
 </body>
 </html>
