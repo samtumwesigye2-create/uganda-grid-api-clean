@@ -32,6 +32,10 @@ header .icon-btn{background:none;border:0;color:var(--text-primary);font-size:18
 header .titleWrap{text-align:center;flex:1}
 header h1{margin:0;font-size:15px;font-weight:700}
 header p{margin:1px 0 0;font-size:10px;color:var(--text-secondary)}
+header .titleWrap{display:flex;align-items:center;justify-content:center;gap:8px;text-align:left;min-width:0}
+.mapHeaderLogo{width:34px;height:34px;object-fit:contain;display:block;flex:0 0 auto;border-radius:4px;background:#fff}
+.mapHeaderText{min-width:0;text-align:left}
+@media(max-width:420px){.mapHeaderLogo{width:30px;height:30px}header h1{font-size:14px}header p{font-size:9px}}
 .contentScroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 .panel{flex:0 0 auto;max-width:900px;width:100%;margin:0 auto;padding:8px 10px;transition:opacity .15s ease}
 .field{position:relative;margin-bottom:8px}
@@ -189,8 +193,11 @@ input:disabled{opacity:.6}
 <header>
 <button class="icon-btn" id="menuBtn" aria-label="Menu">&#9776;</button>
 <div class="titleWrap">
+<img class="mapHeaderLogo" src="/assets/uganda-national-grid-logo.png?v=map-logo-1" alt="Uganda National Grid">
+<div class="mapHeaderText">
 <h1>Uganda National Grid</h1>
 <p>Search, route and navigate across Uganda</p>
+</div>
 </div>
 <button class="icon-btn" id="bellBtn" aria-label="Notifications">&#128276;</button>
 </header>
