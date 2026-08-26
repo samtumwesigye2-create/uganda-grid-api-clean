@@ -411,7 +411,55 @@ shipStatusMenu.querySelectorAll('.dropdownItem').forEach(item => {
   });
 });
 
-document.addEventListener('click', () => shipStatusMenu.classList.remove('open'));
+document.addEventListener('click', () => {
+  document.querySelectorAll('.dropdownMenu.open').forEach(m => m.classList.remove('open'));
+});
+
+const SHIP_STATUS_OPTIONS = [
+  ['created','Created'],
+  ['picked_up','Picked up'],
+  ['in_transit','In transit'],
+  ['out_for_delivery','Out for delivery'],
+  ['delivered','Delivered'],
+  ['failed_delivery','Failed delivery'],
+  ['returned','Returned'],
+  ['cancelled','Cancelled'],
+  ['delayed','Delayed'],
+];
+
+function buildStatusDropdownHtml(idBase, currentValue) {
+  const currentLabel = (SHIP_STATUS_OPTIONS.find(o => o[0] === currentValue) || SHIP_STATUS_OPTIONS[0])[1];
+  return `
+    <div class="customDropdown" id="${idBase}Dropdown">
+      <button type="button" class="dropdownToggle" id="${idBase}Toggle">${currentLabel} <span class="caret">▾</span></button>
+      <div class="dropdownMenu" id="${idBase}Menu">
+        ${SHIP_STATUS_OPTIONS.map(([val, label]) =>
+          `<div class="dropdownItem${val === currentValue ? ' selected' : ''}" data-value="${val}">${label}</div>`
+        ).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function wireStatusDropdown(idBase, onSelect) {
+  const toggle = document.getElementById(idBase + 'Toggle');
+  const menu = document.getElementById(idBase + 'Menu');
+  if (!toggle || !menu) return;
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.dropdownMenu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
+    menu.classList.toggle('open');
+  });
+  menu.querySelectorAll('.dropdownItem').forEach(item => {
+    item.addEventListener('click', () => {
+      menu.querySelectorAll('.dropdownItem').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
+      toggle.innerHTML = item.textContent + ' <span class="caret">▾</span>';
+      menu.classList.remove('open');
+      onSelect(item.dataset.value);
+    });
+  });
+}
 
 function authHeaders() {
   return { 'X-Admin-Passcode': PASS, 'x-access-code': PASS };
@@ -507,8 +555,6 @@ async function loadMailing() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading mailing list.</div>'; }
 }
 
-let shipLookupStatusValue = 'created';
-
 async function lookupShipment() {
   const number = document.getElementById('shipLookupInput').value.trim();
   const out = document.getElementById('shipLookupOut');
@@ -519,20 +565,7 @@ async function lookupShipment() {
     const contact = [data.recipient_name, data.recipient_email, data.recipient_phone]
       .filter(Boolean).join(' · ') || 'No contact info on file';
     const current = (data.current_status || 'created').replace('_', ' ');
-    shipLookupStatusValue = data.current_status || 'created';
-
-    const statusOptions = [
-      ['created','Created'],
-      ['picked_up','Picked up'],
-      ['in_transit','In transit'],
-      ['out_for_delivery','Out for delivery'],
-      ['delivered','Delivered'],
-      ['failed_delivery','Failed delivery'],
-      ['returned','Returned'],
-      ['cancelled','Cancelled'],
-      ['delayed','Delayed'],
-    ];
-    const currentLabel = (statusOptions.find(o => o[0] === shipLookupStatusValue) || statusOptions[0])[1];
+    const currentValue = data.current_status || 'created';
 
     out.innerHTML = `
       <div style="margin-bottom:10px;">
@@ -541,45 +574,20 @@ async function lookupShipment() {
         <div style="font-size:12px;color:#999;margin-top:4px;">${data.pickup} → ${data.delivery}</div>
         <div style="font-size:12px;color:#999;margin-top:2px;">Current status: ${current}</div>
         <div style="font-size:12px;color:#999;margin-top:2px;">Will notify: ${contact}</div>
+        <div style="font-size:11px;color:#666;margin-top:6px;">Pick a status below to save and notify instantly.</div>
       </div>
-      <div class="customDropdown" id="shipLookupStatusDropdown">
-        <button type="button" class="dropdownToggle" id="shipLookupStatusToggle">${currentLabel} <span class="caret">▾</span></button>
-        <div class="dropdownMenu" id="shipLookupStatusMenu">
-          ${statusOptions.map(([val, label]) =>
-            `<div class="dropdownItem${val === shipLookupStatusValue ? ' selected' : ''}" data-value="${val}">${label}</div>`
-          ).join('')}
-        </div>
-      </div>
+      ${buildStatusDropdownHtml('shipLookupStatus', currentValue)}
       <input id="shipLookupNote" placeholder="Note for customer (optional)" />
-      <button onclick="updateShipStatusFromLookup('${data.shipment_number}')">Update Status &amp; Notify Customer</button>
     `;
 
-    const toggle = document.getElementById('shipLookupStatusToggle');
-    const menu = document.getElementById('shipLookupStatusMenu');
-    toggle.addEventListener('click', (e) => {
-      e.stopPropagation();
-      menu.classList.toggle('open');
+    wireStatusDropdown('shipLookupStatus', async (newStatus) => {
+      const note = document.getElementById('shipLookupNote').value.trim();
+      await updateShipStatus(data.shipment_number, newStatus, note);
+      lookupShipment();
     });
-    menu.querySelectorAll('.dropdownItem').forEach(item => {
-      item.addEventListener('click', () => {
-        menu.querySelectorAll('.dropdownItem').forEach(i => i.classList.remove('selected'));
-        item.classList.add('selected');
-        shipLookupStatusValue = item.dataset.value;
-        toggle.innerHTML = item.textContent + ' <span class="caret">▾</span>';
-        menu.classList.remove('open');
-      });
-    });
-    document.addEventListener('click', () => menu.classList.remove('open'));
   } catch (e) {
     out.innerHTML = '<div class="empty">' + e.message + '</div>';
   }
-}
-
-async function updateShipStatusFromLookup(shipmentNumber) {
-  const status = shipLookupStatusValue;
-  const note = document.getElementById('shipLookupNote').value.trim();
-  await updateShipStatus(shipmentNumber, status, note);
-  lookupShipment();
 }
 
 let lastShipments = [];
@@ -595,6 +603,10 @@ async function loadShipments() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading shipments.</div>'; }
 }
 
+function shipRowDropdownId(shipmentNumber) {
+  return 'shipRowStatus_' + shipmentNumber.replace(/[^a-zA-Z0-9]/g, '_');
+}
+
 function renderFilteredShipments() {
   const out = document.getElementById('shipmentsOut');
   const query = document.getElementById('shipSearchInput').value.trim().toLowerCase();
@@ -608,27 +620,19 @@ function renderFilteredShipments() {
     { label: 'Weight', render: r => r.weight_kg + ' kg' },
     { label: 'Rate', render: r => 'UGX ' + Number(r.rate_ugx).toLocaleString() },
     { label: 'Payment', render: r => `<span class="badge ${r.status === 'paid' ? 'paid' : 'pending'}">${r.status}</span>` },
-    { label: 'Delivery Status', render: r => {
-        const current = (r.delivery_status || 'created').replace('_',' ');
-        return `<button class="rowBtn edit" onclick="openStatusUpdate('${r.shipment_number}')">${current}</button>`;
-      }
+    { label: 'Delivery Status', render: r =>
+        buildStatusDropdownHtml(shipRowDropdownId(r.shipment_number), r.delivery_status || 'created')
     },
   ]);
+  rows.forEach(r => {
+    wireStatusDropdown(shipRowDropdownId(r.shipment_number), async (newStatus) => {
+      await updateShipStatus(r.shipment_number, newStatus, '');
+      loadShipments();
+    });
+  });
 }
 
 document.getElementById('shipSearchInput').addEventListener('input', renderFilteredShipments);
-
-function openStatusUpdate(shipmentNumber) {
-  const opts = ['created','picked_up','in_transit','out_for_delivery','delivered','failed_delivery','returned','cancelled','delayed'];
-  const optionsList = opts.map((o, i) => `${i + 1}. ${o.replace('_',' ')}`).join('\n');
-  const choice = prompt('Update status for ' + shipmentNumber + ':\n' + optionsList + '\n\nEnter the number:');
-  if (choice === null) return;
-  const idx = parseInt(choice.trim(), 10) - 1;
-  if (isNaN(idx) || idx < 0 || idx >= opts.length) { alert('Invalid choice'); return; }
-  const newStatus = opts[idx];
-  const note = prompt('Message for the customer (optional):') || '';
-  updateShipStatus(shipmentNumber, newStatus, note);
-}
 
 async function updateShipStatus(shipmentNumber, newStatus, note) {
   try {
