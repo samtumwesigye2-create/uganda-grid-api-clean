@@ -112,7 +112,14 @@
 
   <div class="panel" id="panel-shipments">
     <div class="formBox">
-      <input id="shipSearchInput" placeholder="Search by tracking number (e.g. UG-SHIP-000001)" />
+      <h3 style="margin-top:0;">Look Up &amp; Update a Shipment</h3>
+      <input id="shipLookupInput" placeholder="Tracking number (e.g. UG-SHIP-000001)" />
+      <button onclick="lookupShipment()">Look Up</button>
+      <div id="shipLookupOut" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="formBox">
+      <input id="shipSearchInput" placeholder="Search loaded list by tracking number" />
     </div>
     <div class="customDropdown" id="shipStatusDropdown">
       <button type="button" class="dropdownToggle" id="shipStatusToggle">All statuses <span class="caret">▾</span></button>
@@ -129,7 +136,7 @@
         <div class="dropdownItem" data-value="delayed">Delayed</div>
       </div>
     </div>
-    <button class="refreshBtn" onclick="loadShipments()">Refresh</button>
+    <button class="refreshBtn" onclick="loadShipments()">Refresh List</button>
     <div id="shipmentsOut"></div>
   </div>
 
@@ -500,6 +507,51 @@ async function loadMailing() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading mailing list.</div>'; }
 }
 
+async function lookupShipment() {
+  const number = document.getElementById('shipLookupInput').value.trim();
+  const out = document.getElementById('shipLookupOut');
+  if (!number) { out.innerHTML = '<div class="empty">Enter a tracking number.</div>'; return; }
+  out.innerHTML = '<div class="empty">Looking up…</div>';
+  try {
+    const data = await authedFetch('/ship/' + encodeURIComponent(number) + '/admin-lookup');
+    const contact = [data.recipient_name, data.recipient_email, data.recipient_phone]
+      .filter(Boolean).join(' · ') || 'No contact info on file';
+    const current = (data.current_status || 'created').replace('_', ' ');
+    out.innerHTML = `
+      <div style="margin-bottom:10px;">
+        <strong>${data.shipment_number}</strong>
+        <span class="badge ${data.status === 'paid' ? 'paid' : 'pending'}">${data.status}</span>
+        <div style="font-size:12px;color:#999;margin-top:4px;">${data.pickup} → ${data.delivery}</div>
+        <div style="font-size:12px;color:#999;margin-top:2px;">Current status: ${current}</div>
+        <div style="font-size:12px;color:#999;margin-top:2px;">Will notify: ${contact}</div>
+      </div>
+      <select id="shipLookupStatusSelect">
+        <option value="created">Created</option>
+        <option value="picked_up">Picked up</option>
+        <option value="in_transit">In transit</option>
+        <option value="out_for_delivery">Out for delivery</option>
+        <option value="delivered">Delivered</option>
+        <option value="failed_delivery">Failed delivery</option>
+        <option value="returned">Returned</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+      <input id="shipLookupNote" placeholder="Note for customer (optional)" />
+      <button onclick="updateShipStatusFromLookup('${data.shipment_number}')">Update Status &amp; Notify Customer</button>
+    `;
+    const sel = document.getElementById('shipLookupStatusSelect');
+    if (sel && data.current_status) sel.value = data.current_status;
+  } catch (e) {
+    out.innerHTML = '<div class="empty">' + e.message + '</div>';
+  }
+}
+
+async function updateShipStatusFromLookup(shipmentNumber) {
+  const status = document.getElementById('shipLookupStatusSelect').value;
+  const note = document.getElementById('shipLookupNote').value.trim();
+  await updateShipStatus(shipmentNumber, status, note);
+  lookupShipment();
+}
+
 let lastShipments = [];
 
 async function loadShipments() {
@@ -561,7 +613,6 @@ async function updateShipStatus(shipmentNumber, newStatus, note) {
         ? `${shipmentNumber} updated to "${label}" — ${parts.join(' and ')}.`
         : `${shipmentNumber} updated to "${label}" — no contact info on file, nothing sent.`
     );
-    loadShipments();
   } catch (e) {
     showNotifyToast(e.message, true);
   }
@@ -1078,6 +1129,16 @@ function exportData() {
   fetch(url, { headers: authHeaders() })
     .then(res => res.blob())
     .then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'data_export.csv';
+      a.click();
+    });
+}
+</script>
+</body>
+</html>
+
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'data_export.csv';
