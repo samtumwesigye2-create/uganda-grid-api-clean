@@ -32,6 +32,10 @@ UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
+BUSINESS_DOCS_DIR = os.path.join(BASE_DIR, "business-documents")
+if os.path.isdir(BUSINESS_DOCS_DIR):
+    app.mount("/business-documents", StaticFiles(directory=BUSINESS_DOCS_DIR, html=True), name="business-documents")
+
 ADMIN_PASSCODE = os.environ.get("ADMIN_PASSCODE", "uganda2026")
 
 try:
@@ -50,7 +54,7 @@ def save_addresses(updated_addresses):
         with open(DATABASE, "w", encoding="utf-8") as file:
             json.dump(addresses, file, ensure_ascii=False, indent=2)
     except Exception:
-        pass  # best-effort; in-memory list is still updated either way
+        pass
 
 
 REPORTS = []
@@ -64,51 +68,32 @@ ALLOWED_MEDIA_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "vi
 MAX_MEDIA_BYTES = 15 * 1024 * 1024
 
 
-# --- Wire in shipments.py (domestic + international shipping routes) ---
 from shipments import router as shipments_router, register_rate_routes
-
 register_rate_routes(lambda: addresses)
 app.include_router(shipments_router)
 
-
-# --- Wire in commercial.py (landlord/company commercial address registration) ---
 from commercial import router as commercial_router, register_commercial_routes
-
 register_commercial_routes(lambda: addresses, save_addresses)
 app.include_router(commercial_router)
 
-
-# --- Wire in auth.py (staff accounts + delegated permissions) ---
 from auth import router as auth_router
 app.include_router(auth_router)
 
-
-# --- Wire in inventory.py (warehouse stock, reorder alerts, forecasting) ---
 from inventory import router as inventory_router
 app.include_router(inventory_router)
 
-
-# --- Wire in invoicing.py (invoices + bills of lading, generated from shipments) ---
 from invoicing import router as invoicing_router
 app.include_router(invoicing_router)
 
-
-# --- Wire in mailing.py (email subscription list) ---
 from mailing import router as mailing_router
 app.include_router(mailing_router)
 
-
-# --- Wire in data_hub.py (generic form/data collection, export, stats) ---
 from data_hub import router as data_router
 app.include_router(data_router)
 
-
-# --- Wire in users.py (customer accounts: signup, login, profile) ---
 from users import router as users_router
 app.include_router(users_router)
 
-
-# --- Wire in drivers.py (fleet, dispatch, driver location + photo verification) ---
 from drivers import router as drivers_router
 app.include_router(drivers_router)
 
@@ -140,11 +125,7 @@ def home():
 def app_js():
     if not os.path.exists(APP_JS_FILE):
         raise HTTPException(status_code=404, detail="app.js not found")
-    return FileResponse(
-        APP_JS_FILE,
-        media_type="application/javascript; charset=utf-8",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
-    )
+    return FileResponse(APP_JS_FILE, media_type="application/javascript; charset=utf-8", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 @app.get("/submit")
@@ -216,31 +197,17 @@ def get_address(grid_id: str):
 
 
 @app.put("/address/{grid_id}")
-def update_address(
-    grid_id: str,
-    address: str = Form(None),
-    latitude: float = Form(None),
-    longitude: float = Form(None),
-    address_type: str = Form(None),
-    x_admin_passcode: str = Header(default=""),
-):
-    """Admin override: edit any address record directly — including ones
-    that came from citizen submissions or commercial approvals — without
-    going through the normal submission flow."""
+def update_address(grid_id: str, address: str = Form(None), latitude: float = Form(None), longitude: float = Form(None), address_type: str = Form(None), x_admin_passcode: str = Header(default="")):
     check_admin(x_admin_passcode)
     search_id = grid_id.strip().lower()
     found = None
     updated_list = []
     for item in addresses:
         if str(item.get("grid_id", "")).strip().lower() == search_id:
-            if address is not None:
-                item["address"] = address
-            if latitude is not None:
-                item["latitude"] = latitude
-            if longitude is not None:
-                item["longitude"] = longitude
-            if address_type is not None:
-                item["address_type"] = address_type
+            if address is not None: item["address"] = address
+            if latitude is not None: item["latitude"] = latitude
+            if longitude is not None: item["longitude"] = longitude
+            if address_type is not None: item["address_type"] = address_type
             found = item
         updated_list.append(item)
     if not found:
@@ -264,29 +231,15 @@ def delete_address(grid_id: str, x_admin_passcode: str = Header(default="")):
 def stats():
     residential = sum(1 for a in addresses if a.get("address_type", "residential") == "residential")
     commercial = sum(1 for a in addresses if a.get("address_type") == "commercial")
-    return {
-        "total_records": len(addresses),
-        "residential_records": residential,
-        "commercial_records": commercial,
-        "database": "entebbe_database.json",
-        "frontend": "index.html + app.js",
-    }
+    return {"total_records": len(addresses), "residential_records": residential, "commercial_records": commercial, "database": "entebbe_database.json", "frontend": "index.html + app.js"}
 
 
 @app.post("/report")
-async def create_report(
-    category: str = Form(...),
-    lat: float = Form(...),
-    lon: float = Form(...),
-    note: str = Form(""),
-    file: UploadFile = File(None),
-):
+async def create_report(category: str = Form(...), lat: float = Form(...), lon: float = Form(...), note: str = Form(""), file: UploadFile = File(None)):
     category = category.strip().lower()
     if category not in VALID_CATEGORIES:
         raise HTTPException(status_code=400, detail="Invalid category")
-
     prune_reports()
-
     media_url = ""
     media_type = ""
     if file is not None and file.filename:
@@ -302,17 +255,7 @@ async def create_report(
             out.write(contents)
         media_url = "/uploads/" + filename
         media_type = file.content_type
-
-    report = {
-        "id": str(uuid.uuid4()),
-        "category": category,
-        "lat": lat,
-        "lon": lon,
-        "note": note.strip()[:200],
-        "media_url": media_url,
-        "media_type": media_type,
-        "created_at": time.time(),
-    }
+    report = {"id": str(uuid.uuid4()), "category": category, "lat": lat, "lon": lon, "note": note.strip()[:200], "media_url": media_url, "media_type": media_type, "created_at": time.time()}
     REPORTS.append(report)
     return report
 
@@ -324,17 +267,10 @@ def list_reports():
 
 
 @app.post("/submissions")
-async def create_submission(
-    lat: float = Form(...),
-    lon: float = Form(...),
-    building_type: str = Form(...),
-    note: str = Form(""),
-    file: UploadFile = File(None),
-):
+async def create_submission(lat: float = Form(...), lon: float = Form(...), building_type: str = Form(...), note: str = Form(""), file: UploadFile = File(None)):
     building_type = building_type.strip().lower()
     if building_type not in VALID_BUILDING_TYPES:
         raise HTTPException(status_code=400, detail="Invalid building type")
-
     media_url = ""
     media_type = ""
     if file is not None and file.filename:
@@ -350,20 +286,7 @@ async def create_submission(
             out.write(contents)
         media_url = "/uploads/" + filename
         media_type = file.content_type
-
-    submission = {
-        "id": str(uuid.uuid4()),
-        "lat": lat,
-        "lon": lon,
-        "building_type": building_type,
-        "note": note.strip()[:300],
-        "media_url": media_url,
-        "media_type": media_type,
-        "status": "pending",
-        "assigned_grid_id": "",
-        "assigned_address": "",
-        "created_at": time.time(),
-    }
+    submission = {"id": str(uuid.uuid4()), "lat": lat, "lon": lon, "building_type": building_type, "note": note.strip()[:300], "media_url": media_url, "media_type": media_type, "status": "pending", "assigned_grid_id": "", "assigned_address": "", "created_at": time.time()}
     SUBMISSIONS.append(submission)
     return submission
 
@@ -378,41 +301,24 @@ def list_submissions(status: str = Query(default=""), x_admin_passcode: str = He
 
 
 @app.post("/submissions/{submission_id}/decision")
-def decide_submission(
-    submission_id: str,
-    action: str = Form(...),
-    grid_id: str = Form(""),
-    address: str = Form(""),
-    x_admin_passcode: str = Header(default=""),
-):
+def decide_submission(submission_id: str, action: str = Form(...), grid_id: str = Form(""), address: str = Form(""), x_admin_passcode: str = Header(default="")):
     check_admin(x_admin_passcode)
     action = action.strip().lower()
     if action not in {"approve", "deny"}:
         raise HTTPException(status_code=400, detail="Invalid action")
-
     sub = next((s for s in SUBMISSIONS if s["id"] == submission_id), None)
     if not sub:
         raise HTTPException(status_code=404, detail="Submission not found")
-
     if action == "deny":
         sub["status"] = "denied"
         return sub
-
     grid_id = grid_id.strip()
     address = address.strip()
     if not grid_id or not address:
         raise HTTPException(status_code=400, detail="grid_id and address are required to approve")
-
     sub["status"] = "approved"
     sub["assigned_grid_id"] = grid_id
     sub["assigned_address"] = address
-
-    updated = addresses + [{
-        "grid_id": grid_id,
-        "address": address,
-        "latitude": sub["lat"],
-        "longitude": sub["lon"],
-        "address_type": "residential",
-    }]
+    updated = addresses + [{"grid_id": grid_id, "address": address, "latitude": sub["lat"], "longitude": sub["lon"], "address_type": "residential"}]
     save_addresses(updated)
     return sub
