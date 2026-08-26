@@ -99,6 +99,9 @@ app.include_router(users_router)
 from drivers import router as drivers_router
 app.include_router(drivers_router)
 
+from customer_tools import router as customer_tools_router
+app.include_router(customer_tools_router)
+
 
 def prune_reports():
     now = time.time()
