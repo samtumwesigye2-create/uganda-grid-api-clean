@@ -1,0 +1,1 @@
+Compact site logo should be served from /assets/uganda-national-grid-logo-small.png and displayed at small header size.
