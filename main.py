@@ -30,6 +30,10 @@ SHIP_FILE = os.path.join(BASE_DIR, "ship.html")
 DRIVER_FILE = os.path.join(BASE_DIR, "driver.html")
 TEST_TOOL_FILE = os.path.join(BASE_DIR, "test-tool.html")
 
+ASSETS_DIR = os.path.join(BASE_DIR, "assets")
+if os.path.isdir(ASSETS_DIR):
+    app.mount("/assets", StaticFiles(directory=ASSETS_DIR), name="assets")
+
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")

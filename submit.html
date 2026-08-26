@@ -33,8 +33,42 @@
   .required{color:#b91c1c}
   #commercialForm{display:none}
 </style>
+
+<style id="ungGlobalBrandStyle">
+  .ungGlobalBrand{
+    flex:0 0 auto;
+    width:100%;
+    min-height:58px;
+    padding:5px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#fff;
+    border-bottom:1px solid rgba(15,23,42,.12);
+    position:relative;
+    z-index:4200;
+  }
+  .ungGlobalBrand a{display:flex;align-items:center;justify-content:center;text-decoration:none;line-height:0;}
+  .ungGlobalBrand img{
+    display:block;
+    width:min(230px,62vw);
+    max-height:56px;
+    object-fit:contain;
+  }
+  @media(max-width:600px){
+    .ungGlobalBrand{min-height:52px;padding:4px 10px;}
+    .ungGlobalBrand img{width:min(205px,68vw);max-height:50px;}
+  }
+  @media print{
+    .ungGlobalBrand{border-bottom:0;padding:0 0 8px;min-height:0;}
+    .ungGlobalBrand img{width:190px;max-height:50px;}
+  }
+</style>
+
 </head>
 <body>
+<div class="ungGlobalBrand" id="ungGlobalBrand"><a href="/" aria-label="Uganda National Grid home"><img src="/assets/uganda-national-grid-logo.png" alt="Uganda National Grid" /></a></div>
+
 <header>
   <h1>Address Applications</h1>
   <p>Apply for an official Uganda National Grid address</p>
