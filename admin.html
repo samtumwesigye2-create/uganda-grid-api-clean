@@ -68,6 +68,18 @@
     max-width:320px; margin-left:auto; margin-right:auto; word-break:break-word;
     white-space:pre-wrap;
   }
+
+  .dashboard-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap:10px; margin-bottom:16px; }
+  .stat-tile { background:#1a1d2e; border:1px solid #2a2d3e; border-radius:8px; padding:14px; text-align:center; }
+  .stat-tile .stat-value { font-size:20px; font-weight:700; color:#fff; }
+  .stat-tile .stat-label { font-size:11px; color:#999; margin-top:4px; }
+  .stat-tile.warn .stat-value { color:#e2593a; }
+  .barRow { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12px; }
+  .barRow .barLabel { width:130px; flex-shrink:0; color:#ccc; }
+  .barRow .barTrack { flex:1; background:#0f1220; border-radius:4px; height:16px; overflow:hidden; }
+  .barRow .barFill { background:#3b5bfd; height:100%; }
+  .barRow .barValue { width:70px; text-align:right; color:#999; flex-shrink:0; }
+  .dashNote { font-size:11px; color:#666; margin-top:6px; }
 </style>
 </head>
 <body>
@@ -83,7 +95,10 @@
 <div id="main">
   <h1>Uganda National Grid Admin</h1>
   <div class="tabs">
+    <div class="tab" data-tab="dashboard">Dashboard</div>
     <div class="tab active" data-tab="submissions">Submissions</div>
+    <div class="tab" data-tab="orders">Orders</div>
+    <div class="tab" data-tab="analytics">Analytics</div>
     <div class="tab" data-tab="reports">Reports</div>
     <div class="tab" data-tab="mailing">Mailing</div>
     <div class="tab" data-tab="shipments">Shipments</div>
@@ -98,6 +113,54 @@
   <div class="panel active" id="panel-submissions">
     <button class="refreshBtn" onclick="loadSubmissions()">Refresh</button>
     <div id="submissionsOut"></div>
+  </div>
+
+  <div class="panel" id="panel-dashboard">
+    <button class="refreshBtn" onclick="loadDashboard()">Refresh</button>
+    <div id="dashboardStats" class="dashboard-grid"></div>
+    <h3>Stock by Warehouse</h3>
+    <div id="dashboardWarehouseOut"></div>
+    <h3>Low Stock Items</h3>
+    <div id="dashboardLowStockOut"></div>
+  </div>
+
+  <div class="panel" id="panel-orders">
+    <div class="subtabs">
+      <div class="subtab active" data-subtab="inbound">Inbound Receipts</div>
+      <div class="subtab" data-subtab="outbound">Outbound Shipments</div>
+      <div class="subtab" data-subtab="fulfillment">Pick / Pack / Ship</div>
+    </div>
+
+    <div class="subpanel active" id="subpanel-inbound">
+      <div class="formBox">
+        <input id="orderInboundFilterSku" placeholder="Filter by SKU (optional)" />
+        <button onclick="loadInboundReceipts()">Load Inbound Receipts</button>
+      </div>
+      <div id="orderInboundOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-outbound">
+      <button class="refreshBtn" onclick="loadOutboundShipments()">Refresh</button>
+      <div id="orderOutboundOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-fulfillment">
+      <div class="formBox">
+        <input id="orderFulfillFilterDriver" placeholder="Filter by driver ID (optional)" />
+        <button onclick="loadFulfillmentTasks()">Load Tasks</button>
+      </div>
+      <div id="orderFulfillOut"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-analytics">
+    <button class="refreshBtn" onclick="loadAnalytics()">Refresh</button>
+    <div id="analyticsStats" class="dashboard-grid"></div>
+    <h3>Shipments by Status</h3>
+    <div id="analyticsShipmentChart"></div>
+    <h3>Invoices by Status</h3>
+    <div id="analyticsInvoiceChart"></div>
+    <div class="dashNote">Storage cost tracking isn't available yet — the backend doesn't record a cost-per-warehouse or cost-per-unit field to report on.</div>
   </div>
 
   <div class="panel" id="panel-reports">
@@ -364,6 +427,9 @@ document.querySelectorAll('.tab').forEach(tab => {
     const name = tab.dataset.tab;
     document.getElementById('panel-' + name).classList.add('active');
     if (name === 'submissions') loadSubmissions();
+    if (name === 'dashboard') loadDashboard();
+    if (name === 'orders') loadInboundReceipts();
+    if (name === 'analytics') loadAnalytics();
     if (name === 'reports') loadReports();
     if (name === 'mailing') loadMailing();
     if (name === 'shipments') loadShipments();
@@ -391,6 +457,9 @@ document.querySelectorAll('.subtab').forEach(sub => {
     if (name === 'drivers') loadDrivers();
     if (name === 'tasks') loadTasks();
     if (name === 'photoaudit') { /* wait for manual run */ }
+    if (name === 'inbound') loadInboundReceipts();
+    if (name === 'outbound') loadOutboundShipments();
+    if (name === 'fulfillment') loadFulfillmentTasks();
   });
 });
 
@@ -556,6 +625,188 @@ async function loadMailing() {
       { label: 'Subscribed', render: r => new Date(r.created_at * 1000).toLocaleDateString() },
     ]);
   } catch (e) { out.innerHTML = '<div class="empty">Error loading mailing list.</div>'; }
+}
+
+// ---- Dashboard ----
+
+function renderBarChart(countsObj) {
+  const entries = Object.entries(countsObj);
+  if (!entries.length) return '<div class="empty">No data yet.</div>';
+  const max = Math.max(...entries.map(([, v]) => v));
+  return entries.map(([label, value]) => `
+    <div class="barRow">
+      <div class="barLabel">${label.replace(/_/g, ' ')}</div>
+      <div class="barTrack"><div class="barFill" style="width:${(value / max * 100).toFixed(0)}%"></div></div>
+      <div class="barValue">${value}</div>
+    </div>
+  `).join('');
+}
+
+async function loadDashboard() {
+  const statsBox = document.getElementById('dashboardStats');
+  const whOut = document.getElementById('dashboardWarehouseOut');
+  const lowOut = document.getElementById('dashboardLowStockOut');
+  statsBox.innerHTML = '<div class="empty">Loading…</div>';
+  whOut.innerHTML = '';
+  lowOut.innerHTML = '';
+  try {
+    const [productsData, warehousesData, movementsData, reorderData] = await Promise.all([
+      authedFetch('/inventory/products'),
+      authedFetch('/inventory/warehouses'),
+      authedFetch('/inventory/movements'),
+      authedFetch('/inventory/reorder'),
+    ]);
+    const products = productsData.results || [];
+    const warehouses = warehousesData.results || [];
+    const movements = movementsData.results || [];
+    const reorder = reorderData.results || [];
+
+    const totalSkus = products.length;
+    const totalUnits = products.reduce((sum, p) => sum + Number(p.total_quantity_on_hand || 0), 0);
+    const lowStockCount = reorder.length;
+    const activeWarehouses = warehouses.filter(w => w.is_active).length;
+
+    statsBox.innerHTML = `
+      <div class="stat-tile"><div class="stat-value">${totalSkus}</div><div class="stat-label">SKUs</div></div>
+      <div class="stat-tile"><div class="stat-value">${totalUnits.toLocaleString()}</div><div class="stat-label">Units On Hand</div></div>
+      <div class="stat-tile${lowStockCount ? ' warn' : ''}"><div class="stat-value">${lowStockCount}</div><div class="stat-label">Low Stock SKUs</div></div>
+      <div class="stat-tile"><div class="stat-value">${activeWarehouses}</div><div class="stat-label">Active Warehouses</div></div>
+    `;
+
+    const stockByWarehouse = {};
+    movements.forEach(m => {
+      const wid = m.warehouse_id || 'main';
+      const qty = Number(m.quantity || 0);
+      const delta = m.movement_type === 'dispatch' ? -qty : qty;
+      stockByWarehouse[wid] = (stockByWarehouse[wid] || 0) + delta;
+    });
+    const whRows = warehouses.map(w => ({
+      name: w.name,
+      units: Math.max(0, stockByWarehouse[w.id] || 0),
+    }));
+
+    if (whRows.length) {
+      const maxUnits = Math.max(1, ...whRows.map(r => r.units));
+      whOut.innerHTML = whRows.map(r => `
+        <div class="barRow">
+          <div class="barLabel">${r.name}</div>
+          <div class="barTrack"><div class="barFill" style="width:${(r.units / maxUnits * 100).toFixed(0)}%"></div></div>
+          <div class="barValue">${r.units.toLocaleString()}</div>
+        </div>
+      `).join('') + '<div class="dashNote">Estimated from stock movement history — verify against your source of truth if numbers look off.</div>';
+    } else {
+      whOut.innerHTML = '<div class="empty">No warehouses yet.</div>';
+    }
+
+    if (reorder.length) {
+      renderTable(lowOut, reorder, [
+        { label: 'SKU', key: 'sku' },
+        { label: 'Name', key: 'name' },
+        { label: 'On Hand', key: 'quantity_on_hand' },
+        { label: 'Reorder Point', key: 'reorder_point' },
+        { label: 'Suggested Qty', key: 'suggested_reorder_quantity' },
+      ]);
+    } else {
+      lowOut.innerHTML = '<div class="empty">Nothing below reorder point.</div>';
+    }
+  } catch (e) {
+    statsBox.innerHTML = '<div class="empty">Error loading dashboard.</div>';
+  }
+}
+
+// ---- Orders ----
+
+async function loadInboundReceipts() {
+  const out = document.getElementById('orderInboundOut');
+  const sku = document.getElementById('orderInboundFilterSku').value.trim();
+  try {
+    const url = '/inventory/movements' + (sku ? ('?sku=' + encodeURIComponent(sku)) : '');
+    const data = await authedFetch(url);
+    const receipts = (data.results || []).filter(m => m.movement_type === 'receive');
+    renderTable(out, receipts, [
+      { label: 'SKU', key: 'product_sku' },
+      { label: 'Warehouse', key: 'warehouse_id' },
+      { label: 'Qty Received', key: 'quantity' },
+      { label: 'Note', key: 'note' },
+      { label: 'When', render: r => new Date(r.created_at * 1000).toLocaleString() },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading inbound receipts.</div>'; }
+}
+
+async function loadOutboundShipments() {
+  const out = document.getElementById('orderOutboundOut');
+  try {
+    const data = await authedFetch('/ship/list');
+    renderTable(out, data.results, [
+      { label: '#', key: 'shipment_number' },
+      { label: 'Delivery', key: 'delivery' },
+      { label: 'Weight', render: r => r.weight_kg + ' kg' },
+      { label: 'Payment', render: r => `<span class="badge ${r.status === 'paid' ? 'paid' : 'pending'}">${r.status}</span>` },
+      { label: 'Fulfillment Status', render: r => `<span class="badge">${(r.delivery_status || 'created').replace(/_/g, ' ')}</span>` },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading outbound shipments.</div>'; }
+}
+
+async function loadFulfillmentTasks() {
+  const out = document.getElementById('orderFulfillOut');
+  const driverId = document.getElementById('orderFulfillFilterDriver').value.trim();
+  try {
+    const url = '/dispatch/tasks' + (driverId ? ('?driver_id=' + encodeURIComponent(driverId)) : '');
+    const data = await authedFetch(url);
+    renderTable(out, data.results, [
+      { label: '#', key: 'task_number' },
+      { label: 'Stage', render: r => r.task_type.replace(/_/g, ' ') },
+      { label: 'Location', key: 'location_text' },
+      { label: 'Status', render: r => `<span class="badge ${r.status}">${r.status.replace(/_/g, ' ')}</span>` },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading fulfillment tasks.</div>'; }
+}
+
+// ---- Analytics ----
+
+async function loadAnalytics() {
+  const statsBox = document.getElementById('analyticsStats');
+  const shipChart = document.getElementById('analyticsShipmentChart');
+  const invChart = document.getElementById('analyticsInvoiceChart');
+  statsBox.innerHTML = '<div class="empty">Loading…</div>';
+  shipChart.innerHTML = '';
+  invChart.innerHTML = '';
+  try {
+    const [shipData, invData] = await Promise.all([
+      authedFetch('/ship/list'),
+      authedFetch('/invoices'),
+    ]);
+    const shipments = shipData.results || [];
+    const invoices = invData.results || [];
+
+    const totalShipments = shipments.length;
+    const totalWeight = shipments.reduce((s, r) => s + Number(r.weight_kg || 0), 0);
+    const paidRevenue = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.total_ugx || 0), 0);
+    const outstandingRevenue = invoices.filter(i => i.status !== 'paid' && i.status !== 'void').reduce((s, i) => s + Number(i.total_ugx || 0), 0);
+
+    statsBox.innerHTML = `
+      <div class="stat-tile"><div class="stat-value">${totalShipments}</div><div class="stat-label">Total Shipments</div></div>
+      <div class="stat-tile"><div class="stat-value">${totalWeight.toLocaleString()} kg</div><div class="stat-label">Total Weight Shipped</div></div>
+      <div class="stat-tile"><div class="stat-value">UGX ${paidRevenue.toLocaleString()}</div><div class="stat-label">Revenue Collected</div></div>
+      <div class="stat-tile${outstandingRevenue ? ' warn' : ''}"><div class="stat-value">UGX ${outstandingRevenue.toLocaleString()}</div><div class="stat-label">Outstanding Invoices</div></div>
+    `;
+
+    const shipCounts = {};
+    shipments.forEach(s => {
+      const key = s.delivery_status || 'created';
+      shipCounts[key] = (shipCounts[key] || 0) + 1;
+    });
+    shipChart.innerHTML = renderBarChart(shipCounts);
+
+    const invCounts = {};
+    invoices.forEach(i => {
+      const key = i.status || 'unknown';
+      invCounts[key] = (invCounts[key] || 0) + 1;
+    });
+    invChart.innerHTML = renderBarChart(invCounts);
+  } catch (e) {
+    statsBox.innerHTML = '<div class="empty">Error loading analytics.</div>';
+  }
 }
 
 let shipLookupCurrentNumber = '';
