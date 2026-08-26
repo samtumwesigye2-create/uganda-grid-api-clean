@@ -507,6 +507,8 @@ async function loadMailing() {
   } catch (e) { out.innerHTML = '<div class="empty">Error loading mailing list.</div>'; }
 }
 
+let shipLookupStatusValue = 'created';
+
 async function lookupShipment() {
   const number = document.getElementById('shipLookupInput').value.trim();
   const out = document.getElementById('shipLookupOut');
@@ -517,6 +519,21 @@ async function lookupShipment() {
     const contact = [data.recipient_name, data.recipient_email, data.recipient_phone]
       .filter(Boolean).join(' · ') || 'No contact info on file';
     const current = (data.current_status || 'created').replace('_', ' ');
+    shipLookupStatusValue = data.current_status || 'created';
+
+    const statusOptions = [
+      ['created','Created'],
+      ['picked_up','Picked up'],
+      ['in_transit','In transit'],
+      ['out_for_delivery','Out for delivery'],
+      ['delivered','Delivered'],
+      ['failed_delivery','Failed delivery'],
+      ['returned','Returned'],
+      ['cancelled','Cancelled'],
+      ['delayed','Delayed'],
+    ];
+    const currentLabel = (statusOptions.find(o => o[0] === shipLookupStatusValue) || statusOptions[0])[1];
+
     out.innerHTML = `
       <div style="margin-bottom:10px;">
         <strong>${data.shipment_number}</strong>
@@ -525,28 +542,41 @@ async function lookupShipment() {
         <div style="font-size:12px;color:#999;margin-top:2px;">Current status: ${current}</div>
         <div style="font-size:12px;color:#999;margin-top:2px;">Will notify: ${contact}</div>
       </div>
-      <select id="shipLookupStatusSelect">
-        <option value="created">Created</option>
-        <option value="picked_up">Picked up</option>
-        <option value="in_transit">In transit</option>
-        <option value="out_for_delivery">Out for delivery</option>
-        <option value="delivered">Delivered</option>
-        <option value="failed_delivery">Failed delivery</option>
-        <option value="returned">Returned</option>
-        <option value="cancelled">Cancelled</option>
-      </select>
+      <div class="customDropdown" id="shipLookupStatusDropdown">
+        <button type="button" class="dropdownToggle" id="shipLookupStatusToggle">${currentLabel} <span class="caret">▾</span></button>
+        <div class="dropdownMenu" id="shipLookupStatusMenu">
+          ${statusOptions.map(([val, label]) =>
+            `<div class="dropdownItem${val === shipLookupStatusValue ? ' selected' : ''}" data-value="${val}">${label}</div>`
+          ).join('')}
+        </div>
+      </div>
       <input id="shipLookupNote" placeholder="Note for customer (optional)" />
       <button onclick="updateShipStatusFromLookup('${data.shipment_number}')">Update Status &amp; Notify Customer</button>
     `;
-    const sel = document.getElementById('shipLookupStatusSelect');
-    if (sel && data.current_status) sel.value = data.current_status;
+
+    const toggle = document.getElementById('shipLookupStatusToggle');
+    const menu = document.getElementById('shipLookupStatusMenu');
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.toggle('open');
+    });
+    menu.querySelectorAll('.dropdownItem').forEach(item => {
+      item.addEventListener('click', () => {
+        menu.querySelectorAll('.dropdownItem').forEach(i => i.classList.remove('selected'));
+        item.classList.add('selected');
+        shipLookupStatusValue = item.dataset.value;
+        toggle.innerHTML = item.textContent + ' <span class="caret">▾</span>';
+        menu.classList.remove('open');
+      });
+    });
+    document.addEventListener('click', () => menu.classList.remove('open'));
   } catch (e) {
     out.innerHTML = '<div class="empty">' + e.message + '</div>';
   }
 }
 
 async function updateShipStatusFromLookup(shipmentNumber) {
-  const status = document.getElementById('shipLookupStatusSelect').value;
+  const status = shipLookupStatusValue;
   const note = document.getElementById('shipLookupNote').value.trim();
   await updateShipStatus(shipmentNumber, status, note);
   lookupShipment();
