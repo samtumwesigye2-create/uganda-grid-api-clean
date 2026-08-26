@@ -1,0 +1,25 @@
+name: Restore Map Homepage
+on:
+  push:
+    paths:
+      - '.github/workflows/restore-map-home.yml'
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Restore original map homepage and remove misplaced customer patches
+        run: |
+          git checkout ff842328ef6c8e78685baf46ed9df81af5e10588 -- index.html
+          git rm -f scripts/patch_customer_home.py .github/workflows/patch-customer-home.yml scripts/patch_customer_placeholder_values.py .github/workflows/patch-customer-placeholder-values.yml || true
+      - name: Commit restoration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Restore map homepage and remove misplaced customer logistics UI [skip ci]"
+          git push origin HEAD:main
