@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>DDR V2 Live Radar</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+html,body,#map{height:100%;margin:0}
+body{font-family:-apple-system,BlinkMacSystemFont,Arial,sans-serif;background:#08111f;color:#fff;overflow:hidden}
+#map{position:absolute;inset:0}
+.hud{position:absolute;top:max(12px,env(safe-area-inset-top));left:12px;right:12px;z-index:1000;display:flex;gap:8px;pointer-events:none}
+.card{pointer-events:auto;background:rgba(8,17,31,.92);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:10px 12px;box-shadow:0 4px 18px rgba(0,0,0,.45)}
+.title{font-size:13px;font-weight:800}.sub{font-size:11px;color:#9fb0c9;margin-top:2px}.status{margin-left:auto;min-width:112px;text-align:right}.online{color:#65e596}.offline{color:#ff7c7c}.count{font-size:22px;font-weight:800;line-height:1}
+.ddr-radar-icon{background:transparent!important;border:none!important}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div class="hud">
+  <div class="card">
+    <div class="title">DDR V2.0E LIVE RADAR</div>
+    <div class="sub" id="sensor">Waiting for radar feed…</div>
+  </div>
+  <div class="card status">
+    <div class="count" id="count">0</div>
+    <div class="sub" id="feedState">CONNECTING</div>
+  </div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+(function(){
+  const params=new URLSearchParams(location.search);
+  const requested=params.get('feed');
+  if(requested){
+    try{ localStorage.setItem('ddr_radar_feed_url',requested); }catch(e){}
+  }
+  let saved='';
+  try{ saved=localStorage.getItem('ddr_radar_feed_url')||''; }catch(e){}
+  window.DDR_RADAR_FEED_URL=requested||saved||'/radar/tracks.geojson';
+})();
+</script>
+<script src="/ddr-radar-overlay.js?v=2"></script>
+<script>
+const map=L.map('map',{zoomControl:true}).setView([38.9000,-77.0400],13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:19,
+  attribution:'© OpenStreetMap contributors'
+}).addTo(map);
+
+const countEl=document.getElementById('count');
+const stateEl=document.getElementById('feedState');
+const sensorEl=document.getElementById('sensor');
+let lastUpdate=0;
+
+window.addEventListener('ddr-radar-update',function(e){
+  const d=e.detail||{};
+  lastUpdate=Date.now();
+  countEl.textContent=String(d.count||0);
+  sensorEl.textContent=(d.sensor_id||'DDR radar')+' • '+window.DDR_RADAR.feedUrl;
+  stateEl.textContent='LIVE';
+  stateEl.className='sub online';
+});
+
+setInterval(function(){
+  if(!lastUpdate||Date.now()-lastUpdate>5000){
+    stateEl.textContent='FEED OFFLINE';
+    stateEl.className='sub offline';
+  }
+},1000);
+</script>
+</body>
+</html>
