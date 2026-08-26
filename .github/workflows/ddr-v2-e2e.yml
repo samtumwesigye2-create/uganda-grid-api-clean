@@ -1,0 +1,62 @@
+name: DDR V2 E2E
+
+on:
+  push:
+    branches:
+      - ddr-v2-integration
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  radar-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install radar service dependencies
+        run: python -m pip install fastapi uvicorn pydantic
+
+      - name: Start DDR radar service
+        run: |
+          python -m uvicorn ddr_radar_server:app --host 127.0.0.1 --port 8001 > /tmp/ddr-radar.log 2>&1 &
+          echo $! > /tmp/ddr-radar.pid
+
+      - name: Wait for radar health
+        run: |
+          python - <<'PY'
+          import json
+          import time
+          import urllib.request
+
+          url = 'http://127.0.0.1:8001/health'
+          last_error = None
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen(url, timeout=2) as response:
+                      data = json.loads(response.read().decode('utf-8'))
+                  if data.get('status') == 'ONLINE':
+                      print('DDR radar service ONLINE')
+                      raise SystemExit(0)
+              except Exception as exc:
+                  last_error = exc
+              time.sleep(0.5)
+
+          raise SystemExit(f'DDR radar service failed health check: {last_error}')
+          PY
+
+      - name: Run end-to-end radar feed test
+        run: python ddr_e2e_test.py
+
+      - name: Show radar log on failure
+        if: failure()
+        run: cat /tmp/ddr-radar.log || true
