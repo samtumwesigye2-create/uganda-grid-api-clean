@@ -3,166 +3,198 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Create My Address - Uganda National Grid</title>
+<title>Address Applications - Uganda National Grid</title>
 <style>
-  *{box-sizing:border-box} body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#111827}
-  header{background:#111827;color:#fff;padding:16px;text-align:center}
-  header h1{margin:0;font-size:20px}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#111827}
+  header{background:#111827;color:#fff;padding:18px 16px;text-align:center}
+  header h1{margin:0;font-size:22px}
   header p{margin:6px 0 0;font-size:13px;opacity:.85}
-  main{max-width:560px;margin:16px auto;padding:16px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+  main{max-width:620px;margin:16px auto;padding:16px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+  .back{display:inline-block;margin-bottom:12px;color:#2563eb;text-decoration:none;font-size:14px}
+  .typeTabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:18px}
+  .typeTabs button{margin:0;background:#e5e7eb;color:#111827}
+  .typeTabs button.active{background:#2563eb;color:#fff}
+  .intro{font-size:13px;color:#6b7280;line-height:1.45;margin:0 0 16px}
   .field{margin-bottom:14px}
   label{display:block;font-weight:700;font-size:13px;margin-bottom:6px}
-  select,textarea,input[type=file]{width:100%;font-size:16px;border-radius:8px;padding:12px;border:1px solid #d1d5db;background:#fff}
-  textarea{min-height:80px;font-family:inherit;resize:vertical}
+  input,select,textarea{width:100%;font-size:16px;border-radius:8px;padding:12px;border:1px solid #d1d5db;background:#fff;color:#111827}
+  textarea{min-height:82px;font-family:inherit;resize:vertical}
   button{width:100%;padding:14px;border:0;border-radius:8px;font-weight:700;font-size:16px;cursor:pointer;margin-top:6px}
-  #captureBtn{background:#2563eb;color:#fff}
-  #submitBtn{background:#d71920;color:#fff}
-  .back{display:inline-block;margin-bottom:10px;color:#2563eb;text-decoration:none;font-size:14px}
+  .capture{background:#2563eb;color:#fff}
+  .submit{background:#d71920;color:#fff}
   .coordsBox{background:#f3f4f6;border-radius:8px;padding:10px;font-size:13px;margin-top:8px;min-height:20px}
   .coordsBox.ok{background:#ecfdf5;color:#065f46}
-  .status{font-size:13px;margin-top:12px;padding:10px;border-radius:8px;background:#f3f4f6}
+  .status{font-size:13px;margin-top:12px;padding:10px;border-radius:8px;background:#f3f4f6;min-height:36px}
   .status.ok{background:#ecfdf5;color:#065f46}
   .status.err{background:#fef2f2;color:#991b1b}
   .preview{margin-top:8px;max-width:100%;border-radius:8px}
+  .sectionTitle{font-size:19px;margin:0 0 5px}
+  .required{color:#b91c1c}
+  #commercialForm{display:none}
 </style>
 </head>
 <body>
 <header>
-  <h1>Create My Address</h1>
-  <p>Capture your location and help build Uganda's official addressing system</p>
+  <h1>Address Applications</h1>
+  <p>Apply for an official Uganda National Grid address</p>
 </header>
 <main>
   <a href="/" class="back">&larr; Back to map</a>
 
-  <div class="field">
-    <label for="buildingType">What is this location?</label>
-    <select id="buildingType">
-      <option value="hospital">Hospital / Health Facility</option>
-      <option value="police">Police Station</option>
-      <option value="government">Government Office</option>
-      <option value="residence">Home / Residence</option>
-      <option value="business">Business</option>
-      <option value="other">Other</option>
-    </select>
+  <div class="typeTabs">
+    <button type="button" id="resTab" class="active">Residential</button>
+    <button type="button" id="comTab">Commercial</button>
   </div>
 
-  <div class="field">
-    <label>Location</label>
-    <button type="button" id="captureBtn">Capture My Coordinates</button>
-    <div id="coordsBox" class="coordsBox">No coordinates captured yet</div>
-  </div>
+  <section id="residentialForm">
+    <h2 class="sectionTitle">Residential Address Application</h2>
+    <p class="intro">For homes and properties that need one official address. Every application is sent to the National Grid admin team for verification before approval.</p>
 
-  <div class="field">
-    <label for="mediaInput">Photo or video of the building</label>
-    <input type="file" id="mediaInput" accept="image/*,video/*" capture="environment" />
-    <div id="previewWrap"></div>
-  </div>
+    <div class="field"><label for="resName">Applicant full name <span class="required">*</span></label><input id="resName" type="text" placeholder="Full legal name" /></div>
+    <div class="field"><label for="resEmail">Email address <span class="required">*</span></label><input id="resEmail" type="email" placeholder="you@example.com" /></div>
+    <div class="field"><label for="resPhone">Phone number <span class="required">*</span></label><input id="resPhone" type="tel" placeholder="+256..." /></div>
+    <div class="field"><label for="resAddress">Preferred address / location description <span class="required">*</span></label><input id="resAddress" type="text" placeholder="Road, village, estate, landmark, district" /></div>
+    <div class="field">
+      <label for="buildingType">Property type</label>
+      <select id="buildingType">
+        <option value="residence">Home / Residence</option>
+        <option value="hospital">Hospital / Health Facility</option>
+        <option value="police">Police Station</option>
+        <option value="government">Government Office</option>
+        <option value="other">Other single-address property</option>
+      </select>
+    </div>
+    <div class="field"><label>Location <span class="required">*</span></label><button type="button" id="captureBtn" class="capture">Capture My Coordinates</button><div id="coordsBox" class="coordsBox">No coordinates captured yet</div></div>
+    <div class="field"><label for="mediaInput">Photo or video of the property</label><input type="file" id="mediaInput" accept="image/*,video/*" capture="environment" /><div id="previewWrap"></div></div>
+    <div class="field"><label for="noteInput">Additional description</label><textarea id="noteInput" placeholder="e.g. Blue gate, next to the primary school"></textarea></div>
+    <button type="button" id="submitBtn" class="submit">Submit Residential Application</button>
+    <div id="statusBox" class="status"></div>
+  </section>
 
-  <div class="field">
-    <label for="noteInput">Description (optional)</label>
-    <textarea id="noteInput" placeholder="e.g. Blue gate, next to the primary school"></textarea>
-  </div>
+  <section id="commercialForm">
+    <h2 class="sectionTitle">Commercial Address Application</h2>
+    <p class="intro">For businesses, offices, shops, apartment buildings, warehouses and other properties that may require commercial identification or multiple units.</p>
 
-  <button type="button" id="submitBtn">Submit for Verification</button>
-  <div id="statusBox" class="status"></div>
+    <div class="field"><label for="comCompany">Company / organization name <span class="required">*</span></label><input id="comCompany" type="text" placeholder="Business or organization name" /></div>
+    <div class="field"><label for="comName">Authorized applicant <span class="required">*</span></label><input id="comName" type="text" placeholder="Full legal name" /></div>
+    <div class="field"><label for="comEmail">Email address <span class="required">*</span></label><input id="comEmail" type="email" placeholder="you@company.com" /></div>
+    <div class="field"><label for="comPhone">Phone number <span class="required">*</span></label><input id="comPhone" type="tel" placeholder="+256..." /></div>
+    <div class="field"><label for="comBuilding">Building / property name</label><input id="comBuilding" type="text" placeholder="e.g. Victoria Business Centre" /></div>
+    <div class="field"><label for="comAddress">Requested official address wording <span class="required">*</span></label><input id="comAddress" type="text" placeholder="Road, area, city / district" /></div>
+    <div class="field"><label for="comUnits">Units / suites / apartments</label><textarea id="comUnits" placeholder="e.g. Shop 1, Shop 2, Office A, Office B"></textarea></div>
+    <div class="field"><label>Location <span class="required">*</span></label><button type="button" id="comCaptureBtn" class="capture">Capture Commercial Coordinates</button><div id="comCoordsBox" class="coordsBox">No coordinates captured yet</div></div>
+    <div class="field"><label for="comProof">Proof of ownership / authorization</label><input type="file" id="comProof" accept="image/*,application/pdf" /></div>
+    <div class="field"><label for="comNotes">Additional information</label><textarea id="comNotes" placeholder="Describe the business, property access, landmarks or anything the reviewer should know"></textarea></div>
+    <button type="button" id="comSubmitBtn" class="submit">Submit Commercial Application</button>
+    <div id="comStatusBox" class="status"></div>
+  </section>
 </main>
 
 <script>
-(function () {
-  var lat = null, lon = null;
-  var captureBtn = document.getElementById('captureBtn');
-  var coordsBox = document.getElementById('coordsBox');
-  var mediaInput = document.getElementById('mediaInput');
-  var previewWrap = document.getElementById('previewWrap');
-  var submitBtn = document.getElementById('submitBtn');
-  var statusBox = document.getElementById('statusBox');
-  var buildingType = document.getElementById('buildingType');
-  var noteInput = document.getElementById('noteInput');
+(function(){
+  let resLat=null,resLon=null,comLat=null,comLon=null;
+  const $=id=>document.getElementById(id);
 
-  function setStatus(text, type) {
-    statusBox.textContent = text;
-    statusBox.className = 'status' + (type ? ' ' + type : '');
+  function setStatus(id,text,type){
+    const e=$(id); e.textContent=text; e.className='status'+(type?' '+type:'');
+  }
+  function apiCandidates(){
+    const a=[];
+    if(location.protocol.indexOf('http')===0)a.push(location.origin);
+    a.push('https://uganda-grid-api-clean-production.up.railway.app');
+    return [...new Set(a)];
+  }
+  function showForm(which){
+    $('residentialForm').style.display=which==='res'?'block':'none';
+    $('commercialForm').style.display=which==='com'?'block':'none';
+    $('resTab').classList.toggle('active',which==='res');
+    $('comTab').classList.toggle('active',which==='com');
+  }
+  $('resTab').addEventListener('click',()=>showForm('res'));
+  $('comTab').addEventListener('click',()=>showForm('com'));
+
+  function capture(boxId, setter){
+    if(!navigator.geolocation){ $(boxId).textContent='Location is not supported on this device'; return; }
+    $(boxId).textContent='Getting your location...';
+    $(boxId).className='coordsBox';
+    navigator.geolocation.getCurrentPosition(function(pos){
+      setter(pos.coords.latitude,pos.coords.longitude);
+      $(boxId).textContent='Captured: '+pos.coords.latitude.toFixed(6)+', '+pos.coords.longitude.toFixed(6)+' (accuracy ~'+Math.round(pos.coords.accuracy)+'m)';
+      $(boxId).className='coordsBox ok';
+    },function(){
+      $(boxId).textContent='Unable to get location. Check location permissions.';
+    },{enableHighAccuracy:true,timeout:15000,maximumAge:0});
   }
 
-  function apiCandidates() {
-    var urls = [];
-    if (location.protocol.indexOf('http') === 0) urls.push(location.origin);
-    urls.push('https://uganda-grid-api-clean-production.up.railway.app');
-    return urls;
+  $('captureBtn').addEventListener('click',()=>capture('coordsBox',(a,b)=>{resLat=a;resLon=b;}));
+  $('comCaptureBtn').addEventListener('click',()=>capture('comCoordsBox',(a,b)=>{comLat=a;comLon=b;}));
+
+  $('mediaInput').addEventListener('change',function(){
+    const wrap=$('previewWrap'); wrap.innerHTML='';
+    const file=$('mediaInput').files&&$('mediaInput').files[0]; if(!file)return;
+    const url=URL.createObjectURL(file);
+    if(file.type.indexOf('video')===0){const v=document.createElement('video');v.src=url;v.controls=true;v.className='preview';wrap.appendChild(v);}
+    else{const img=document.createElement('img');img.src=url;img.className='preview';wrap.appendChild(img);}
+  });
+
+  async function postSubmission(fd){
+    let lastError='';
+    for(const base of apiCandidates()){
+      try{
+        const r=await fetch(base+'/submissions',{method:'POST',body:fd});
+        const d=await r.json().catch(()=>({}));
+        if(r.ok)return d;
+        lastError=d.detail||('HTTP '+r.status);
+      }catch(e){lastError=e.message||'Network error';}
+    }
+    throw new Error(lastError||'Unable to submit');
   }
 
-  captureBtn.addEventListener('click', function () {
-    if (!navigator.geolocation) {
-      coordsBox.textContent = 'Location is not supported on this device';
-      coordsBox.className = 'coordsBox';
-      return;
-    }
-    coordsBox.textContent = 'Getting your location...';
-    coordsBox.className = 'coordsBox';
-    navigator.geolocation.getCurrentPosition(function (pos) {
-      lat = pos.coords.latitude;
-      lon = pos.coords.longitude;
-      coordsBox.textContent = 'Captured: ' + lat.toFixed(6) + ', ' + lon.toFixed(6) + ' (accuracy ~' + Math.round(pos.coords.accuracy) + 'm)';
-      coordsBox.className = 'coordsBox ok';
-    }, function () {
-      coordsBox.textContent = 'Unable to get location. Check permissions.';
-      coordsBox.className = 'coordsBox';
-    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  $('submitBtn').addEventListener('click',async function(){
+    const name=$('resName').value.trim(),email=$('resEmail').value.trim(),phone=$('resPhone').value.trim(),address=$('resAddress').value.trim();
+    if(!name||!email||!phone||!address){setStatus('statusBox','Name, email, phone and address description are required.','err');return;}
+    if(resLat===null||resLon===null){setStatus('statusBox','Please capture your coordinates first.','err');return;}
+    const extra=[
+      'APPLICATION TYPE: RESIDENTIAL',
+      'Applicant: '+name,
+      'Email: '+email,
+      'Phone: '+phone,
+      'Requested address: '+address,
+      $('noteInput').value.trim()?('Description: '+$('noteInput').value.trim()):''
+    ].filter(Boolean).join('\n');
+    const fd=new FormData();
+    fd.append('lat',String(resLat)); fd.append('lon',String(resLon)); fd.append('building_type',$('buildingType').value); fd.append('note',extra);
+    const file=$('mediaInput').files&&$('mediaInput').files[0]; if(file)fd.append('file',file);
+    $('submitBtn').disabled=true; setStatus('statusBox','Submitting to Admin → Submissions...','');
+    try{const d=await postSubmission(fd);setStatus('statusBox','Submitted for admin review. Application ID: '+d.id,'ok');}
+    catch(e){setStatus('statusBox',e.message||'Unable to submit. Please try again.','err');}
+    $('submitBtn').disabled=false;
   });
 
-  mediaInput.addEventListener('change', function () {
-    previewWrap.innerHTML = '';
-    var file = mediaInput.files && mediaInput.files[0];
-    if (!file) return;
-    var url = URL.createObjectURL(file);
-    if (file.type.indexOf('video') === 0) {
-      var v = document.createElement('video');
-      v.src = url; v.controls = true; v.className = 'preview';
-      previewWrap.appendChild(v);
-    } else {
-      var img = document.createElement('img');
-      img.src = url; img.className = 'preview';
-      previewWrap.appendChild(img);
-    }
-  });
-
-  submitBtn.addEventListener('click', async function () {
-    if (lat === null || lon === null) {
-      setStatus('Please capture your coordinates first', 'err');
-      return;
-    }
-    submitBtn.disabled = true;
-    setStatus('Submitting...', '');
-
-    var formData = new FormData();
-    formData.append('lat', String(lat));
-    formData.append('lon', String(lon));
-    formData.append('building_type', buildingType.value);
-    formData.append('note', noteInput.value.trim());
-    var file = mediaInput.files && mediaInput.files[0];
-    if (file) formData.append('file', file);
-
-    var ok = false;
-    var candidates = apiCandidates();
-    for (var i = 0; i < candidates.length; i++) {
-      try {
-        var r = await fetch(candidates[i] + '/submissions', { method: 'POST', body: formData });
-        if (r.ok) { ok = true; break; }
-      } catch (e) {}
-    }
-
-    submitBtn.disabled = false;
-    if (ok) {
-      setStatus('Submitted! An official will review your submission.', 'ok');
-      lat = null; lon = null;
-      coordsBox.textContent = 'No coordinates captured yet';
-      coordsBox.className = 'coordsBox';
-      mediaInput.value = '';
-      previewWrap.innerHTML = '';
-      noteInput.value = '';
-    } else {
-      setStatus('Unable to submit. Please try again.', 'err');
-    }
+  $('comSubmitBtn').addEventListener('click',async function(){
+    const company=$('comCompany').value.trim(),name=$('comName').value.trim(),email=$('comEmail').value.trim(),phone=$('comPhone').value.trim(),address=$('comAddress').value.trim();
+    if(!company||!name||!email||!phone||!address){setStatus('comStatusBox','Company, applicant, email, phone and requested address are required.','err');return;}
+    if(comLat===null||comLon===null){setStatus('comStatusBox','Please capture commercial coordinates first.','err');return;}
+    const extra=[
+      'APPLICATION TYPE: COMMERCIAL',
+      'Company: '+company,
+      'Authorized applicant: '+name,
+      'Email: '+email,
+      'Phone: '+phone,
+      $('comBuilding').value.trim()?('Building/property: '+$('comBuilding').value.trim()):'',
+      'Requested address: '+address,
+      $('comUnits').value.trim()?('Units/suites: '+$('comUnits').value.trim()):'',
+      $('comNotes').value.trim()?('Additional information: '+$('comNotes').value.trim()):''
+    ].filter(Boolean).join('\n');
+    const fd=new FormData();
+    fd.append('lat',String(comLat)); fd.append('lon',String(comLon)); fd.append('building_type','business'); fd.append('note',extra);
+    const proof=$('comProof').files&&$('comProof').files[0];
+    if(proof && proof.type.indexOf('image/')===0)fd.append('file',proof);
+    $('comSubmitBtn').disabled=true; setStatus('comStatusBox','Submitting to Admin → Submissions...','');
+    try{const d=await postSubmission(fd);setStatus('comStatusBox','Commercial application submitted for admin review. Application ID: '+d.id,'ok');}
+    catch(e){setStatus('comStatusBox',e.message||'Unable to submit commercial application.','err');}
+    $('comSubmitBtn').disabled=false;
   });
 })();
 </script>
