@@ -1,9 +1,8 @@
 """Uganda National Grid postal-zone registry.
 
-Each of the ten initial regions owns one two-digit postal prefix and ten
-postal zones. Existing Entebbe ZIP codes 21401-21405 are preserved exactly;
-21406-21410 extend coverage outside the protected Entebbe register zones.
-ZIP codes identify delivery/service zones; Grid IDs identify properties.
+Ten state postal regions each own ten ZIP zones. Entebbe is a protected
+city-level enclave inside Kampala Metropolitan and permanently keeps its
+existing 21401-21405 ZIP codes; those five codes are not reused anywhere else.
 """
 
 
@@ -11,16 +10,17 @@ def _ten(prefix):
     return [f"{prefix}4{i:02d}" for i in range(1, 11)]
 
 REGIONS = {
-    "KLA": {"name": "Kampala", "prefix": "20", "zip_codes": _ten("20")},
-    "ENT": {"name": "Entebbe", "prefix": "21", "zip_codes": _ten("21")},
-    "JIN": {"name": "Jinja", "prefix": "22", "zip_codes": _ten("22")},
-    "MBA": {"name": "Mbarara", "prefix": "23", "zip_codes": _ten("23")},
-    "MBL": {"name": "Mbale", "prefix": "24", "zip_codes": _ten("24")},
-    "GUL": {"name": "Gulu", "prefix": "25", "zip_codes": _ten("25")},
-    "ARU": {"name": "Arua", "prefix": "26", "zip_codes": _ten("26")},
-    "SOR": {"name": "Soroti", "prefix": "27", "zip_codes": _ten("27")},
-    "MOR": {"name": "Moroto", "prefix": "28", "zip_codes": _ten("28")},
-    "HOI": {"name": "Hoima", "prefix": "29", "zip_codes": _ten("29")},
+    "KLA": {"name": "Kampala Metropolitan", "prefix": "20", "zip_codes": _ten("20")},
+    "JIN": {"name": "Nile", "prefix": "22", "zip_codes": _ten("22")},
+    "MBA": {"name": "Western Highlands", "prefix": "23", "zip_codes": _ten("23")},
+    "MBL": {"name": "Elgon", "prefix": "24", "zip_codes": _ten("24")},
+    "GUL": {"name": "Northern Savannah", "prefix": "25", "zip_codes": _ten("25")},
+    "ARU": {"name": "West Nile", "prefix": "26", "zip_codes": _ten("26")},
+    "SOR": {"name": "Eastern Plains", "prefix": "27", "zip_codes": _ten("27")},
+    "MOR": {"name": "Karamoja", "prefix": "28", "zip_codes": _ten("28")},
+    "HOI": {"name": "Albertine", "prefix": "29", "zip_codes": _ten("29")},
+    "MSK": {"name": "Lake Victoria", "prefix": "30", "zip_codes": _ten("30")},
+    "ENT": {"name": "Entebbe", "prefix": "21", "zip_codes": ["21401", "21402", "21403", "21404", "21405"]},
 }
 
 ENTEBBE_ZONES = {
