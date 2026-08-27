@@ -45,6 +45,8 @@ def check_admin(v):
  if v!=ADMIN_PASSCODE:raise HTTPException(status_code=401,detail="Invalid passcode")
 def prune_reports():
  global REPORTS;now=time.time();REPORTS=[r for r in REPORTS if now-r["created_at"]<REPORT_TTL_SECONDS]
+def special_zip_search_records():
+ return [{"grid_id":x.get("zip_code", ""),"zip_code":x.get("zip_code", ""),"address":x.get("name", ""),"display_name":x.get("name", ""),"latitude":x.get("latitude"),"longitude":x.get("longitude"),"special":True,"special_category":x.get("category", ""),"locality":x.get("address", "")} for x in list_special_zips()]
 @app.get("/health")
 def health():return {"status":"ok","records":len(addresses)}
 @app.get("/geography/states")
@@ -118,11 +120,16 @@ def driver_page():return FileResponse(DRIVER_FILE,media_type="text/html")
 def test_tool_page():return FileResponse(TEST_TOOL_FILE,media_type="text/html")
 @app.get("/search")
 def search(q:str=Query(...,min_length=1)):
- x=q.strip().lower();r=[a for a in addresses if x in str(a.get("grid_id","")).lower() or x in str(a.get("address","")).lower()][:50];return {"count":len(r),"results":r}
+ x=q.strip().lower();normal=[a for a in addresses if x in str(a.get("grid_id","")).lower() or x in str(a.get("address","")).lower()]
+ special=[a for a in special_zip_search_records() if x in str(a.get("zip_code","")).lower() or x in str(a.get("address","")).lower() or x in str(a.get("locality","")).lower()]
+ r=(special+normal)[:50];return {"count":len(r),"results":r}
 @app.get("/address/{grid_id}")
 def get_address(grid_id:str):
+ key=grid_id.strip().lower()
+ for s in special_zip_search_records():
+  if str(s.get("zip_code","")).strip().lower()==key:return s
  for a in addresses:
-  if str(a.get("grid_id","")).strip().lower()==grid_id.strip().lower():return a
+  if str(a.get("grid_id","")).strip().lower()==key:return a
  raise HTTPException(status_code=404,detail="Address not found")
 @app.put("/address/{grid_id}")
 def update_address(grid_id:str,address:str=Form(None),latitude:float=Form(None),longitude:float=Form(None),address_type:str=Form(None),x_admin_passcode:str=Header(default="")):
