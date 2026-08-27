@@ -14,7 +14,11 @@
     if (initialized || !map) return;
     initialized = true;
     try {
-      const [states, zips] = await Promise.all([getJson('/geography/states'), getJson('/geography/zips')]);
+      const [states, zips, specialZips] = await Promise.all([
+        getJson('/geography/states'),
+        getJson('/geography/zips'),
+        getJson('/geography/special-zips')
+      ]);
 
       const stateLayer = L.geoJSON(states, {
         style: { color: '#f59e0b', weight: 3, fillColor: '#f59e0b', fillOpacity: 0.015 },
@@ -39,15 +43,36 @@
         onEachFeature: function (f, layer) {
           const p = f.properties || {};
           const zip = p.zip_code || '';
-          layer.bindPopup('<b>ZIP ' + zip + '</b><br>' + (p.state_name || '') + '<br>Region: ' + (p.postal_region || ''));
+          layer.bindPopup('<b>Geographic ZIP ' + zip + '</b><br>' + (p.state_name || '') + '<br>Region: ' + (p.postal_region || '') + '<br><small>Special national facilities inside this area may have their own 00xxx ZIP.</small>');
           layer._ugamapZip = zip;
+        }
+      });
+
+      const specialLayer = L.geoJSON(specialZips, {
+        pointToLayer: function (f, latlng) {
+          return L.circleMarker(latlng, {
+            radius: 10,
+            color: '#ffffff',
+            weight: 2,
+            fillColor: '#7c3aed',
+            fillOpacity: 1
+          });
+        },
+        onEachFeature: function (f, layer) {
+          const p = f.properties || {};
+          const zip = p.zip_code || '';
+          const name = p.name || 'National Special Facility';
+          const category = String(p.category || '').replace(/_/g, ' ');
+          layer.bindPopup('<b>Special ZIP ' + zip + '</b><br>' + name + (category ? '<br>Category: ' + category : '') + (p.address ? '<br>' + p.address : ''));
+          layer._ugamapSpecialZip = zip;
+          layer._ugamapSpecialName = name;
         }
       });
 
       if (!document.getElementById('ugamap-boundary-style')) {
         const style = document.createElement('style');
         style.id = 'ugamap-boundary-style';
-        style.textContent = '.ugamap-zip-label{background:rgba(8,15,30,.86);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:5px;box-shadow:none;font-weight:700;font-size:10px;padding:2px 4px}.ugamap-zip-label:before{display:none}.ugamap-state-prefix{background:rgba(8,15,30,.92);color:#ffd166;border:1px solid rgba(245,158,11,.9);border-radius:7px;box-shadow:0 2px 8px rgba(0,0,0,.35);font-weight:800;font-size:11px;padding:3px 6px;white-space:nowrap}.ugamap-state-prefix:before{display:none}';
+        style.textContent = '.ugamap-zip-label{background:rgba(8,15,30,.86);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:5px;box-shadow:none;font-weight:700;font-size:10px;padding:2px 4px}.ugamap-zip-label:before{display:none}.ugamap-state-prefix{background:rgba(8,15,30,.92);color:#ffd166;border:1px solid rgba(245,158,11,.9);border-radius:7px;box-shadow:0 2px 8px rgba(0,0,0,.35);font-weight:800;font-size:11px;padding:3px 6px;white-space:nowrap}.ugamap-state-prefix:before{display:none}.ugamap-special-zip{background:#5b21b6;color:#fff;border:2px solid #fff;border-radius:7px;box-shadow:0 2px 8px rgba(0,0,0,.4);font-weight:900;font-size:11px;padding:3px 6px;white-space:nowrap}.ugamap-special-zip:before{display:none}';
         document.head.appendChild(style);
       }
 
@@ -55,6 +80,7 @@
         const zoom = map.getZoom();
         const showZip = zoom >= 8;
         const showState = zoom >= 6 && zoom <= 9;
+        const showSpecial = zoom >= 12;
 
         zipLayer.eachLayer(function (layer) {
           const zip = layer._ugamapZip;
@@ -77,16 +103,33 @@
             layer.unbindTooltip();
           }
         });
+
+        specialLayer.eachLayer(function (layer) {
+          const zip = layer._ugamapSpecialZip;
+          const name = layer._ugamapSpecialName;
+          if (!zip) return;
+          if (showSpecial) {
+            if (!layer.getTooltip()) layer.bindTooltip(zip + (name ? ' · ' + name : ''), { permanent: true, direction: 'top', className: 'ugamap-special-zip', opacity: 0.98, offset: [0,-8] });
+            layer.openTooltip();
+          } else if (layer.getTooltip()) {
+            layer.unbindTooltip();
+          }
+        });
       }
 
-      L.control.layers(null, { 'State Boundaries': stateLayer, 'ZIP Zones': zipLayer }, { collapsed: true, position: 'topright' }).addTo(map);
+      L.control.layers(null, {
+        'State Boundaries': stateLayer,
+        'ZIP Zones': zipLayer,
+        'National Special ZIPs': specialLayer
+      }, { collapsed: true, position: 'topright' }).addTo(map);
       stateLayer.addTo(map);
       zipLayer.addTo(map);
+      specialLayer.addTo(map);
       updateLabels();
       map.on('zoomend', updateLabels);
 
       window.UGAMAP = window.UGAMAP || {};
-      window.UGAMAP.boundaries = { states: stateLayer, zips: zipLayer, updateLabels: updateLabels };
+      window.UGAMAP.boundaries = { states: stateLayer, zips: zipLayer, specialZips: specialLayer, updateLabels: updateLabels };
     } catch (e) {
       initialized = false;
       console.error('Boundary layers unavailable:', e);
