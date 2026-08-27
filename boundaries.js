@@ -1,24 +1,18 @@
 (function () {
   if (!window.L) return;
 
-  // Capture the application's Leaflet map without changing its routing code.
   const originalMap = L.map;
-  L.map = function () {
-    const map = originalMap.apply(this, arguments);
-    window.__UGAMAP_LEAFLET_MAP__ = map;
-    return map;
-  };
-  Object.keys(originalMap).forEach(k => { try { L.map[k] = originalMap[k]; } catch (_) {} });
+  let initialized = false;
 
   async function getJson(path) {
-    const r = await fetch(path, { headers: { Accept: 'application/json' } });
+    const r = await fetch(path, { headers: { Accept: 'application/json' }, cache: 'no-store' });
     if (!r.ok) throw new Error(path + ' returned HTTP ' + r.status);
     return r.json();
   }
 
-  window.addEventListener('load', async function () {
-    const map = window.__UGAMAP_LEAFLET_MAP__;
-    if (!map) return;
+  async function initializeBoundaries(map) {
+    if (initialized || !map) return;
+    initialized = true;
     try {
       const [states, zips] = await Promise.all([
         getJson('/geography/states'),
@@ -26,7 +20,7 @@
       ]);
 
       const stateLayer = L.geoJSON(states, {
-        style: { color: '#111827', weight: 3, fillOpacity: 0.03 },
+        style: { color: '#f59e0b', weight: 3, fillOpacity: 0.025 },
         onEachFeature: function (f, layer) {
           const p = f.properties || {};
           layer.bindPopup('<b>' + (p.state_name || p.state_code || 'State') + '</b><br>State: ' + (p.state_code || '') + '<br>Grid prefix: ' + (p.grid_prefix || '') + '<br>Postal prefix: ' + (p.postal_prefix || ''));
@@ -54,7 +48,21 @@
       window.UGAMAP = window.UGAMAP || {};
       window.UGAMAP.boundaries = { states: stateLayer, zips: zipLayer };
     } catch (e) {
+      initialized = false;
       console.error('Boundary layers unavailable:', e);
     }
+  }
+
+  // The boundary module is prepended to app.js by the service worker, so the
+  // old window-load hook could fire before app.js created its Leaflet map.
+  // Initialize immediately when app.js calls L.map instead.
+  L.map = function () {
+    const map = originalMap.apply(this, arguments);
+    window.__UGAMAP_LEAFLET_MAP__ = map;
+    setTimeout(function () { initializeBoundaries(map); }, 0);
+    return map;
+  };
+  Object.keys(originalMap).forEach(function (k) {
+    try { L.map[k] = originalMap[k]; } catch (_) {}
   });
 })();
