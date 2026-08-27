@@ -19,6 +19,7 @@ import time
 import uuid
 from fastapi import APIRouter, Form, Header, HTTPException, Query, UploadFile, File
 from postal_assignment import resolve_zip
+from grid_assignment import next_grid_id
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data_hub.db")
@@ -60,15 +61,6 @@ def init_db():
         )
         """
     )
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS commercial_grid_counter (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
-            next_number INTEGER NOT NULL
-        )
-        """
-    )
-    conn.execute("INSERT OR IGNORE INTO commercial_grid_counter (id, next_number) VALUES (1, 1)")
     conn.commit()
     conn.close()
 
@@ -79,16 +71,6 @@ init_db()
 def check_admin(x_admin_passcode: str):
     if x_admin_passcode != ADMIN_PASSCODE:
         raise HTTPException(status_code=401, detail="Invalid passcode")
-
-
-def next_commercial_grid_id():
-    conn = get_conn()
-    cur = conn.execute("SELECT next_number FROM commercial_grid_counter WHERE id = 1")
-    n = cur.fetchone()["next_number"]
-    conn.execute("UPDATE commercial_grid_counter SET next_number = ? WHERE id = 1", (n + 1,))
-    conn.commit()
-    conn.close()
-    return f"UG-COM-{n:06d}"
 
 
 def register_commercial_routes(addresses_ref, save_addresses_ref):
@@ -184,7 +166,10 @@ def register_commercial_routes(addresses_ref, save_addresses_ref):
             conn.close()
             return {"id": application_id, "status": "denied"}
 
-        grid_id = next_commercial_grid_id()
+        addresses = addresses_ref()
+        grid_id, state = next_grid_id(addresses, row["latitude"], row["longitude"])
+        postal = resolve_zip(row["latitude"], row["longitude"])
+
         conn.execute(
             "UPDATE commercial_applications SET status = 'approved', assigned_grid_id = ? WHERE id = ?",
             (grid_id, application_id),
@@ -193,8 +178,6 @@ def register_commercial_routes(addresses_ref, save_addresses_ref):
         conn.close()
 
         unit_list = row["units"].split(",")
-        addresses = addresses_ref()
-        postal = resolve_zip(row["latitude"], row["longitude"])
         new_record = {
             "grid_id": grid_id,
             "address": row["address_text"],
@@ -205,6 +188,11 @@ def register_commercial_routes(addresses_ref, save_addresses_ref):
             "building_name": row["building_name"],
             "company_name": row["company_name"],
             "units": unit_list,
+            "state_code": state["state_code"],
+            "state_name": state["state_name"],
+            "grid_prefix": state["grid_prefix"],
+            "postal_prefix": state["postal_prefix"],
+            "postal_center": state["postal_center"],
         }
         if postal:
             new_record["zip_code"] = postal["zip_code"]
@@ -213,7 +201,17 @@ def register_commercial_routes(addresses_ref, save_addresses_ref):
         addresses.append(new_record)
         save_addresses_ref(addresses)
 
-        return {"id": application_id, "status": "approved", "grid_id": grid_id, "zip_code": postal["zip_code"] if postal else "", "units": unit_list}
+        return {
+            "id": application_id,
+            "status": "approved",
+            "grid_id": grid_id,
+            "state_code": state["state_code"],
+            "state_name": state["state_name"],
+            "grid_prefix": state["grid_prefix"],
+            "postal_prefix": state["postal_prefix"],
+            "zip_code": postal["zip_code"] if postal else "",
+            "units": unit_list,
+        }
 
     @router.post("/commercial/applications/{application_id}/reverse")
     def reverse_commercial_decision(
