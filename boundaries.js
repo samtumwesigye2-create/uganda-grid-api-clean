@@ -20,7 +20,11 @@
         style: { color: '#f59e0b', weight: 3, fillColor: '#f59e0b', fillOpacity: 0.015 },
         onEachFeature: function (f, layer) {
           const p = f.properties || {};
-          layer.bindPopup('<b>' + (p.state_name || p.state_code || 'State') + '</b><br>State: ' + (p.state_code || '') + '<br>Grid prefix: ' + (p.grid_prefix || '') + '<br>Postal prefix: ' + (p.postal_prefix || ''));
+          const name = p.state_name || p.state_code || 'State';
+          const postalPrefix = p.postal_prefix || '';
+          const gridPrefix = p.grid_prefix || '';
+          layer.bindPopup('<b>' + name + '</b><br>State: ' + (p.state_code || '') + '<br>Grid prefix: ' + gridPrefix + '<br>Postal prefix: ' + postalPrefix);
+          layer._ugamapStateLabel = postalPrefix ? (name + ' · ZIP ' + postalPrefix) : name;
         }
       });
 
@@ -43,17 +47,31 @@
       if (!document.getElementById('ugamap-boundary-style')) {
         const style = document.createElement('style');
         style.id = 'ugamap-boundary-style';
-        style.textContent = '.ugamap-zip-label{background:rgba(8,15,30,.86);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:5px;box-shadow:none;font-weight:700;font-size:10px;padding:2px 4px}.ugamap-zip-label:before{display:none}';
+        style.textContent = '.ugamap-zip-label{background:rgba(8,15,30,.86);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:5px;box-shadow:none;font-weight:700;font-size:10px;padding:2px 4px}.ugamap-zip-label:before{display:none}.ugamap-state-prefix{background:rgba(8,15,30,.92);color:#ffd166;border:1px solid rgba(245,158,11,.9);border-radius:7px;box-shadow:0 2px 8px rgba(0,0,0,.35);font-weight:800;font-size:11px;padding:3px 6px;white-space:nowrap}.ugamap-state-prefix:before{display:none}';
         document.head.appendChild(style);
       }
 
       function updateLabels() {
-        const show = map.getZoom() >= 8;
+        const zoom = map.getZoom();
+        const showZip = zoom >= 8;
+        const showState = zoom >= 6 && zoom <= 9;
+
         zipLayer.eachLayer(function (layer) {
           const zip = layer._ugamapZip;
           if (!zip) return;
-          if (show) {
+          if (showZip) {
             if (!layer.getTooltip()) layer.bindTooltip(String(zip), { permanent: true, direction: 'center', className: 'ugamap-zip-label', opacity: 0.92 });
+            layer.openTooltip();
+          } else if (layer.getTooltip()) {
+            layer.unbindTooltip();
+          }
+        });
+
+        stateLayer.eachLayer(function (layer) {
+          const label = layer._ugamapStateLabel;
+          if (!label) return;
+          if (showState) {
+            if (!layer.getTooltip()) layer.bindTooltip(label, { permanent: true, direction: 'center', className: 'ugamap-state-prefix', opacity: 0.96 });
             layer.openTooltip();
           } else if (layer.getTooltip()) {
             layer.unbindTooltip();
