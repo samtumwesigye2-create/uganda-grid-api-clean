@@ -10,6 +10,7 @@ import uuid
 import urllib.request
 import xml.etree.ElementTree as ET
 from postal_assignment import resolve_zip
+from grid_assignment import next_grid_id
 
 app = FastAPI(title="Uganda National Grid API", version="1.5")
 
@@ -242,10 +243,7 @@ def uganda_trending_news():
     """Same-origin proxy for Uganda headlines so the mobile UI does not
     depend on third-party browser CORS support."""
     rss_url = "https://news.google.com/rss/search?q=Uganda&hl=en-UG&gl=UG&ceid=UG:en"
-    req = urllib.request.Request(
-        rss_url,
-        headers={"User-Agent": "Mozilla/5.0 UgandaNationalGrid/1.0"},
-    )
+    req = urllib.request.Request(rss_url, headers={"User-Agent": "Mozilla/5.0 UgandaNationalGrid/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=8) as resp:
             root = ET.fromstring(resp.read())
@@ -261,8 +259,7 @@ def uganda_trending_news():
         if not items:
             raise RuntimeError('No headlines returned')
         return {"count": len(items), "results": items}
-    except Exception as exc:
-        # Keep the UI useful even if the external feed is temporarily unavailable.
+    except Exception:
         return {
             "count": 3,
             "degraded": True,
@@ -359,20 +356,42 @@ def decide_submission(submission_id: str, action: str = Form(...), grid_id: str 
     if action == "deny":
         sub["status"] = "denied"
         return sub
-    grid_id = grid_id.strip()
+
     address = address.strip()
-    if not grid_id or not address:
-        raise HTTPException(status_code=400, detail="grid_id and address are required to approve")
-    sub["status"] = "approved"
-    sub["assigned_grid_id"] = grid_id
-    sub["assigned_address"] = address
+    if not address:
+        raise HTTPException(status_code=400, detail="address is required to approve")
+
+    # Ignore any legacy/manual Grid ID supplied by older admin pages. The state
+    # and Grid prefix now come from the validated national coordinate polygons.
+    assigned_grid_id, state = next_grid_id(addresses, sub["lat"], sub["lon"])
     postal = resolve_zip(sub["lat"], sub["lon"])
-    new_record = {"grid_id": grid_id, "address": address, "latitude": sub["lat"], "longitude": sub["lon"], "address_type": "residential"}
+
+    sub["status"] = "approved"
+    sub["assigned_grid_id"] = assigned_grid_id
+    sub["assigned_address"] = address
+    sub["assigned_state_code"] = state["state_code"]
+    sub["assigned_state_name"] = state["state_name"]
+    sub["assigned_grid_prefix"] = state["grid_prefix"]
+    sub["assigned_postal_prefix"] = state["postal_prefix"]
+
+    new_record = {
+        "grid_id": assigned_grid_id,
+        "address": address,
+        "latitude": sub["lat"],
+        "longitude": sub["lon"],
+        "address_type": "residential",
+        "state_code": state["state_code"],
+        "state_name": state["state_name"],
+        "grid_prefix": state["grid_prefix"],
+        "postal_prefix": state["postal_prefix"],
+        "postal_center": state["postal_center"],
+    }
     if postal:
         new_record["zip_code"] = postal["zip_code"]
         new_record["postal_region"] = postal["region"]
         new_record["postal_zone"] = postal.get("name", "")
         sub["assigned_zip_code"] = postal["zip_code"]
+
     updated = addresses + [new_record]
     save_addresses(updated)
     return sub
