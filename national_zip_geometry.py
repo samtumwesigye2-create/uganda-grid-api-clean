@@ -1,19 +1,12 @@
 """Generate five deterministic ZIP sub-polygons inside each custom state.
 
-This is the geometric framework for nationwide ZIP assignment. Entebbe's
-existing 21401-21405 classifier remains authoritative and is NOT replaced.
-
-For each non-Entebbe state, the state polygon is split into five longitude
-bands of equal geographic width, clipped to the exact state geometry. The
-result therefore covers the state without extending outside its boundary.
-This is an initial operational zoning scheme; future reviewed administrative
-ZIP polygons can replace these generated zones without changing ZIP numbers.
+Entebbe's existing 21401-21405 coordinate classifier remains authoritative
+for assignment. This module also exposes the generated national zoning layer
+as GeoJSON for map inspection.
 """
 from functools import lru_cache
-
-from shapely.geometry import box, Point
+from shapely.geometry import box, Point, mapping
 from shapely.ops import unary_union
-
 from state_geometry import _state_geometries
 
 STATE_TO_POSTAL = {
@@ -29,7 +22,6 @@ STATE_TO_POSTAL = {
     "ALB": ("HOI", ["29401", "29402", "29403", "29404", "29405"]),
 }
 
-
 @lru_cache(maxsize=1)
 def _zones():
     result = {}
@@ -42,12 +34,10 @@ def _zones():
         for i, zip_code in enumerate(zip_codes):
             left = minx + i * width
             right = maxx if i == 4 else minx + (i + 1) * width
-            band = box(left, miny - 1.0, right, maxy + 1.0)
-            geom = state_geom.intersection(band)
+            geom = state_geom.intersection(box(left, miny - 1.0, right, maxy + 1.0))
             if geom.is_empty or not geom.is_valid:
                 raise ValueError(f"Invalid ZIP geometry {zip_code} in {state_code}")
             zones.append((zip_code, geom))
-
         union = unary_union([g for _, g in zones])
         if state_geom.difference(union).area > 1e-12 or union.difference(state_geom).area > 1e-12:
             raise ValueError(f"ZIP zones do not exactly cover state {state_code}")
@@ -55,12 +45,10 @@ def _zones():
             for zb, gb in zones[i + 1:]:
                 if ga.intersection(gb).area > 1e-12:
                     raise ValueError(f"ZIP overlap {za}/{zb}")
-        result[state_code] = {"postal_region": postal_region, "zones": zones}
+        result[state_code] = {"postal_region": postal_region, "state": props, "zones": zones}
     return result
 
-
 def zip_for_coordinate(latitude: float, longitude: float, state_code: str):
-    """Resolve a coordinate to exactly one generated ZIP inside its state."""
     state = _zones().get(state_code)
     if not state:
         return None
@@ -68,12 +56,26 @@ def zip_for_coordinate(latitude: float, longitude: float, state_code: str):
     matches = [(z, g) for z, g in state["zones"] if g.covers(point)]
     if not matches:
         return None
-    # On a shared internal boundary, choose the lower-numbered ZIP
-    # deterministically. The point is still inside only one state.
     zip_code = sorted(z for z, _ in matches)[0]
     return {"zip_code": zip_code, "region": state["postal_region"], "name": ""}
 
+def zip_feature_collection():
+    features = []
+    for state_code, state in _zones().items():
+        props = state["state"]
+        for zip_code, geom in state["zones"]:
+            features.append({
+                "type": "Feature",
+                "properties": {
+                    "zip_code": zip_code,
+                    "postal_region": state["postal_region"],
+                    "state_code": state_code,
+                    "state_name": props["state_name"],
+                },
+                "geometry": mapping(geom),
+            })
+    return {"type": "FeatureCollection", "features": features}
 
 def validation_status():
     zones = _zones()
-    return {"state_count": len(zones), "zones_per_state": {k: len(v["zones"]) for k, v in zones.items()}}
+    return {"state_count": len(zones), "zone_count": sum(len(v["zones"]) for v in zones.values()), "zones_per_state": {k: len(v["zones"]) for k, v in zones.items()}}
