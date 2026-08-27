@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import json
@@ -129,7 +129,20 @@ def home():
 @app.get("/app.js")
 def app_js():
     if not os.path.exists(APP_JS_FILE): raise HTTPException(status_code=404, detail="app.js not found")
-    return FileResponse(APP_JS_FILE, media_type="application/javascript; charset=utf-8", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    try:
+        with open(APP_JS_FILE, "r", encoding="utf-8") as f:
+            app_code = f.read()
+        boundary_code = ""
+        if os.path.exists(BOUNDARIES_JS_FILE):
+            with open(BOUNDARIES_JS_FILE, "r", encoding="utf-8") as f:
+                boundary_code = f.read()
+        return Response(
+            content=boundary_code + "\n\n" + app_code,
+            media_type="application/javascript",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
+    except Exception:
+        return FileResponse(APP_JS_FILE, media_type="application/javascript; charset=utf-8", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 @app.get("/boundaries.js")
 def boundaries_js():
