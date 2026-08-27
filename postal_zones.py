@@ -1,31 +1,42 @@
 """Uganda National Grid postal-zone registry.
 
-Ten state postal regions each own ten ZIP zones. Entebbe is a protected
-city-level enclave inside Kampala Metropolitan and permanently keeps its
-existing 21401-21405 ZIP codes; those five codes are not reused anywhere else.
+Postal capacity is allocated by settlement density instead of forcing every
+state to have the same number of ZIP zones:
+- major/dense urban regions: 25 ZIP zones
+- less-dense regions: 15 ZIP zones
+- Entebbe + Lake Victoria islands: one protected 21xxx region with 10 ZIP zones
+
+Existing Entebbe ZIP codes 21401-21405 remain permanently reserved and are
+never renumbered. Codes 21406-21410 extend the same 21xxx postal region to the
+Lake Victoria islands.
 """
 
 
-def _ten(prefix):
-    return [f"{prefix}4{i:02d}" for i in range(1, 11)]
+def _codes(prefix: str, count: int):
+    return [f"{prefix}4{i:02d}" for i in range(1, count + 1)]
+
+# Initial density classes for the ten state postal regions. These can be tuned
+# later without changing prefixes or previously issued ZIP numbers.
+DENSE_REGIONS = {"KLA", "JIN", "MBA", "MBL", "GUL"}
+STANDARD_REGIONS = {"ARU", "SOR", "MOR", "HOI", "MSK"}
 
 REGIONS = {
-    "KLA": {"name": "Kampala Metropolitan", "prefix": "20", "zip_codes": _ten("20")},
-    "JIN": {"name": "Nile", "prefix": "22", "zip_codes": _ten("22")},
-    "MBA": {"name": "Western Highlands", "prefix": "23", "zip_codes": _ten("23")},
-    "MBL": {"name": "Elgon", "prefix": "24", "zip_codes": _ten("24")},
-    "GUL": {"name": "Northern Savannah", "prefix": "25", "zip_codes": _ten("25")},
-    "ARU": {"name": "West Nile", "prefix": "26", "zip_codes": _ten("26")},
-    "SOR": {"name": "Eastern Plains", "prefix": "27", "zip_codes": _ten("27")},
-    "MOR": {"name": "Karamoja", "prefix": "28", "zip_codes": _ten("28")},
-    "HOI": {"name": "Albertine", "prefix": "29", "zip_codes": _ten("29")},
-    "MSK": {"name": "Lake Victoria", "prefix": "30", "zip_codes": _ten("30")},
-    "ENT": {"name": "Entebbe", "prefix": "21", "zip_codes": ["21401", "21402", "21403", "21404", "21405"]},
+    "KLA": {"name": "Kampala Metropolitan", "prefix": "20", "zip_codes": _codes("20", 25), "allocation": "dense"},
+    "JIN": {"name": "Nile", "prefix": "22", "zip_codes": _codes("22", 25), "allocation": "dense"},
+    "MBA": {"name": "Western Highlands", "prefix": "23", "zip_codes": _codes("23", 25), "allocation": "dense"},
+    "MBL": {"name": "Elgon", "prefix": "24", "zip_codes": _codes("24", 25), "allocation": "dense"},
+    "GUL": {"name": "Northern Savannah", "prefix": "25", "zip_codes": _codes("25", 25), "allocation": "dense"},
+    "ARU": {"name": "West Nile", "prefix": "26", "zip_codes": _codes("26", 15), "allocation": "standard"},
+    "SOR": {"name": "Eastern Plains", "prefix": "27", "zip_codes": _codes("27", 15), "allocation": "standard"},
+    "MOR": {"name": "Karamoja", "prefix": "28", "zip_codes": _codes("28", 15), "allocation": "standard"},
+    "HOI": {"name": "Albertine", "prefix": "29", "zip_codes": _codes("29", 15), "allocation": "standard"},
+    "MSK": {"name": "Lake Victoria mainland", "prefix": "30", "zip_codes": _codes("30", 15), "allocation": "standard"},
+    "ENT": {"name": "Entebbe & Lake Victoria Islands", "prefix": "21", "zip_codes": _codes("21", 10), "allocation": "islands"},
 }
 
 ENTEBBE_ZONES = {
     "21401": "Entebbe Central",
-    "21402": "Lake Victoria",
+    "21402": "Lake Victoria / Entebbe West",
     "21403": "Airport",
     "21404": "Katabi",
     "21405": "Kigungu",
@@ -56,6 +67,7 @@ def valid_zip(zip_code: str) -> bool:
 
 
 def entebbe_zip_for_coordinates(latitude: float, longitude: float, require_bounds: bool = True):
+    """Preserve the existing Entebbe 21401-21405 coordinate assignments."""
     lat = float(latitude); lon = float(longitude)
     if require_bounds:
         b = ENTEBBE_BOUNDS
