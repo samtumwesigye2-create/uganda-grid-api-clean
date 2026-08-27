@@ -7,7 +7,7 @@ has a matching sub-series so codes stay easy to recognize:
 00003 Diplomatic; 00031-00039 diplomatic facilities
 00004 Parliament; 00041-00049 parliamentary facilities
 00005 Judiciary; 00051-00059 judiciary facilities
-00006 Government; 00061-00069 ministries/departments
+00006 Government; 00061-00069 initial ministries/departments, then 00601-00699 expanded government block
 00007 International; 00071-00079 international organizations
 00008 Landmarks; 00081-00089 landmarks/heritage
 00009 Parks; 00091-00099 parks/protected areas
@@ -31,19 +31,29 @@ SPECIAL_BLOCKS={
  "diplomatic":("00031","00039"),
  "parliament":("00041","00049"),
  "judiciary":("00051","00059"),
- "government":("00061","00069"),
+ "government":("00601","00699"),
  "international":("00071","00079"),
  "landmark":("00081","00089"),
  "parks":("00091","00099"),
  "defence":("00101","00109"),
 }
+SPECIAL_EXTRA_BLOCKS={"government":[("00061","00069")]}
 def category_for_special_zip(zip_code:str):
  value=str(zip_code).strip().zfill(5)
  if value in SPECIAL_CATEGORY_ANCHORS:return SPECIAL_CATEGORY_ANCHORS[value]
  try:number=int(value)
  except ValueError:return None
+ for category,ranges in SPECIAL_EXTRA_BLOCKS.items():
+  for start,end in ranges:
+   if int(start)<=number<=int(end):return {"category":category,"range":[start,end]}
  for category,(start,end) in SPECIAL_BLOCKS.items():
   if int(start)<=number<=int(end):return {"category":category,"range":[start,end]}
  return None
 def valid_special_zip(zip_code:str)->bool:return category_for_special_zip(zip_code) is not None
-def special_categories():return [{"anchor":anchor,**info,"allocation_range":SPECIAL_BLOCKS[info["category"]]} for anchor,info in SPECIAL_CATEGORY_ANCHORS.items()]
+def special_categories():
+ result=[]
+ for anchor,info in SPECIAL_CATEGORY_ANCHORS.items():
+  item={"anchor":anchor,**info,"allocation_range":SPECIAL_BLOCKS[info["category"]]}
+  if info["category"] in SPECIAL_EXTRA_BLOCKS:item["additional_ranges"]=SPECIAL_EXTRA_BLOCKS[info["category"]]
+  result.append(item)
+ return result
