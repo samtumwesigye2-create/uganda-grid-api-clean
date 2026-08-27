@@ -1,10 +1,12 @@
 """Uganda National Grid postal-zone registry.
 
 Postal capacity allocation:
-- Kampala Metropolitan: 40 ZIP zones
-- other major/dense city regions: 30 ZIP zones each
-- remaining state regions: 20 ZIP zones each
+- Kampala Metropolitan: 40 active ZIP zones
+- other major/dense city regions: 30 active ZIP zones each
+- remaining state regions: 20 active ZIP zones each
 - Entebbe + Lake Victoria islands: protected 21xxx region with 10 ZIP zones
+- each state also owns 20 additional reserve ZIP codes for manual/locality
+  allocation where field review shows extra capacity is needed.
 
 Existing Entebbe ZIP codes 21401-21405 remain permanently reserved and are
 never renumbered. Codes 21406-21410 extend the same 21xxx postal region to the
@@ -15,21 +17,35 @@ Lake Victoria islands.
 def _codes(prefix: str, count: int):
     return [f"{prefix}4{i:02d}" for i in range(1, count + 1)]
 
+
+def _reserve(prefix: str, active_count: int, reserve_count: int = 20):
+    return [f"{prefix}4{i:02d}" for i in range(active_count + 1, active_count + reserve_count + 1)]
+
 DENSE_REGIONS = {"JIN", "MBA", "MBL", "GUL"}
 STANDARD_REGIONS = {"ARU", "SOR", "MOR", "HOI", "MSK"}
 
+
+def _region(name, prefix, active_count, allocation):
+    return {
+        "name": name,
+        "prefix": prefix,
+        "zip_codes": _codes(prefix, active_count),
+        "reserve_zip_codes": _reserve(prefix, active_count, 20),
+        "allocation": allocation,
+    }
+
 REGIONS = {
-    "KLA": {"name": "Kampala Metropolitan", "prefix": "20", "zip_codes": _codes("20", 40), "allocation": "metropolitan"},
-    "JIN": {"name": "Nile", "prefix": "22", "zip_codes": _codes("22", 30), "allocation": "dense"},
-    "MBA": {"name": "Western Highlands", "prefix": "23", "zip_codes": _codes("23", 30), "allocation": "dense"},
-    "MBL": {"name": "Elgon", "prefix": "24", "zip_codes": _codes("24", 30), "allocation": "dense"},
-    "GUL": {"name": "Northern Savannah", "prefix": "25", "zip_codes": _codes("25", 30), "allocation": "dense"},
-    "ARU": {"name": "West Nile", "prefix": "26", "zip_codes": _codes("26", 20), "allocation": "standard"},
-    "SOR": {"name": "Eastern Plains", "prefix": "27", "zip_codes": _codes("27", 20), "allocation": "standard"},
-    "MOR": {"name": "Karamoja", "prefix": "28", "zip_codes": _codes("28", 20), "allocation": "standard"},
-    "HOI": {"name": "Albertine", "prefix": "29", "zip_codes": _codes("29", 20), "allocation": "standard"},
-    "MSK": {"name": "Lake Victoria mainland", "prefix": "30", "zip_codes": _codes("30", 20), "allocation": "standard"},
-    "ENT": {"name": "Entebbe & Lake Victoria Islands", "prefix": "21", "zip_codes": _codes("21", 10), "allocation": "islands"},
+    "KLA": _region("Kampala Metropolitan", "20", 40, "metropolitan"),
+    "JIN": _region("Nile", "22", 30, "dense"),
+    "MBA": _region("Western Highlands", "23", 30, "dense"),
+    "MBL": _region("Elgon", "24", 30, "dense"),
+    "GUL": _region("Northern Savannah", "25", 30, "dense"),
+    "ARU": _region("West Nile", "26", 20, "standard"),
+    "SOR": _region("Eastern Plains", "27", 20, "standard"),
+    "MOR": _region("Karamoja", "28", 20, "standard"),
+    "HOI": _region("Albertine", "29", 20, "standard"),
+    "MSK": _region("Lake Victoria mainland", "30", 20, "standard"),
+    "ENT": {"name": "Entebbe & Lake Victoria Islands", "prefix": "21", "zip_codes": _codes("21", 10), "reserve_zip_codes": [], "allocation": "islands"},
 }
 
 ENTEBBE_ZONES = {
@@ -48,20 +64,25 @@ ENTEBBE_BOUNDS = {
 }
 
 
-def all_zip_codes():
-    return [z for region in REGIONS.values() for z in region["zip_codes"]]
+def all_zip_codes(include_reserve: bool = False):
+    values = []
+    for region in REGIONS.values():
+        values.extend(region["zip_codes"])
+        if include_reserve:
+            values.extend(region.get("reserve_zip_codes", []))
+    return values
 
 
-def region_for_zip(zip_code: str):
+def region_for_zip(zip_code: str, include_reserve: bool = True):
     value = str(zip_code).strip()
     for code, region in REGIONS.items():
-        if value in region["zip_codes"]:
+        if value in region["zip_codes"] or (include_reserve and value in region.get("reserve_zip_codes", [])):
             return {"code": code, **region}
     return None
 
 
-def valid_zip(zip_code: str) -> bool:
-    return region_for_zip(zip_code) is not None
+def valid_zip(zip_code: str, include_reserve: bool = True) -> bool:
+    return region_for_zip(zip_code, include_reserve=include_reserve) is not None
 
 
 def entebbe_zip_for_coordinates(latitude: float, longitude: float, require_bounds: bool = True):
