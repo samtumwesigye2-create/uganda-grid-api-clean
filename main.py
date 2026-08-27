@@ -27,6 +27,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE = os.path.join(BASE_DIR, "entebbe_database.json")
 INDEX_FILE = os.path.join(BASE_DIR, "index.html")
 APP_JS_FILE = os.path.join(BASE_DIR, "app.js")
+BOUNDARIES_JS_FILE = os.path.join(BASE_DIR, "boundaries.js")
 SUBMIT_FILE = os.path.join(BASE_DIR, "submit.html")
 REVIEW_FILE = os.path.join(BASE_DIR, "review.html")
 ADMIN_FILE = os.path.join(BASE_DIR, "admin.html")
@@ -129,6 +130,11 @@ def home():
 def app_js():
     if not os.path.exists(APP_JS_FILE): raise HTTPException(status_code=404, detail="app.js not found")
     return FileResponse(APP_JS_FILE, media_type="application/javascript; charset=utf-8", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+
+@app.get("/boundaries.js")
+def boundaries_js():
+    if not os.path.exists(BOUNDARIES_JS_FILE): raise HTTPException(status_code=404, detail="boundaries.js not found")
+    return FileResponse(BOUNDARIES_JS_FILE, media_type="application/javascript; charset=utf-8", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 @app.get("/submit")
 def submit_page(): return FileResponse(SUBMIT_FILE, media_type="text/html")
