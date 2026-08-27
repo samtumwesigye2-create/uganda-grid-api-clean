@@ -9,6 +9,7 @@ import time
 import uuid
 import urllib.request
 import xml.etree.ElementTree as ET
+from postal_assignment import resolve_zip
 
 app = FastAPI(title="Uganda National Grid API", version="1.5")
 
@@ -365,6 +366,13 @@ def decide_submission(submission_id: str, action: str = Form(...), grid_id: str 
     sub["status"] = "approved"
     sub["assigned_grid_id"] = grid_id
     sub["assigned_address"] = address
-    updated = addresses + [{"grid_id": grid_id, "address": address, "latitude": sub["lat"], "longitude": sub["lon"], "address_type": "residential"}]
+    postal = resolve_zip(sub["lat"], sub["lon"])
+    new_record = {"grid_id": grid_id, "address": address, "latitude": sub["lat"], "longitude": sub["lon"], "address_type": "residential"}
+    if postal:
+        new_record["zip_code"] = postal["zip_code"]
+        new_record["postal_region"] = postal["region"]
+        new_record["postal_zone"] = postal.get("name", "")
+        sub["assigned_zip_code"] = postal["zip_code"]
+    updated = addresses + [new_record]
     save_addresses(updated)
     return sub

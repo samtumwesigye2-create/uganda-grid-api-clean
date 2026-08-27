@@ -18,6 +18,7 @@ import sqlite3
 import time
 import uuid
 from fastapi import APIRouter, Form, Header, HTTPException, Query, UploadFile, File
+from postal_assignment import resolve_zip
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "data_hub.db")
@@ -193,7 +194,8 @@ def register_commercial_routes(addresses_ref, save_addresses_ref):
 
         unit_list = row["units"].split(",")
         addresses = addresses_ref()
-        addresses.append({
+        postal = resolve_zip(row["latitude"], row["longitude"])
+        new_record = {
             "grid_id": grid_id,
             "address": row["address_text"],
             "latitude": row["latitude"],
@@ -203,10 +205,15 @@ def register_commercial_routes(addresses_ref, save_addresses_ref):
             "building_name": row["building_name"],
             "company_name": row["company_name"],
             "units": unit_list,
-        })
+        }
+        if postal:
+            new_record["zip_code"] = postal["zip_code"]
+            new_record["postal_region"] = postal["region"]
+            new_record["postal_zone"] = postal.get("name", "")
+        addresses.append(new_record)
         save_addresses_ref(addresses)
 
-        return {"id": application_id, "status": "approved", "grid_id": grid_id, "units": unit_list}
+        return {"id": application_id, "status": "approved", "grid_id": grid_id, "zip_code": postal["zip_code"] if postal else "", "units": unit_list}
 
     @router.post("/commercial/applications/{application_id}/reverse")
     def reverse_commercial_decision(
