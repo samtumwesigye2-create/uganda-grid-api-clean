@@ -108,7 +108,7 @@ def admin_page():
  return Response(content=html,media_type="text/html",headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
 @app.get("/admin/zips")
 def zip_admin_page():return FileResponse(ZIP_ADMIN_FILE,media_type="text/html")
-@app.get("/admin/special-zips")
+@app.get("/admin/special-zips/manage")
 def special_zip_admin_page():return FileResponse(SPECIAL_ZIP_ADMIN_FILE,media_type="text/html")
 @app.get("/ship")
 def ship_page():return FileResponse(SHIP_FILE,media_type="text/html")
