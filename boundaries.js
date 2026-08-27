@@ -14,10 +14,7 @@
     if (initialized || !map) return;
     initialized = true;
     try {
-      const [states, zips] = await Promise.all([
-        getJson('/geography/states'),
-        getJson('/geography/zips')
-      ]);
+      const [states, zips] = await Promise.all([getJson('/geography/states'), getJson('/geography/zips')]);
 
       const stateLayer = L.geoJSON(states, {
         style: { color: '#f59e0b', weight: 3, fillOpacity: 0.025 },
@@ -30,21 +27,28 @@
       const zipLayer = L.geoJSON(zips, {
         style: function (f) {
           const n = Number(String((f.properties || {}).zip_code || '0').slice(-1)) || 1;
-          const palette = ['#2563eb', '#16a34a', '#d97706', '#7c3aed', '#dc2626'];
-          return { color: palette[(n - 1) % palette.length], weight: 1.5, fillOpacity: 0.10 };
+          const palette = ['#38bdf8', '#22c55e', '#facc15', '#c084fc', '#fb7185'];
+          return { color: palette[(n - 1) % palette.length], weight: 2, dashArray: '6 5', fillOpacity: 0.035 };
         },
         onEachFeature: function (f, layer) {
           const p = f.properties || {};
-          layer.bindPopup('<b>ZIP ' + (p.zip_code || '') + '</b><br>' + (p.state_name || '') + '<br>Region: ' + (p.postal_region || ''));
+          const zip = p.zip_code || '';
+          layer.bindPopup('<b>ZIP ' + zip + '</b><br>' + (p.state_name || '') + '<br>Region: ' + (p.postal_region || ''));
+          if (zip) layer.bindTooltip(String(zip), { permanent: true, direction: 'center', className: 'ugamap-zip-label', opacity: 0.9 });
         }
       });
 
-      L.control.layers(null, {
-        'State Boundaries': stateLayer,
-        'ZIP Zones': zipLayer
-      }, { collapsed: true, position: 'topright' }).addTo(map);
+      if (!document.getElementById('ugamap-boundary-style')) {
+        const style = document.createElement('style');
+        style.id = 'ugamap-boundary-style';
+        style.textContent = '.ugamap-zip-label{background:rgba(8,15,30,.82);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:5px;box-shadow:none;font-weight:700;font-size:10px;padding:2px 4px}.ugamap-zip-label:before{display:none}';
+        document.head.appendChild(style);
+      }
 
+      L.control.layers(null, { 'State Boundaries': stateLayer, 'ZIP Zones': zipLayer }, { collapsed: true, position: 'topright' }).addTo(map);
       stateLayer.addTo(map);
+      zipLayer.addTo(map);
+
       window.UGAMAP = window.UGAMAP || {};
       window.UGAMAP.boundaries = { states: stateLayer, zips: zipLayer };
     } catch (e) {
@@ -53,9 +57,6 @@
     }
   }
 
-  // The boundary module is prepended to app.js by the service worker, so the
-  // old window-load hook could fire before app.js created its Leaflet map.
-  // Initialize immediately when app.js calls L.map instead.
   L.map = function () {
     const map = originalMap.apply(this, arguments);
     window.__UGAMAP_LEAFLET_MAP__ = map;
