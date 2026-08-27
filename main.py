@@ -8,11 +8,12 @@ from grid_assignment import next_grid_id
 from state_geometry import state_feature_collection
 from national_zip_geometry import zip_feature_collection, validation_status
 from manual_zip_assignments import list_assignments, available_reserves, create_assignment, delete_assignment, feature_collection as manual_zip_features
-app=FastAPI(title="Uganda National Grid API",version="1.6")
+from special_zip_assignments import list_assignments as list_special_zips, create_assignment as create_special_zip, delete_assignment as delete_special_zip, category_catalog as special_zip_catalog, feature_collection as special_zip_features
+app=FastAPI(title="Uganda National Grid API",version="1.7")
 app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_methods=["*"],allow_headers=["*"])
 BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 def F(n):return os.path.join(BASE_DIR,n)
-DATABASE=F("entebbe_database.json");INDEX_FILE=F("index.html");APP_JS_FILE=F("app.js");BOUNDARIES_JS_FILE=F("boundaries.js");SUBMIT_FILE=F("submit.html");REVIEW_FILE=F("review.html");ADMIN_FILE=F("admin.html");ADMIN_ZIP_LINK_FILE=F("admin-zip-link.js");ZIP_ADMIN_FILE=F("zip-admin.html");SHIP_FILE=F("ship.html");DRIVER_FILE=F("driver.html");TEST_TOOL_FILE=F("test-tool.html")
+DATABASE=F("entebbe_database.json");INDEX_FILE=F("index.html");APP_JS_FILE=F("app.js");BOUNDARIES_JS_FILE=F("boundaries.js");SUBMIT_FILE=F("submit.html");REVIEW_FILE=F("review.html");ADMIN_FILE=F("admin.html");ADMIN_ZIP_LINK_FILE=F("admin-zip-link.js");ZIP_ADMIN_FILE=F("zip-admin.html");SPECIAL_ZIP_ADMIN_FILE=F("special-zip-admin.html");SHIP_FILE=F("ship.html");DRIVER_FILE=F("driver.html");TEST_TOOL_FILE=F("test-tool.html")
 ASSETS_DIR=F("assets")
 if os.path.isdir(ASSETS_DIR):app.mount("/assets",StaticFiles(directory=ASSETS_DIR),name="assets")
 UPLOADS_DIR=F("uploads");os.makedirs(UPLOADS_DIR,exist_ok=True);app.mount("/uploads",StaticFiles(directory=UPLOADS_DIR),name="uploads")
@@ -51,6 +52,8 @@ def geography_states():return state_feature_collection()
 @app.get("/geography/zips")
 def geography_zips():
  base=zip_feature_collection();base["features"].extend(manual_zip_features()["features"]);return base
+@app.get("/geography/special-zips")
+def geography_special_zips():return special_zip_features()
 @app.get("/geography/status")
 def geography_status():return validation_status()
 @app.get("/admin/zips/manual")
@@ -67,6 +70,20 @@ def admin_delete_zip(zip_code:str,x_admin_passcode:str=Header(default="")):
  check_admin(x_admin_passcode)
  if not delete_assignment(zip_code):raise HTTPException(status_code=404,detail="Manual ZIP assignment not found")
  return {"deleted":True,"zip_code":zip_code}
+@app.get("/admin/special-zips/categories")
+def admin_special_zip_categories(x_admin_passcode:str=Header(default="")):check_admin(x_admin_passcode);return {"results":special_zip_catalog()}
+@app.get("/admin/special-zips")
+def admin_special_zips(x_admin_passcode:str=Header(default="")):check_admin(x_admin_passcode);return {"results":list_special_zips()}
+@app.post("/admin/special-zips")
+def admin_create_special_zip(payload:dict,x_admin_passcode:str=Header(default="")):
+ check_admin(x_admin_passcode)
+ try:return create_special_zip(payload.get("category"),payload.get("name"),payload.get("latitude"),payload.get("longitude"),payload.get("address",""),payload.get("notes",""),payload.get("zip_code"))
+ except (ValueError,TypeError) as e:raise HTTPException(status_code=400,detail=str(e))
+@app.delete("/admin/special-zips/{zip_code}")
+def admin_delete_special_zip(zip_code:str,x_admin_passcode:str=Header(default="")):
+ check_admin(x_admin_passcode)
+ if not delete_special_zip(zip_code):raise HTTPException(status_code=404,detail="Special ZIP assignment not found")
+ return {"deleted":True,"zip_code":str(zip_code).zfill(5)}
 @app.api_route("/",methods=["GET","HEAD"])
 def home():return FileResponse(INDEX_FILE,media_type="text/html")
 @app.get("/app.js")
@@ -91,6 +108,8 @@ def admin_page():
  return Response(content=html,media_type="text/html",headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
 @app.get("/admin/zips")
 def zip_admin_page():return FileResponse(ZIP_ADMIN_FILE,media_type="text/html")
+@app.get("/admin/special-zips")
+def special_zip_admin_page():return FileResponse(SPECIAL_ZIP_ADMIN_FILE,media_type="text/html")
 @app.get("/ship")
 def ship_page():return FileResponse(SHIP_FILE,media_type="text/html")
 @app.get("/driver")
