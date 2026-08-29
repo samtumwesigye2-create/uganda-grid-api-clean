@@ -9,7 +9,7 @@ from state_geometry import state_feature_collection, state_for_coordinate
 from national_zip_geometry import zip_feature_collection, validation_status
 from manual_zip_assignments import list_assignments, available_reserves, create_assignment, delete_assignment, feature_collection as manual_zip_features
 from special_zip_assignments import list_assignments as list_special_zips, create_assignment as create_special_zip, delete_assignment as delete_special_zip, category_catalog as special_zip_catalog, feature_collection as special_zip_features
-app=FastAPI(title="Uganda National Grid API",version="1.8")
+app=FastAPI(title="Uganda National Grid API",version="1.9")
 app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_methods=["*"],allow_headers=["*"])
 BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 def F(n):return os.path.join(BASE_DIR,n)
@@ -66,8 +66,8 @@ def geography_status():return validation_status()
 @app.get("/coordinates/lookup")
 def coordinate_lookup(lat:float=Query(...),lon:float=Query(...),tolerance_m:float=Query(default=15.0,ge=0.0,le=500.0)):
  state=state_for_coordinate(lat,lon)
- if state and state.get("ambiguous"):
-  raise HTTPException(status_code=409,detail="Coordinate lies on an ambiguous state boundary")
+ if not state:raise HTTPException(status_code=400,detail="Coordinates are outside the validated Uganda state polygons")
+ if state.get("ambiguous"):raise HTTPException(status_code=409,detail="Coordinate lies on an ambiguous state boundary")
  postal=resolve_zip(lat,lon)
  candidates=[]
  for a in addresses:
@@ -78,13 +78,13 @@ def coordinate_lookup(lat:float=Query(...),lon:float=Query(...),tolerance_m:floa
   candidates.append((d,a))
  candidates.sort(key=lambda x:x[0])
  nearest=candidates[0] if candidates else None
- matched=nearest is not None and nearest[0]<=tolerance_m
- result={"latitude":lat,"longitude":lon,"matched":matched,"tolerance_m":tolerance_m,"state":state,"postal":postal}
- if matched:
-  result["address"]={**nearest[1],"distance_m":round(nearest[0],2)}
- elif nearest:
-  result["nearest_address"]={**nearest[1],"distance_m":round(nearest[0],2)}
- return result
+ if nearest is not None and nearest[0]<=tolerance_m:
+  return {"latitude":lat,"longitude":lon,"matched":True,"created":False,"tolerance_m":tolerance_m,"state":state,"postal":postal,"address":{**nearest[1],"distance_m":round(nearest[0],2)}}
+ grid_id,assigned_state=next_grid_id(addresses,lat,lon)
+ rec={"grid_id":grid_id,"address":grid_id,"display_name":grid_id,"latitude":lat,"longitude":lon,"address_type":"coordinate","state_code":assigned_state["state_code"],"state_name":assigned_state["state_name"],"grid_prefix":assigned_state["grid_prefix"],"postal_prefix":assigned_state["postal_prefix"],"created_from":"coordinates","created_at":time.time()}
+ if postal:rec.update({"zip_code":postal["zip_code"],"postal_region":postal["region"],"postal_zone":postal.get("name","")})
+ save_addresses(addresses+[rec])
+ return {"latitude":lat,"longitude":lon,"matched":False,"created":True,"tolerance_m":tolerance_m,"state":assigned_state,"postal":postal,"address":rec}
 @app.get("/admin/zips/manual")
 def admin_manual_zips(x_admin_passcode:str=Header(default="")):check_admin(x_admin_passcode);return {"results":list_assignments()}
 @app.get("/admin/zips/reserves/{region}")
