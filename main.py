@@ -9,7 +9,10 @@ from state_geometry import state_feature_collection, state_for_coordinate
 from national_zip_geometry import zip_feature_collection, validation_status
 from manual_zip_assignments import list_assignments, available_reserves, create_assignment, delete_assignment, feature_collection as manual_zip_features
 from special_zip_assignments import list_assignments as list_special_zips, create_assignment as create_special_zip, delete_assignment as delete_special_zip, category_catalog as special_zip_catalog, feature_collection as special_zip_features
-app=FastAPI(title="Uganda National Grid API",version="1.9")
+from address_confidence import evaluate_address_application
+from submission_store import create_submission as store_create_submission, list_submissions as store_list_submissions, get_submission as store_get_submission, update_submission as store_update_submission
+
+app=FastAPI(title="Uganda National Grid API",version="2.0")
 app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_methods=["*"],allow_headers=["*"])
 BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 def F(n):return os.path.join(BASE_DIR,n)
@@ -28,7 +31,7 @@ def save_addresses(v):
  try:
   with open(DATABASE,"w",encoding="utf-8") as f:json.dump(addresses,f,ensure_ascii=False,indent=2)
  except Exception:pass
-REPORTS=[];REPORT_TTL_SECONDS=21600;VALID_CATEGORIES={"police","accident","road_closure","bridge","traffic","weather"};SUBMISSIONS=[];VALID_BUILDING_TYPES={"hospital","police","government","residence","business","other"}
+REPORTS=[];REPORT_TTL_SECONDS=21600;VALID_CATEGORIES={"police","accident","road_closure","bridge","traffic","weather"};VALID_BUILDING_TYPES={"hospital","police","government","residence","business","other"}
 from shipments import router as shipments_router,register_rate_routes
 register_rate_routes(lambda:addresses);app.include_router(shipments_router)
 from commercial import router as commercial_router,register_commercial_routes
@@ -52,8 +55,24 @@ def haversine_m(lat1,lon1,lat2,lon2):
  p1=math.radians(float(lat1));p2=math.radians(float(lat2));dp=math.radians(float(lat2)-float(lat1));dl=math.radians(float(lon2)-float(lon1))
  a=math.sin(dp/2)**2+math.cos(p1)*math.cos(p2)*math.sin(dl/2)**2
  return 2*r*math.atan2(math.sqrt(a),math.sqrt(1-a))
+def near_special_location(lat,lon,radius_m=100.0):
+ for x in list_special_zips():
+  try:
+   if haversine_m(lat,lon,x.get("latitude"),x.get("longitude"))<=radius_m:return True
+  except (TypeError,ValueError):continue
+ return False
+def requested_address_from_note(note,grid_id):
+ for line in str(note or "").splitlines():
+  if line.lower().startswith("requested address:"):
+   value=line.split(":",1)[1].strip()
+   if value:return value
+ return grid_id
+def build_address_record(grid_id,state,postal,sub,address,approval_method):
+ rec={"grid_id":grid_id,"address":address or grid_id,"display_name":address or grid_id,"latitude":sub["lat"],"longitude":sub["lon"],"address_type":sub.get("building_type","other"),"state_code":state["state_code"],"state_name":state["state_name"],"grid_prefix":state.get("grid_prefix",""),"postal_prefix":state["postal_prefix"],"created_from":"address_application","approval_method":approval_method,"submission_id":sub["id"],"created_at":time.time()}
+ if postal:rec.update({"zip_code":postal["zip_code"],"postal_region":postal["region"],"postal_zone":postal.get("name","")})
+ return rec
 @app.get("/health")
-def health():return {"status":"ok","records":len(addresses)}
+def health():return {"status":"ok","records":len(addresses),"address_approval":"hybrid-confidence-v1"}
 @app.get("/geography/states")
 def geography_states():return state_feature_collection()
 @app.get("/geography/zips")
@@ -76,15 +95,13 @@ def coordinate_lookup(lat:float=Query(...),lon:float=Query(...),tolerance_m:floa
   try:d=haversine_m(lat,lon,alat,alon)
   except (TypeError,ValueError):continue
   candidates.append((d,a))
- candidates.sort(key=lambda x:x[0])
- nearest=candidates[0] if candidates else None
+ candidates.sort(key=lambda x:x[0]);nearest=candidates[0] if candidates else None
+ result={"latitude":lat,"longitude":lon,"matched":False,"created":False,"tolerance_m":tolerance_m,"state":state,"postal":postal,"assignment_required":True}
  if nearest is not None and nearest[0]<=tolerance_m:
-  return {"latitude":lat,"longitude":lon,"matched":True,"created":False,"tolerance_m":tolerance_m,"state":state,"postal":postal,"address":{**nearest[1],"distance_m":round(nearest[0],2)}}
- grid_id,assigned_state=next_grid_id(addresses,lat,lon)
- rec={"grid_id":grid_id,"address":grid_id,"display_name":grid_id,"latitude":lat,"longitude":lon,"address_type":"coordinate","state_code":assigned_state["state_code"],"state_name":assigned_state["state_name"],"grid_prefix":assigned_state["grid_prefix"],"postal_prefix":assigned_state["postal_prefix"],"created_from":"coordinates","created_at":time.time()}
- if postal:rec.update({"zip_code":postal["zip_code"],"postal_region":postal["region"],"postal_zone":postal.get("name","")})
- save_addresses(addresses+[rec])
- return {"latitude":lat,"longitude":lon,"matched":False,"created":True,"tolerance_m":tolerance_m,"state":assigned_state,"postal":postal,"address":rec}
+  result.update({"matched":True,"assignment_required":False,"address":{**nearest[1],"distance_m":round(nearest[0],2)}})
+ elif nearest:
+  result["nearest_address"]={**nearest[1],"distance_m":round(nearest[0],2)}
+ return result
 @app.get("/admin/zips/manual")
 def admin_manual_zips(x_admin_passcode:str=Header(default="")):check_admin(x_admin_passcode);return {"results":list_assignments()}
 @app.get("/admin/zips/reserves/{region}")
@@ -185,18 +202,38 @@ async def create_report(category:str=Form(...),lat:float=Form(...),lon:float=For
 @app.get("/reports")
 def list_reports():prune_reports();return {"count":len(REPORTS),"results":REPORTS}
 @app.post("/submissions")
-async def create_submission(lat:float=Form(...),lon:float=Form(...),building_type:str=Form(...),note:str=Form(""),file:UploadFile=File(None)):
- if building_type.strip().lower() not in VALID_BUILDING_TYPES:raise HTTPException(status_code=400,detail="Invalid building type")
- s={"id":str(uuid.uuid4()),"lat":lat,"lon":lon,"building_type":building_type,"note":note[:300],"status":"pending","created_at":time.time()};SUBMISSIONS.append(s);return s
+async def create_submission(lat:float=Form(...),lon:float=Form(...),building_type:str=Form(...),note:str=Form(""),gps_accuracy_m:float=Form(None),file:UploadFile=File(None)):
+ building_type=building_type.strip().lower()
+ if building_type not in VALID_BUILDING_TYPES:raise HTTPException(status_code=400,detail="Invalid building type")
+ state=state_for_coordinate(lat,lon)
+ if not state:raise HTTPException(status_code=400,detail="Coordinates are outside the validated Uganda state polygons")
+ postal=resolve_zip(lat,lon)
+ confidence=evaluate_address_application(lat,lon,addresses,state,postal,gps_accuracy_m=gps_accuracy_m,is_special=near_special_location(lat,lon))
+ s={"id":str(uuid.uuid4()),"lat":lat,"lon":lon,"building_type":building_type,"note":note[:300],"status":"pending","created_at":time.time(),"gps_accuracy_m":gps_accuracy_m,"confidence_score":confidence["score"],"confidence_decision":confidence["decision"],"confidence_reasons":confidence["reasons"]}
+ store_create_submission(s)
+ if confidence["auto_approve"]:
+  grid_id,assigned_state=next_grid_id(addresses,lat,lon);assigned_address=requested_address_from_note(note,grid_id)
+  rec=build_address_record(grid_id,assigned_state,postal,s,assigned_address,"auto_confidence")
+  save_addresses(addresses+[rec])
+  s=store_update_submission(s["id"],status="approved",assigned_grid_id=grid_id,assigned_address=assigned_address,assigned_zip_code=postal.get("zip_code") if postal else None,approval_method="auto_confidence",reviewed_at=time.time()) or s
+  s["address"] = rec
+  s["message"] = "UGAMAP VERIFIED — Automatically Assigned"
+ else:
+  s["message"] = "Application received — Admin review required"
+ s["confidence"] = confidence
+ return s
 @app.get("/submissions")
 def list_submissions(status:str=Query(default=""),x_admin_passcode:str=Header(default="")):
- check_admin(x_admin_passcode);items=SUBMISSIONS if not status else [s for s in SUBMISSIONS if s["status"]==status];return {"count":len(items),"results":list(reversed(items))}
+ check_admin(x_admin_passcode);items=store_list_submissions(status);return {"count":len(items),"results":items}
 @app.post("/submissions/{submission_id}/decision")
 def decide_submission(submission_id:str,action:str=Form(...),grid_id:str=Form(""),address:str=Form(""),x_admin_passcode:str=Header(default="")):
- check_admin(x_admin_passcode);sub=next((s for s in SUBMISSIONS if s["id"]==submission_id),None)
+ check_admin(x_admin_passcode);sub=store_get_submission(submission_id)
  if not sub:raise HTTPException(status_code=404,detail="Submission not found")
- if action.strip().lower()=="deny":sub["status"]="denied";return sub
- grid_id,state=next_grid_id(addresses,sub["lat"],sub["lon"]);postal=resolve_zip(sub["lat"],sub["lon"]);sub.update({"status":"approved","assigned_grid_id":grid_id,"assigned_address":address})
- rec={"grid_id":grid_id,"address":address,"latitude":sub["lat"],"longitude":sub["lon"],"state_code":state["state_code"],"state_name":state["state_name"],"postal_prefix":state["postal_prefix"]}
- if postal:rec.update({"zip_code":postal["zip_code"],"postal_region":postal["region"]});sub["assigned_zip_code"]=postal["zip_code"]
- save_addresses(addresses+[rec]);return sub
+ if sub.get("status")=="approved":raise HTTPException(status_code=409,detail="Submission is already approved")
+ action=action.strip().lower()
+ if action=="deny":return store_update_submission(submission_id,status="denied",approval_method="admin_denied",reviewed_at=time.time())
+ if action not in {"approve","approved"}:raise HTTPException(status_code=400,detail="Action must be approve or deny")
+ assigned_grid_id,state=next_grid_id(addresses,sub["lat"],sub["lon"]);postal=resolve_zip(sub["lat"],sub["lon"]);assigned_address=address.strip() or requested_address_from_note(sub.get("note",""),assigned_grid_id)
+ rec=build_address_record(assigned_grid_id,state,postal,sub,assigned_address,"admin_review")
+ save_addresses(addresses+[rec])
+ return store_update_submission(submission_id,status="approved",assigned_grid_id=assigned_grid_id,assigned_address=assigned_address,assigned_zip_code=postal.get("zip_code") if postal else None,approval_method="admin_review",reviewed_at=time.time())
