@@ -1,11 +1,8 @@
 """Uganda National Grid postal-zone registry.
 
-Postal allocation:
-- Kampala Metropolitan: 50 active ZIP zones
-- other major/dense city regions: 40 active ZIP zones each
-- remaining state regions: 30 active ZIP zones each
-- Entebbe + Lake Victoria islands: protected 21xxx region with 20 active ZIP zones
-- every state region retains 20 additional reserve ZIP codes for manual/locality allocation
+Postal allocation keeps the existing ZIP prefixes and locations while public
+region labels follow the new federal state names. Existing active, reserve,
+manual and protected ZIP assignments are not renumbered or moved.
 
 Existing Entebbe ZIP codes 21401-21405 remain permanently preserved.
 The expanded 21406-21420 capacity provides substantially more Lake Victoria
@@ -18,16 +15,16 @@ def _region(name,prefix,active_count,allocation,reserve_count=20):
  return {"name":name,"prefix":prefix,"zip_codes":_codes(prefix,active_count),"reserve_zip_codes":_reserve(prefix,active_count,reserve_count),"allocation":allocation}
 DENSE_REGIONS={"JIN","MBA","MBL","GUL"};STANDARD_REGIONS={"ARU","SOR","MOR","HOI","MSK"}
 REGIONS={
- "KLA":_region("Kampala Metropolitan","20",50,"metropolitan"),
- "JIN":_region("Nile","22",40,"dense"),
- "MBA":_region("Western Highlands","23",40,"dense"),
- "MBL":_region("Elgon","24",40,"dense"),
- "GUL":_region("Northern Savannah","25",40,"dense"),
- "ARU":_region("West Nile","26",30,"standard"),
- "SOR":_region("Eastern Plains","27",30,"standard"),
- "MOR":_region("Karamoja","28",30,"standard"),
- "HOI":_region("Albertine","29",30,"standard"),
- "MSK":_region("Lake Victoria mainland","30",30,"standard"),
+ "KLA":_region("Kampala Central State","20",50,"metropolitan"),
+ "JIN":_region("Nile Source State","22",40,"dense"),
+ "MBA":_region("Katonga Highland State","23",40,"dense"),
+ "MBL":_region("Elgon Karamoja State","24",40,"dense"),
+ "GUL":_region("Aswa Savannah State","25",40,"dense"),
+ "ARU":_region("West Nile State","26",30,"standard"),
+ "SOR":_region("Kyoga Kwania State","27",30,"standard"),
+ "MOR":_region("Karamoja State","28",30,"standard"),
+ "HOI":_region("Albertine Rift State","29",30,"standard"),
+ "MSK":_region("Victoria Equatorial State","30",30,"standard"),
  "ENT":_region("Entebbe & Lake Victoria Islands","21",20,"islands"),
 }
 ENTEBBE_ZONES={"21401":"Entebbe Central","21402":"Lake Victoria / Entebbe West","21403":"Airport","21404":"Katabi","21405":"Kigungu"}
