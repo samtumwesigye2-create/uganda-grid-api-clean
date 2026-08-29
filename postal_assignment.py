@@ -4,17 +4,26 @@ from fastapi import HTTPException
 from postal_zones import REGIONS, entebbe_zone_for_coordinates, valid_zip
 from state_geometry import state_for_coordinate
 from national_zip_geometry import zip_for_coordinate
+from manual_zip_assignments import match_point as match_manual_zip
 
 
 def resolve_zip(latitude: float, longitude: float, region: str = "", zip_code: str = ""):
     """Resolve an approved address ZIP from its coordinates.
 
-    Existing Entebbe 21401-21405 assignments always take precedence. Outside
-    the calibrated Entebbe envelope, the coordinate is resolved to one of the
-    ten state polygons and then to one of that state's five ZIP sub-polygons.
-
-    Explicit region/ZIP values remain supported only as a validated fallback.
+    Authorized manual ZIP polygons are forced admin overrides and always take
+    precedence over Entebbe, automatic state ZIP geometry, and fallback values.
     """
+    manual = match_manual_zip(latitude, longitude)
+    if manual:
+        return {
+            "zip_code": manual["zip_code"],
+            "name": manual.get("name", ""),
+            "region": manual.get("postal_region", ""),
+            "state_code": manual.get("state_code", ""),
+            "manual_override": True,
+            "forced_override": True,
+        }
+
     ent = entebbe_zone_for_coordinates(latitude, longitude)
     if ent:
         return ent
