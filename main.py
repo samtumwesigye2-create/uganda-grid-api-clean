@@ -2,14 +2,14 @@ from fastapi import FastAPI, Query, HTTPException, UploadFile, File, Form, Heade
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
-import json, os, time, uuid
+import json, os, time, uuid, math
 from postal_assignment import resolve_zip
 from grid_assignment import next_grid_id
-from state_geometry import state_feature_collection
+from state_geometry import state_feature_collection, state_for_coordinate
 from national_zip_geometry import zip_feature_collection, validation_status
 from manual_zip_assignments import list_assignments, available_reserves, create_assignment, delete_assignment, feature_collection as manual_zip_features
 from special_zip_assignments import list_assignments as list_special_zips, create_assignment as create_special_zip, delete_assignment as delete_special_zip, category_catalog as special_zip_catalog, feature_collection as special_zip_features
-app=FastAPI(title="Uganda National Grid API",version="1.7")
+app=FastAPI(title="Uganda National Grid API",version="1.8")
 app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_methods=["*"],allow_headers=["*"])
 BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 def F(n):return os.path.join(BASE_DIR,n)
@@ -47,6 +47,11 @@ def prune_reports():
  global REPORTS;now=time.time();REPORTS=[r for r in REPORTS if now-r["created_at"]<REPORT_TTL_SECONDS]
 def special_zip_search_records():
  return [{"grid_id":x.get("zip_code", ""),"zip_code":x.get("zip_code", ""),"address":x.get("name", ""),"display_name":x.get("name", ""),"latitude":x.get("latitude"),"longitude":x.get("longitude"),"special":True,"special_category":x.get("category", ""),"locality":x.get("address", "")} for x in list_special_zips()]
+def haversine_m(lat1,lon1,lat2,lon2):
+ r=6371000.0
+ p1=math.radians(float(lat1));p2=math.radians(float(lat2));dp=math.radians(float(lat2)-float(lat1));dl=math.radians(float(lon2)-float(lon1))
+ a=math.sin(dp/2)**2+math.cos(p1)*math.cos(p2)*math.sin(dl/2)**2
+ return 2*r*math.atan2(math.sqrt(a),math.sqrt(1-a))
 @app.get("/health")
 def health():return {"status":"ok","records":len(addresses)}
 @app.get("/geography/states")
@@ -58,6 +63,28 @@ def geography_zips():
 def geography_special_zips():return special_zip_features()
 @app.get("/geography/status")
 def geography_status():return validation_status()
+@app.get("/coordinates/lookup")
+def coordinate_lookup(lat:float=Query(...),lon:float=Query(...),tolerance_m:float=Query(default=15.0,ge=0.0,le=500.0)):
+ state=state_for_coordinate(lat,lon)
+ if state and state.get("ambiguous"):
+  raise HTTPException(status_code=409,detail="Coordinate lies on an ambiguous state boundary")
+ postal=resolve_zip(lat,lon)
+ candidates=[]
+ for a in addresses:
+  alat=a.get("latitude");alon=a.get("longitude")
+  if alat is None or alon is None:continue
+  try:d=haversine_m(lat,lon,alat,alon)
+  except (TypeError,ValueError):continue
+  candidates.append((d,a))
+ candidates.sort(key=lambda x:x[0])
+ nearest=candidates[0] if candidates else None
+ matched=nearest is not None and nearest[0]<=tolerance_m
+ result={"latitude":lat,"longitude":lon,"matched":matched,"tolerance_m":tolerance_m,"state":state,"postal":postal}
+ if matched:
+  result["address"]={**nearest[1],"distance_m":round(nearest[0],2)}
+ elif nearest:
+  result["nearest_address"]={**nearest[1],"distance_m":round(nearest[0],2)}
+ return result
 @app.get("/admin/zips/manual")
 def admin_manual_zips(x_admin_passcode:str=Header(default="")):check_admin(x_admin_passcode);return {"results":list_assignments()}
 @app.get("/admin/zips/reserves/{region}")
@@ -98,10 +125,6 @@ def app_js():
 def boundaries_js():return FileResponse(BOUNDARIES_JS_FILE,media_type="application/javascript; charset=utf-8",headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
 @app.get("/admin-zip-link.js")
 def admin_zip_link_js():return FileResponse(ADMIN_ZIP_LINK_FILE,media_type="application/javascript; charset=utf-8",headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
-@app.get("/submit")
-def submit_page():return FileResponse(SUBMIT_FILE,media_type="text/html")
-@app.get("/review")
-def review_page():return FileResponse(REVIEW_FILE,media_type="text/html")
 @app.get("/admin")
 def admin_page():
  with open(ADMIN_FILE,"r",encoding="utf-8") as f:html=f.read()
@@ -118,6 +141,10 @@ def ship_page():return FileResponse(SHIP_FILE,media_type="text/html")
 def driver_page():return FileResponse(DRIVER_FILE,media_type="text/html")
 @app.get("/test-tool")
 def test_tool_page():return FileResponse(TEST_TOOL_FILE,media_type="text/html")
+@app.get("/submit")
+def submit_page():return FileResponse(SUBMIT_FILE,media_type="text/html")
+@app.get("/review")
+def review_page():return FileResponse(REVIEW_FILE,media_type="text/html")
 @app.get("/search")
 def search(q:str=Query(...,min_length=1)):
  x=q.strip().lower();normal=[a for a in addresses if x in str(a.get("grid_id","")).lower() or x in str(a.get("address","")).lower()]
@@ -169,7 +196,7 @@ def decide_submission(submission_id:str,action:str=Form(...),grid_id:str=Form(""
  check_admin(x_admin_passcode);sub=next((s for s in SUBMISSIONS if s["id"]==submission_id),None)
  if not sub:raise HTTPException(status_code=404,detail="Submission not found")
  if action.strip().lower()=="deny":sub["status"]="denied";return sub
- assignment=next_grid_id(sub["lat"],sub["lon"],addresses);postal=resolve_zip(sub["lat"],sub["lon"]);sub.update({"status":"approved","assigned_grid_id":assignment["grid_id"],"assigned_address":address})
- rec={"grid_id":assignment["grid_id"],"address":address,"latitude":sub["lat"],"longitude":sub["lon"],"state_code":assignment["state_code"],"state_name":assignment["state_name"],"postal_prefix":assignment["postal_prefix"]}
+ grid_id,state=next_grid_id(addresses,sub["lat"],sub["lon"]);postal=resolve_zip(sub["lat"],sub["lon"]);sub.update({"status":"approved","assigned_grid_id":grid_id,"assigned_address":address})
+ rec={"grid_id":grid_id,"address":address,"latitude":sub["lat"],"longitude":sub["lon"],"state_code":state["state_code"],"state_name":state["state_name"],"postal_prefix":state["postal_prefix"]}
  if postal:rec.update({"zip_code":postal["zip_code"],"postal_region":postal["region"]});sub["assigned_zip_code"]=postal["zip_code"]
  save_addresses(addresses+[rec]);return sub
