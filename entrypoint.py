@@ -1,12 +1,16 @@
 """Production application entrypoint.
 
 Extends the existing Uganda National Grid FastAPI application with the finalized
-national ZIP registry and ZIP-aware search while preserving legacy address search.
+national ZIP registry, ZIP-aware search, and district-grounded coordinate lookup.
+Legacy 00xxx special ZIP assignments remain stored for history/admin migration but
+are not exposed as active address ZIPs because 00000-09999 is permanently reserved.
 """
 
-from main import app, addresses, special_zip_search_records
+from fastapi import Query
+from main import app, addresses
 from national_zip_api import router as national_zip_router
 from national_zip_registry import lookup_zip
+from national_zip_coordinate import district_allocation_for_coordinate
 
 app.include_router(national_zip_router)
 
@@ -38,14 +42,14 @@ def _zip_search_result(query: str):
     }
 
 
-# Replace only the GET /search route with a backward-compatible ZIP-aware version.
+# Replace only GET /search with the finalized registry-aware implementation.
 for route in list(app.router.routes):
     if getattr(route, "path", None) == "/search" and "GET" in getattr(route, "methods", set()):
         app.router.routes.remove(route)
 
 
 @app.get("/search")
-def national_search(q: str):
+def national_search(q: str = Query(..., min_length=1)):
     x = q.strip().lower()
     results = []
 
@@ -53,12 +57,7 @@ def national_search(q: str):
     if zip_result:
         results.append(zip_result)
 
-    special = [
-        a for a in special_zip_search_records()
-        if x in str(a.get("zip_code", "")).lower()
-        or x in str(a.get("address", "")).lower()
-        or x in str(a.get("locality", "")).lower()
-    ]
+    # Legacy 00xxx special assignments are intentionally excluded from active search.
     normal = [
         a for a in addresses
         if x in str(a.get("grid_id", "")).lower()
@@ -68,7 +67,7 @@ def national_search(q: str):
 
     seen = set()
     merged = []
-    for item in results + special + normal:
+    for item in results + normal:
         key = (str(item.get("grid_id", "")), str(item.get("zip_code", "")), str(item.get("address", "")))
         if key in seen:
             continue
@@ -78,3 +77,17 @@ def national_search(q: str):
             break
 
     return {"count": len(merged), "results": merged}
+
+
+@app.get("/coordinates/national-zip")
+def national_zip_for_coordinates(lat: float = Query(...), lon: float = Query(...)):
+    result = district_allocation_for_coordinate(lat, lon)
+    if result is None:
+        return {
+            "latitude": lat,
+            "longitude": lon,
+            "matched": False,
+            "assignment_ready": False,
+            "detail": "Coordinates did not match a loaded Uganda district polygon",
+        }
+    return {"latitude": lat, "longitude": lon, "matched": True, **result}
