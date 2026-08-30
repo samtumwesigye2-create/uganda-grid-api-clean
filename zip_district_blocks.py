@@ -8,6 +8,17 @@ KAMPALA_CENTRAL_BLOCK = (10000, 19999)
 VICTORIA_EQUATORIAL_BLOCK = (20000, 29999)
 ALBERTINE_RIFT_BLOCK = (30000, 39999)
 RWENZORI_VIRUNGA_BLOCK = (40000, 49999)
+KATONGA_HIGHLAND_BLOCK = (50000, 59999)
+NILE_SOURCE_BLOCK = (60000, 69999)
+ELGON_KARAMOJA_BLOCK = (70000, 79999)
+KYOGA_KWANIA_BLOCK = (80000, 89999)
+ASWA_SAVANNAH_BLOCK = (90000, 99999)
+
+# West Nile was proposed as 00000-09999, but that range is already reserved
+# for national/special ZIPs. Keep the proposal recorded but inactive until a
+# deliberate architecture change resolves the collision.
+WEST_NILE_PROPOSED_BLOCK = (0, 9999)
+WEST_NILE_BLOCK_STATUS = "blocked_by_special_00xxx_collision"
 
 KAMPALA_CENTRAL_DISTRICTS = {
     "Kampala": {"population": 2_262_460, "target_zips": 1371, "start": 10000, "end": 11399},
@@ -70,34 +81,97 @@ RWENZORI_VIRUNGA_DISTRICTS = {
 }
 RWENZORI_VIRUNGA_GROWTH_RESERVE = (42650, 49999)
 
+KATONGA_HIGHLAND_DISTRICTS = {
+    "Buhweju": {"start": 50000, "end": 50149}, "Bushenyi": {"start": 50150, "end": 50399},
+    "Ibanda": {"start": 50400, "end": 50649}, "Isingiro": {"start": 50650, "end": 51149},
+    "Kazo": {"start": 51150, "end": 51349}, "Kiruhura": {"start": 51350, "end": 51499},
+    "Mbarara District": {"start": 51500, "end": 51649}, "Mbarara City": {"start": 51650, "end": 51849},
+    "Mitooma": {"start": 51850, "end": 52049}, "Ntungamo": {"start": 52050, "end": 52499},
+    "Rubirizi": {"start": 52500, "end": 52649}, "Rwampara": {"start": 52650, "end": 52799},
+    "Sheema": {"start": 52800, "end": 52999}, "Kabale": {"start": 53000, "end": 53249},
+    "Kisoro": {"start": 53250, "end": 53599}, "Rukungiri": {"start": 53600, "end": 53899},
+    "Kanungu": {"start": 53900, "end": 54149}, "Rubanda": {"start": 54150, "end": 54349},
+    "Rukiga": {"start": 54350, "end": 54449},
+}
+KATONGA_HIGHLAND_GROWTH_RESERVE = (54450, 59999)
+
+NILE_SOURCE_DISTRICTS = {
+    "Bugiri": {"start": 60000, "end": 60399}, "Iganga": {"start": 60400, "end": 60749},
+    "Jinja District": {"start": 60750, "end": 60999}, "Jinja City": {"start": 61000, "end": 61249},
+    "Kamuli": {"start": 61250, "end": 61649}, "Mayuge": {"start": 61650, "end": 62099},
+    "Kaliro": {"start": 62100, "end": 62349}, "Namutumba": {"start": 62350, "end": 62599},
+    "Buyende": {"start": 62600, "end": 62899}, "Luuka": {"start": 62900, "end": 63149},
+    "Namayingo": {"start": 63150, "end": 63349}, "Bugweri": {"start": 63350, "end": 63549},
+}
+NILE_SOURCE_GROWTH_RESERVE = (63550, 69999)
+
+ELGON_KARAMOJA_DISTRICTS = {
+    "Sironko": {"start": 70000, "end": 70249}, "Bududa": {"start": 70250, "end": 70499},
+    "Bukwo": {"start": 70500, "end": 70599}, "Manafwa": {"start": 70600, "end": 70749},
+    "Bulambuli": {"start": 70750, "end": 70949}, "Kween": {"start": 70950, "end": 71049},
+    "Namisindwa": {"start": 71050, "end": 71249}, "Mbale City": {"start": 71250, "end": 71499},
+    "Mbale District": {"start": 71500, "end": 71849}, "Kotido": {"start": 71850, "end": 72049},
+    "Moroto": {"start": 72050, "end": 72149}, "Nakapiripirit": {"start": 72150, "end": 72249},
+    "Abim": {"start": 72250, "end": 72399}, "Kaabong": {"start": 72400, "end": 72599},
+    "Amudat": {"start": 72600, "end": 72749}, "Napak": {"start": 72750, "end": 72949},
+    "Nabilatuk": {"start": 72950, "end": 73099}, "Karenga": {"start": 73100, "end": 73199},
+}
+ELGON_KARAMOJA_GROWTH_RESERVE = (73200, 79999)
+
+KYOGA_KWANIA_DISTRICTS = {
+    "Kumi": {"start": 80000, "end": 80249}, "Serere": {"start": 80250, "end": 80549},
+    "Kaberamaido": {"start": 80550, "end": 80699}, "Soroti District": {"start": 80700, "end": 80899},
+    "Soroti City": {"start": 80900, "end": 80999}, "Kalaki": {"start": 81000, "end": 81149},
+    "Amuria": {"start": 81150, "end": 81349}, "Bukedea": {"start": 81350, "end": 81599},
+    "Katakwi": {"start": 81600, "end": 81799}, "Ngora": {"start": 81800, "end": 82099},
+    "Bukedi Combined": {"start": 82100, "end": 83849, "status": "pending_7_district_split"},
+}
+KYOGA_KWANIA_GROWTH_RESERVE = (83850, 89999)
+
+ASWA_SAVANNAH_DISTRICTS = {
+    "Gulu": {"start": 90000, "end": 90099}, "Gulu City": {"start": 90100, "end": 90299},
+    "Kitgum": {"start": 90300, "end": 90499}, "Pader": {"start": 90500, "end": 90699},
+    "Amuru": {"start": 90700, "end": 90899}, "Agago": {"start": 90900, "end": 91149},
+    "Lamwo": {"start": 91150, "end": 91349}, "Nwoya": {"start": 91350, "end": 91549},
+    "Omoro": {"start": 91550, "end": 91699}, "Apac": {"start": 91700, "end": 91899},
+    "Lira District": {"start": 91900, "end": 92099}, "Amolatar": {"start": 92100, "end": 92249},
+    "Dokolo": {"start": 92250, "end": 92449}, "Oyam": {"start": 92450, "end": 92799},
+    "Alebtong": {"start": 92800, "end": 93049}, "Kole": {"start": 93050, "end": 93299},
+    "Otuke": {"start": 93300, "end": 93449}, "Kwania": {"start": 93450, "end": 93649},
+    "Lira City": {"start": 93650, "end": 93849},
+}
+ASWA_SAVANNAH_GROWTH_RESERVE = (93850, 99999)
+
+WEST_NILE_PROPOSED_DISTRICTS = {
+    "Adjumani": 250, "Arua District": 150, "Arua City": 300, "Moyo": 100,
+    "Nebbi": 250, "Yumbe": 750, "Koboko": 200, "Maracha": 200, "Zombo": 250,
+    "Pakwach": 150, "Madi-Okollo": 150, "Obongi": 150, "Terego": 250,
+}
+
 
 def block_capacity(record):
     return record["end"] - record["start"] + 1
 
 
-def _validate_state_block(state_block, districts, reserve):
+def _validate_state_block(state_block, districts, reserve, require_targets=False):
     previous_end = state_block[0] - 1
     for name, record in districts.items():
         assert record["start"] == previous_end + 1, f"gap/overlap before {name}"
         assert record["end"] <= state_block[1]
-        assert block_capacity(record) >= record["target_zips"], f"insufficient capacity for {name}"
+        if require_targets and "target_zips" in record:
+            assert block_capacity(record) >= record["target_zips"], f"insufficient capacity for {name}"
         previous_end = record["end"]
     assert previous_end + 1 == reserve[0]
     assert reserve[1] == state_block[1]
     return True
 
 
-def validate_kampala_central_blocks():
-    return _validate_state_block(KAMPALA_CENTRAL_BLOCK, KAMPALA_CENTRAL_DISTRICTS, KAMPALA_CENTRAL_GROWTH_RESERVE)
-
-
-def validate_victoria_equatorial_blocks():
-    return _validate_state_block(VICTORIA_EQUATORIAL_BLOCK, VICTORIA_EQUATORIAL_DISTRICTS, VICTORIA_EQUATORIAL_GROWTH_RESERVE)
-
-
-def validate_albertine_rift_blocks():
-    return _validate_state_block(ALBERTINE_RIFT_BLOCK, ALBERTINE_RIFT_DISTRICTS, ALBERTINE_RIFT_GROWTH_RESERVE)
-
-
-def validate_rwenzori_virunga_blocks():
-    return _validate_state_block(RWENZORI_VIRUNGA_BLOCK, RWENZORI_VIRUNGA_DISTRICTS, RWENZORI_VIRUNGA_GROWTH_RESERVE)
+def validate_kampala_central_blocks(): return _validate_state_block(KAMPALA_CENTRAL_BLOCK, KAMPALA_CENTRAL_DISTRICTS, KAMPALA_CENTRAL_GROWTH_RESERVE, True)
+def validate_victoria_equatorial_blocks(): return _validate_state_block(VICTORIA_EQUATORIAL_BLOCK, VICTORIA_EQUATORIAL_DISTRICTS, VICTORIA_EQUATORIAL_GROWTH_RESERVE, True)
+def validate_albertine_rift_blocks(): return _validate_state_block(ALBERTINE_RIFT_BLOCK, ALBERTINE_RIFT_DISTRICTS, ALBERTINE_RIFT_GROWTH_RESERVE, True)
+def validate_rwenzori_virunga_blocks(): return _validate_state_block(RWENZORI_VIRUNGA_BLOCK, RWENZORI_VIRUNGA_DISTRICTS, RWENZORI_VIRUNGA_GROWTH_RESERVE, True)
+def validate_katonga_highland_blocks(): return _validate_state_block(KATONGA_HIGHLAND_BLOCK, KATONGA_HIGHLAND_DISTRICTS, KATONGA_HIGHLAND_GROWTH_RESERVE)
+def validate_nile_source_blocks(): return _validate_state_block(NILE_SOURCE_BLOCK, NILE_SOURCE_DISTRICTS, NILE_SOURCE_GROWTH_RESERVE)
+def validate_elgon_karamoja_blocks(): return _validate_state_block(ELGON_KARAMOJA_BLOCK, ELGON_KARAMOJA_DISTRICTS, ELGON_KARAMOJA_GROWTH_RESERVE)
+def validate_kyoga_kwania_blocks(): return _validate_state_block(KYOGA_KWANIA_BLOCK, KYOGA_KWANIA_DISTRICTS, KYOGA_KWANIA_GROWTH_RESERVE)
+def validate_aswa_savannah_blocks(): return _validate_state_block(ASWA_SAVANNAH_BLOCK, ASWA_SAVANNAH_DISTRICTS, ASWA_SAVANNAH_GROWTH_RESERVE)
