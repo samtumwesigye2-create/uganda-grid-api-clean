@@ -6,6 +6,8 @@ polygons remain authoritative until an explicit migration is performed.
 
 KAMPALA_CENTRAL_BLOCK = (10000, 19999)
 VICTORIA_EQUATORIAL_BLOCK = (20000, 29999)
+ALBERTINE_RIFT_BLOCK = (30000, 39999)
+RWENZORI_VIRUNGA_BLOCK = (40000, 49999)
 
 KAMPALA_CENTRAL_DISTRICTS = {
     "Kampala": {"population": 2_262_460, "target_zips": 1371, "start": 10000, "end": 11399},
@@ -41,6 +43,33 @@ VICTORIA_EQUATORIAL_DISTRICTS = {
 }
 VICTORIA_EQUATORIAL_GROWTH_RESERVE = (21800, 29999)
 
+ALBERTINE_RIFT_DISTRICTS = {
+    "Hoima District": {"population": 308_214, "target_zips": 187, "start": 30000, "end": 30199},
+    "Hoima City": {"population": 169_357, "target_zips": 103, "start": 30200, "end": 30349},
+    "Kibaale": {"population": 285_555, "target_zips": 173, "start": 30350, "end": 30549},
+    "Masindi": {"population": 410_062, "target_zips": 249, "start": 30550, "end": 30799},
+    "Buliisa": {"population": 201_160, "target_zips": 122, "start": 30800, "end": 30949},
+    "Kiryandongo": {"population": 436_900, "target_zips": 265, "start": 30950, "end": 31249},
+    "Kagadi": {"population": 563_146, "target_zips": 341, "start": 31250, "end": 31599},
+    "Kakumiro": {"population": 513_713, "target_zips": 311, "start": 31600, "end": 31949},
+    "Kikuube": {"population": 455_155, "target_zips": 276, "start": 31950, "end": 32249},
+}
+ALBERTINE_RIFT_GROWTH_RESERVE = (32250, 39999)
+
+RWENZORI_VIRUNGA_DISTRICTS = {
+    "Kabarole": {"population": 275_839, "target_zips": 167, "start": 40000, "end": 40199},
+    "Fort Portal City": {"population": 164_689, "target_zips": 100, "start": 40200, "end": 40299},
+    "Bunyangabu": {"population": 262_262, "target_zips": 159, "start": 40300, "end": 40499},
+    "Kamwenge": {"population": 403_704, "target_zips": 245, "start": 40500, "end": 40749},
+    "Kitagwenda": {"population": 221_451, "target_zips": 134, "start": 40750, "end": 40899},
+    "Kyegegwa": {"population": 599_981, "target_zips": 364, "start": 40900, "end": 41299},
+    "Kyenjojo": {"population": 651_309, "target_zips": 395, "start": 41300, "end": 41699},
+    "Kasese": {"population": 1_014_158, "target_zips": 615, "start": 41700, "end": 42349},
+    "Bundibugyo": {"population": 316_809, "target_zips": 192, "start": 42350, "end": 42549},
+    "Ntoroko": {"population": 137_507, "target_zips": 83, "start": 42550, "end": 42649},
+}
+RWENZORI_VIRUNGA_GROWTH_RESERVE = (42650, 49999)
+
 
 def block_capacity(record):
     return record["end"] - record["start"] + 1
@@ -64,3 +93,11 @@ def validate_kampala_central_blocks():
 
 def validate_victoria_equatorial_blocks():
     return _validate_state_block(VICTORIA_EQUATORIAL_BLOCK, VICTORIA_EQUATORIAL_DISTRICTS, VICTORIA_EQUATORIAL_GROWTH_RESERVE)
+
+
+def validate_albertine_rift_blocks():
+    return _validate_state_block(ALBERTINE_RIFT_BLOCK, ALBERTINE_RIFT_DISTRICTS, ALBERTINE_RIFT_GROWTH_RESERVE)
+
+
+def validate_rwenzori_virunga_blocks():
+    return _validate_state_block(RWENZORI_VIRUNGA_BLOCK, RWENZORI_VIRUNGA_DISTRICTS, RWENZORI_VIRUNGA_GROWTH_RESERVE)
