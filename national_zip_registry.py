@@ -1,7 +1,11 @@
 """UGAMAP / Uganda National Grid — finalized national ZIP registry.
 
 Source of truth: finalized 5-digit ZIP architecture supplied by project owner.
-ZIP codes are TEXT at API/data boundaries. 00000-09999 is permanently reserved.
+ZIP codes are TEXT at API/data boundaries.
+
+00000-09999 is the NATIONAL SPECIAL ZIP namespace. It is excluded from ordinary
+state/district/residential allocation but may be assigned to approved special
+facilities through the special ZIP assignment system.
 """
 
 STATE_BLOCKS = {
@@ -17,7 +21,7 @@ STATE_BLOCKS = {
  "ASWA_SAVANNAH":{"state_name":"Aswa Savannah","capital":"Gulu","start":90000,"end":99999,"districts":[("Gulu District",90000,90099),("Gulu City",90100,90349),("Kitgum",90350,90549),("Pader",90550,90749),("Amuru",90750,90949),("Agago",90950,91199),("Lamwo",91200,91399),("Nwoya",91400,91599),("Omoro",91600,91799),("Apac",91800,91999),("Lira District",92000,92199),("Amolatar",92200,92399),("Dokolo",92400,92599),("Oyam",92600,92949),("Alebtong",92950,93199),("Kole",93200,93449),("Otuke",93450,93599),("Kwania",93600,93799),("Lira City",93800,93999)]}
 }
 
-PERMANENT_RESERVED=[(0,9999)]
+SPECIAL_ZIP_BLOCK=(0,9999)
 SHARED_RESERVED=[(35350,39999)]
 DATA_GAPS=["Kalangala (islands)","Kiboga","Kyotera","Masaka City","Mbale District","Ngora"]
 COUNTY_SUBSPLIT=["Wakiso","Kasese","Yumbe"]
@@ -33,13 +37,13 @@ def _fmt(n):return f"{n:05d}"
 def lookup_zip(zip_code):
  n=_norm(zip_code)
  if n is None:return None
- if 0<=n<=9999:return {"zip_code":_fmt(n),"reserved":True,"reservation":"permanent_national_buffer","state_name":None,"district":None}
+ if 0<=n<=9999:return {"zip_code":_fmt(n),"reserved":False,"special_only":True,"ordinary_assignment_allowed":False,"namespace":"national_special_zip","state_name":None,"district":None}
  if 35350<=n<=39999:return {"zip_code":_fmt(n),"reserved":True,"reservation":"shared_block_3_growth","state_name":None,"district":None,"shared_by":["Albertine Rift","West Nile"]}
  for key,s in STATE_BLOCKS.items():
   if s["start"]<=n<=s["end"]:
    for name,a,b in s["districts"]:
-    if a<=n<=b:return {"zip_code":_fmt(n),"reserved":False,"state_key":key,"state_name":s["state_name"],"political_region":s["state_name"],"capital":s["capital"],"district":name,"district_range":f"{_fmt(a)}-{_fmt(b)}","data_gap":name in DATA_GAPS,"county_subsplit_flag":name in COUNTY_SUBSPLIT}
-   return {"zip_code":_fmt(n),"reserved":True,"reservation":"state_growth","state_key":key,"state_name":s["state_name"],"political_region":s["state_name"],"capital":s["capital"],"district":None}
+    if a<=n<=b:return {"zip_code":_fmt(n),"reserved":False,"special_only":False,"ordinary_assignment_allowed":True,"state_key":key,"state_name":s["state_name"],"political_region":s["state_name"],"capital":s["capital"],"district":name,"district_range":f"{_fmt(a)}-{_fmt(b)}","data_gap":name in DATA_GAPS,"county_subsplit_flag":name in COUNTY_SUBSPLIT}
+   return {"zip_code":_fmt(n),"reserved":True,"special_only":False,"ordinary_assignment_allowed":False,"reservation":"state_growth","state_key":key,"state_name":s["state_name"],"political_region":s["state_name"],"capital":s["capital"],"district":None}
  return None
 
 def state_summary(state_key):
@@ -58,4 +62,4 @@ def validate_registry():
  ranges.sort()
  for p,c in zip(ranges,ranges[1:]):
   if c[0]<=p[1]:errors.append(f"overlap: {p[3]} / {c[3]}")
- return {"valid":not errors,"errors":errors,"states_loaded":len(STATE_BLOCKS),"district_rows_loaded":districts,"zip_storage":"TEXT","permanent_reserved":"00000-09999","shared_block_3_reserved":"35350-39999","data_gaps":DATA_GAPS,"county_subsplit_flags":COUNTY_SUBSPLIT}
+ return {"valid":not errors,"errors":errors,"states_loaded":len(STATE_BLOCKS),"district_rows_loaded":districts,"zip_storage":"TEXT","special_zip_block":"00000-09999","special_zip_policy":"special facilities only; excluded from ordinary state/district/residential assignment","shared_block_3_reserved":"35350-39999","data_gaps":DATA_GAPS,"county_subsplit_flags":COUNTY_SUBSPLIT}
