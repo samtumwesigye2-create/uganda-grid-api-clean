@@ -1,15 +1,18 @@
 """Postal assignment helpers for the finalized Uganda National Grid ZIP plan.
 
 The old 20xxx-30xxx automatic geometry is retired. Manual admin polygons remain
-valid overrides. Otherwise coordinates resolve to finalized district allocation
-ranges. An exact ZIP is accepted only when explicitly supplied and verified as an
-active code inside the coordinate's resolved district allocation.
+valid overrides. Where a locality has a loaded population-cluster layer (see
+national_zip_clusters.py), coordinates resolve to an exact ZIP from that layer.
+Everywhere else, coordinates resolve to the finalized district allocation range
+and an exact ZIP is accepted only when explicitly supplied and verified as an
+active code inside that range.
 """
 
 from fastapi import HTTPException
 from manual_zip_assignments import match_point as match_manual_zip
 from national_zip_coordinate import district_allocation_for_coordinate
 from national_zip_registry import lookup_zip
+from national_zip_clusters import cluster_zip_for_coordinate
 
 
 def _manual_result(manual):
@@ -36,10 +39,16 @@ def _manual_result(manual):
 def resolve_zip(latitude: float, longitude: float, region: str = "", zip_code: str = ""):
     """Resolve/validate a finalized national ZIP for coordinates.
 
-    Without an explicit exact ZIP, this returns district allocation information and
-    leaves ``zip_code`` empty until the village/cluster polygon layer is available.
-    This deliberately prevents the retired legacy ZIP geometry from assigning a
-    plausible-looking but incorrect code.
+    Resolution order:
+      1. Manual admin override (unchanged).
+      2. Explicit zip_code supplied by the caller (unchanged) -- validated
+         against the registry and, where available, against the coordinate's
+         district allocation range.
+      3. Population-cluster layer (national_zip_clusters.py) -- returns an
+         exact ZIP where a locality's cluster polygons have been loaded.
+      4. District allocation range with zip_code left empty
+         ("assignment_pending") -- the original fallback, for every locality
+         that doesn't have a cluster layer loaded yet.
     """
     manual = match_manual_zip(latitude, longitude)
     if manual:
@@ -76,6 +85,10 @@ def resolve_zip(latitude: float, longitude: float, region: str = "", zip_code: s
             "national_zip": True,
             "validated_against_coordinates": bool(candidates),
         }
+
+    cluster_result = cluster_zip_for_coordinate(latitude, longitude)
+    if cluster_result:
+        return cluster_result
 
     if not allocation:
         return None
