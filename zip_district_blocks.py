@@ -4,21 +4,23 @@ These are capacity reservations, not live ZIP issuance. Existing ZIP codes and
 polygons remain authoritative until an explicit migration is performed.
 """
 
+# Prefix 0 is reserved for national/special-purpose ZIPs. Ordinary geographic
+# addresses use prefixes 1-9 so they never depend on preserving a leading zero.
+NATIONAL_SPECIAL_BLOCK = (0, 9999)
+NATIONAL_SPECIAL_STATUS = "reserved_non_geographic"
+
 KAMPALA_CENTRAL_BLOCK = (10000, 19999)
 VICTORIA_EQUATORIAL_BLOCK = (20000, 29999)
-ALBERTINE_RIFT_BLOCK = (30000, 39999)
+ALBERTINE_WEST_NILE_SHARED_BLOCK = (30000, 39999)
+ALBERTINE_RIFT_BLOCK = (30000, 32249)
+WEST_NILE_BLOCK = (32250, 35399)
+ALBERTINE_WEST_NILE_GROWTH_RESERVE = (35400, 39999)
 RWENZORI_VIRUNGA_BLOCK = (40000, 49999)
 KATONGA_HIGHLAND_BLOCK = (50000, 59999)
 NILE_SOURCE_BLOCK = (60000, 69999)
 ELGON_KARAMOJA_BLOCK = (70000, 79999)
 KYOGA_KWANIA_BLOCK = (80000, 89999)
 ASWA_SAVANNAH_BLOCK = (90000, 99999)
-
-# West Nile was proposed as 00000-09999, but that range is already reserved
-# for national/special ZIPs. Keep the proposal recorded but inactive until a
-# deliberate architecture change resolves the collision.
-WEST_NILE_PROPOSED_BLOCK = (0, 9999)
-WEST_NILE_BLOCK_STATUS = "blocked_by_special_00xxx_collision"
 
 KAMPALA_CENTRAL_DISTRICTS = {
     "Kampala": {"population": 2_262_460, "target_zips": 1371, "start": 10000, "end": 11399},
@@ -65,7 +67,22 @@ ALBERTINE_RIFT_DISTRICTS = {
     "Kakumiro": {"population": 513_713, "target_zips": 311, "start": 31600, "end": 31949},
     "Kikuube": {"population": 455_155, "target_zips": 276, "start": 31950, "end": 32249},
 }
-ALBERTINE_RIFT_GROWTH_RESERVE = (32250, 39999)
+
+WEST_NILE_DISTRICTS = {
+    "Adjumani": {"start": 32250, "end": 32499},
+    "Arua District": {"start": 32500, "end": 32649},
+    "Arua City": {"start": 32650, "end": 32949},
+    "Moyo": {"start": 32950, "end": 33049},
+    "Nebbi": {"start": 33050, "end": 33299},
+    "Yumbe": {"start": 33300, "end": 34049},
+    "Koboko": {"start": 34050, "end": 34249},
+    "Maracha": {"start": 34250, "end": 34449},
+    "Zombo": {"start": 34450, "end": 34699},
+    "Pakwach": {"start": 34700, "end": 34849},
+    "Madi-Okollo": {"start": 34850, "end": 34999},
+    "Obongi": {"start": 35000, "end": 35149},
+    "Terego": {"start": 35150, "end": 35399},
+}
 
 RWENZORI_VIRUNGA_DISTRICTS = {
     "Kabarole": {"population": 275_839, "target_zips": 167, "start": 40000, "end": 40199},
@@ -142,12 +159,6 @@ ASWA_SAVANNAH_DISTRICTS = {
 }
 ASWA_SAVANNAH_GROWTH_RESERVE = (93850, 99999)
 
-WEST_NILE_PROPOSED_DISTRICTS = {
-    "Adjumani": 250, "Arua District": 150, "Arua City": 300, "Moyo": 100,
-    "Nebbi": 250, "Yumbe": 750, "Koboko": 200, "Maracha": 200, "Zombo": 250,
-    "Pakwach": 150, "Madi-Okollo": 150, "Obongi": 150, "Terego": 250,
-}
-
 
 def block_capacity(record):
     return record["end"] - record["start"] + 1
@@ -166,9 +177,27 @@ def _validate_state_block(state_block, districts, reserve, require_targets=False
     return True
 
 
+def _validate_contiguous_block(block, districts):
+    previous_end = block[0] - 1
+    for name, record in districts.items():
+        assert record["start"] == previous_end + 1, f"gap/overlap before {name}"
+        assert record["end"] <= block[1]
+        previous_end = record["end"]
+    assert previous_end == block[1]
+    return True
+
+
 def validate_kampala_central_blocks(): return _validate_state_block(KAMPALA_CENTRAL_BLOCK, KAMPALA_CENTRAL_DISTRICTS, KAMPALA_CENTRAL_GROWTH_RESERVE, True)
 def validate_victoria_equatorial_blocks(): return _validate_state_block(VICTORIA_EQUATORIAL_BLOCK, VICTORIA_EQUATORIAL_DISTRICTS, VICTORIA_EQUATORIAL_GROWTH_RESERVE, True)
-def validate_albertine_rift_blocks(): return _validate_state_block(ALBERTINE_RIFT_BLOCK, ALBERTINE_RIFT_DISTRICTS, ALBERTINE_RIFT_GROWTH_RESERVE, True)
+def validate_albertine_rift_blocks(): return _validate_contiguous_block(ALBERTINE_RIFT_BLOCK, ALBERTINE_RIFT_DISTRICTS)
+def validate_west_nile_blocks(): return _validate_contiguous_block(WEST_NILE_BLOCK, WEST_NILE_DISTRICTS)
+def validate_albertine_west_nile_shared_block():
+    assert ALBERTINE_RIFT_BLOCK[0] == ALBERTINE_WEST_NILE_SHARED_BLOCK[0]
+    assert ALBERTINE_RIFT_BLOCK[1] + 1 == WEST_NILE_BLOCK[0]
+    assert WEST_NILE_BLOCK[1] + 1 == ALBERTINE_WEST_NILE_GROWTH_RESERVE[0]
+    assert ALBERTINE_WEST_NILE_GROWTH_RESERVE[1] == ALBERTINE_WEST_NILE_SHARED_BLOCK[1]
+    return True
+
 def validate_rwenzori_virunga_blocks(): return _validate_state_block(RWENZORI_VIRUNGA_BLOCK, RWENZORI_VIRUNGA_DISTRICTS, RWENZORI_VIRUNGA_GROWTH_RESERVE, True)
 def validate_katonga_highland_blocks(): return _validate_state_block(KATONGA_HIGHLAND_BLOCK, KATONGA_HIGHLAND_DISTRICTS, KATONGA_HIGHLAND_GROWTH_RESERVE)
 def validate_nile_source_blocks(): return _validate_state_block(NILE_SOURCE_BLOCK, NILE_SOURCE_DISTRICTS, NILE_SOURCE_GROWTH_RESERVE)
