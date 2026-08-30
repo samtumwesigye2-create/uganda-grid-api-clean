@@ -4,6 +4,9 @@ Manual geometry is authoritative for *where* a ZIP applies, but ZIP ownership is
 not arbitrary: every postal region belongs to exactly one state. Admin drawing
 can override automatic ZIP/state geometry inside the polygon, but it cannot move
 a ZIP into another state's namespace.
+
+When DATABASE_URL is configured, assignments are stored in PostgreSQL so they
+survive deploys/restarts. A local JSON file remains as the development fallback.
 """
 import json, os
 from shapely.geometry import shape, mapping, Point
@@ -11,6 +14,7 @@ from postal_zones import REGIONS
 
 BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 STORE=os.path.join(BASE_DIR,"manual_zip_assignments.json")
+DATABASE_URL=os.environ.get("DATABASE_URL","").strip()
 
 # Canonical ownership. ENT is a protected postal enclave geographically inside
 # Kampala Metropolitan, so all 21xxx Entebbe reserve ZIPs remain owned by KMP.
@@ -41,14 +45,72 @@ def _canonicalize_item(item):
         x["state_forced_by_zip"]=True
     return x
 
-def _load():
+def _connect():
+    if not DATABASE_URL:return None
+    import psycopg2
+    return psycopg2.connect(DATABASE_URL)
+
+def _init_db():
+    conn=_connect()
+    if not conn:return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                CREATE TABLE IF NOT EXISTS manual_zip_assignments(
+                    zip_code VARCHAR(16) PRIMARY KEY,
+                    postal_region VARCHAR(16) NOT NULL,
+                    state_code VARCHAR(16) NOT NULL,
+                    name TEXT NOT NULL,
+                    geometry JSONB NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS idx_manual_zip_region ON manual_zip_assignments(postal_region);
+                """)
+        return True
+    finally:conn.close()
+
+def _load_json():
     try:
         with open(STORE,"r",encoding="utf-8") as f:
             return [_canonicalize_item(x) for x in json.load(f)]
     except Exception:return []
 
-def _save(items):
-    with open(STORE,"w",encoding="utf-8") as f:json.dump([_canonicalize_item(x) for x in items],f,ensure_ascii=False,indent=2)
+def _save_json(items):
+    with open(STORE,"w",encoding="utf-8") as f:
+        json.dump([_canonicalize_item(x) for x in items],f,ensure_ascii=False,indent=2)
+
+def _load():
+    conn=_connect()
+    if not conn:return _load_json()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT zip_code,postal_region,state_code,name,geometry FROM manual_zip_assignments ORDER BY created_at,zip_code")
+            rows=cur.fetchall()
+        return [_canonicalize_item({"zip_code":r[0],"postal_region":r[1],"state_code":r[2],"name":r[3],"geometry":r[4],"manual":True}) for r in rows]
+    finally:conn.close()
+
+def _insert_db(item):
+    conn=_connect()
+    if not conn:return False
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("""INSERT INTO manual_zip_assignments(zip_code,postal_region,state_code,name,geometry)
+                VALUES(%s,%s,%s,%s,%s::jsonb)""",
+                (item["zip_code"],item["postal_region"],item["state_code"],item["name"],json.dumps(item["geometry"])))
+        return True
+    finally:conn.close()
+
+def _delete_db(zip_code):
+    conn=_connect()
+    if not conn:return None
+    try:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM manual_zip_assignments WHERE zip_code=%s",(zip_code,))
+                return cur.rowcount>0
+    finally:conn.close()
 
 def list_assignments(): return _load()
 
@@ -89,12 +151,18 @@ def create_assignment(zip_code,region,state_code,name,geometry):
         "manual":True,
         "state_forced_by_zip":True,
     }
-    items=_load();items.append(item);_save(items);return item
+    if DATABASE_URL:
+        _insert_db(item)
+    else:
+        items=_load_json();items.append(item);_save_json(items)
+    return item
 
 def delete_assignment(zip_code):
-    items=_load();new=[x for x in items if x.get("zip_code")!=zip_code]
+    if DATABASE_URL:
+        return bool(_delete_db(zip_code))
+    items=_load_json();new=[x for x in items if x.get("zip_code")!=zip_code]
     if len(new)==len(items):return False
-    _save(new);return True
+    _save_json(new);return True
 
 def match_point(latitude,longitude):
     p=Point(float(longitude),float(latitude))
@@ -106,3 +174,6 @@ def match_point(latitude,longitude):
 
 def feature_collection():
     return {"type":"FeatureCollection","features":[{"type":"Feature","properties":{k:v for k,v in x.items() if k!="geometry"},"geometry":x["geometry"]} for x in _load()]}
+
+try:_init_db()
+except Exception:pass
