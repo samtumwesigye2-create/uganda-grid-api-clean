@@ -17,18 +17,23 @@ def _codes(prefix:str,count:int):return [f"{prefix}4{i:02d}" for i in range(1,co
 def _reserve(prefix:str,active_count:int,reserve_count:int=20):return [f"{prefix}4{i:02d}" for i in range(active_count+1,active_count+reserve_count+1)]
 def _region(name,prefix,active_count,allocation,reserve_count=20):
  return {"name":name,"prefix":prefix,"zip_codes":_codes(prefix,active_count),"reserve_zip_codes":_reserve(prefix,active_count,reserve_count),"allocation":allocation}
+# Active-zone counts below are population-proportional, not fixed guesses.
+# Derived from 2023 UBOS district population estimates, summed per state via
+# the live DISTRICT_TO_STATE assignment (state_district_registry.py), then
+# allocated across 360 total zones in proportion to each state's population
+# share (largest-remainder rounding). Recompute if DISTRICT_TO_STATE changes.
 DENSE_REGIONS={"JIN","MBA","MBL","GUL"};STANDARD_REGIONS={"ARU","SOR","MOR","HOI","MSK"}
 REGIONS={
- "KLA":_region("Kampala Central State","20",50,"metropolitan"),
- "JIN":_region("Nile Source State","22",40,"dense"),
+ "KLA":_region("Kampala Central State","20",51,"metropolitan"),
+ "JIN":_region("Nile Source State","22",45,"dense"),
  "MBA":_region("Katonga Highland State","23",40,"dense",40),
- "MBL":_region("Elgon Karamoja State","24",40,"dense"),
- "GUL":_region("Aswa Savannah State","25",40,"dense"),
- "ARU":_region("West Nile State","26",30,"standard"),
- "SOR":_region("Kyoga Kwania State","27",30,"standard"),
- "MOR":_region("Karamoja State","28",30,"standard"),
- "HOI":_region("Albertine Rift State","29",30,"standard",40),
- "MSK":_region("Victoria Equatorial State","30",30,"standard"),
+ "MBL":_region("Elgon Karamoja State","24",38,"dense"),
+ "GUL":_region("Aswa Savannah State","25",43,"dense"),
+ "ARU":_region("West Nile State","26",28,"standard"),
+ "SOR":_region("Kyoga Kwania State","27",21,"standard"),
+ "MOR":_region("Karamoja State","28",10,"standard"),
+ "HOI":_region("Albertine Rift State","29",66,"standard",40),
+ "MSK":_region("Victoria Equatorial State","30",18,"standard"),
  "ENT":_region("Entebbe & Lake Victoria Islands","21",20,"islands"),
 }
 ENTEBBE_ZONES={"21401":"Entebbe Central","21402":"Lake Victoria / Entebbe West","21403":"Airport","21404":"Katabi","21405":"Kigungu"}
