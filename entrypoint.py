@@ -1,6 +1,6 @@
 """Production application entrypoint."""
 
-from fastapi import Query, HTTPException, Header
+from fastapi import Query, HTTPException, Header, Body
 from fastapi.responses import Response
 from main import app, addresses, special_zip_search_records, check_admin, SPECIAL_ZIP_ADMIN_FILE, ZIP_ADMIN_FILE
 from national_zip_api import router as national_zip_router
@@ -48,22 +48,32 @@ def national_search(q:str=Query(...,min_length=1)):
         if len(merged)>=50:break
     return {"count":len(merged),"results":merged}
 
+@app.post("/zip-clusters/county")
+def county_zip_clusters(payload:dict=Body(...)):
+    district=str(payload.get("district") or "").strip()
+    county=str(payload.get("county") or "").strip()
+    rows=payload.get("parishes")
+    if not district:raise HTTPException(status_code=422,detail="district is required")
+    if not county:raise HTTPException(status_code=422,detail="county is required")
+    if not isinstance(rows,list) or not rows:raise HTTPException(status_code=422,detail="parishes must be a non-empty list")
+    cleaned=[]
+    for i,row in enumerate(rows):
+        if not isinstance(row,dict):raise HTTPException(status_code=422,detail=f"parishes[{i}] must be an object")
+        parent=str(row.get("subcounty") or "").strip();parish=str(row.get("parish") or "").strip()
+        try:population=int(row.get("population"))
+        except (TypeError,ValueError):raise HTTPException(status_code=422,detail=f"parishes[{i}].population must be an integer")
+        if not parent or not parish or population<=0:raise HTTPException(status_code=422,detail=f"parishes[{i}] requires subcounty, parish and positive population")
+        cleaned.append({"subcounty":parent,"parish":parish,"population":population})
+    try:result=build_district_zip_clusters(cleaned,district)
+    except (ValueError,KeyError) as exc:raise HTTPException(status_code=422,detail=str(exc))
+    return {"county":county,"district":district,"status":"PASS","source_parishes":len(cleaned),"source_population":sum(x["population"] for x in cleaned),**result}
+
 @app.get("/zip-clusters/pilot/buikwe-county")
 def buikwe_county_zip_clusters(include_clusters:bool=Query(default=True)):
     result=build_district_zip_clusters(BUIKWE_COUNTY_2024,"Buikwe")
     source_ok=(result["source_parishes"]==EXPECTED_SOURCE_PARISHES and result["source_population"]==EXPECTED_SOURCE_POPULATION)
     baseline_ok=(result["assigned_zip_units"]==131 and result["clusters"][0]["zip_code"]=="14600" and result["clusters"][-1]["zip_code"]=="14730")
-    payload={
-        "pilot":"Buikwe County",
-        "status":"PASS" if source_ok and baseline_ok else "FAIL",
-        "source":"UBOS NPHC 2024",
-        "source_validated":source_ok,
-        "baseline_validated":baseline_ok,
-        **{k:v for k,v in result.items() if k!="clusters"},
-        "first_zip":result["clusters"][0]["zip_code"],
-        "last_zip":result["clusters"][-1]["zip_code"],
-        "cluster_population":sum(x["population"] for x in result["clusters"]),
-    }
+    payload={"pilot":"Buikwe County","status":"PASS" if source_ok and baseline_ok else "FAIL","source":"UBOS NPHC 2024","source_validated":source_ok,"baseline_validated":baseline_ok,**{k:v for k,v in result.items() if k!="clusters"},"first_zip":result["clusters"][0]["zip_code"],"last_zip":result["clusters"][-1]["zip_code"],"cluster_population":sum(x["population"] for x in result["clusters"])}
     if include_clusters:payload["clusters"]=result["clusters"]
     return payload
 
