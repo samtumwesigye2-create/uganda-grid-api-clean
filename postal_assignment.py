@@ -12,6 +12,7 @@ from fastapi import HTTPException
 from manual_zip_assignments import match_point as match_manual_zip
 from national_zip_coordinate import district_allocation_for_coordinate
 from national_zip_registry import lookup_zip
+from national_zip_clusters import cluster_zip_for_coordinate
 
 
 def _manual_result(manual):
@@ -85,6 +86,10 @@ def resolve_zip(latitude: float, longitude: float, region: str = "", zip_code: s
             "validated_against_coordinates": bool(candidates),
         }
 
+    cluster_result = cluster_zip_for_coordinate(latitude, longitude)
+    if cluster_result:
+        return cluster_result
+
     if not allocation:
         return None
 
@@ -101,3 +106,4 @@ def resolve_zip(latitude: float, longitude: float, region: str = "", zip_code: s
         "candidates": candidates,
         "detail": allocation.get("detail"),
     }
+
