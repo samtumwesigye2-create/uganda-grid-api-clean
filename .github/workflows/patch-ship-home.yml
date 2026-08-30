@@ -1,0 +1,26 @@
+name: Patch Ship Customer Page
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-ship-home.yml'
+      - 'scripts/patch_ship_home.py'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch ship page
+        run: python scripts/patch_ship_home.py
+      - name: Commit ship page
+        run: |
+          if git diff --quiet -- ship.html; then
+            echo "No ship changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ship.html
+          git commit -m "Enhance customer ship page without removing existing tools [skip ci]"
+          git push origin HEAD:main

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Create My Address - Uganda National Grid</title>
+<style>
+  *{box-sizing:border-box} body{margin:0;font-family:Arial,sans-serif;background:#f4f6f8;color:#111827}
+  header{background:#111827;color:#fff;padding:16px;text-align:center}
+  header h1{margin:0;font-size:20px}
+  header p{margin:6px 0 0;font-size:13px;opacity:.85}
+  main{max-width:560px;margin:16px auto;padding:16px;background:#fff;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+  .field{margin-bottom:14px}
+  label{display:block;font-weight:700;font-size:13px;margin-bottom:6px}
+  select,textarea,input[type=file]{width:100%;font-size:16px;border-radius:8px;padding:12px;border:1px solid #d1d5db;background:#fff}
+  textarea{min-height:80px;font-family:inherit;resize:vertical}
+  button{width:100%;padding:14px;border:0;border-radius:8px;font-weight:700;font-size:16px;cursor:pointer;margin-top:6px}
+  #captureBtn{background:#2563eb;color:#fff}
+  #submitBtn{background:#d71920;color:#fff}
+  .back{display:inline-block;margin-bottom:10px;color:#2563eb;text-decoration:none;font-size:14px}
+  .coordsBox{background:#f3f4f6;border-radius:8px;padding:10px;font-size:13px;margin-top:8px;min-height:20px}
+  .coordsBox.ok{background:#ecfdf5;color:#065f46}
+  .status{font-size:13px;margin-top:12px;padding:10px;border-radius:8px;background:#f3f4f6}
+  .status.ok{background:#ecfdf5;color:#065f46}
+  .status.err{background:#fef2f2;color:#991b1b}
+  .preview{margin-top:8px;max-width:100%;border-radius:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Create My Address</h1>
+  <p>Capture your location and help build Uganda's official addressing system</p>
+</header>
+<main>
+  <a href="/" class="back">&larr; Back to map</a>
+
+  <div class="field">
+    <label for="buildingType">What is this location?</label>
+    <select id="buildingType">
+      <option value="hospital">Hospital / Health Facility</option>
+      <option value="police">Police Station</option>
+      <option value="government">Government Office</option>
+      <option value="residence">Home / Residence</option>
+      <option value="business">Business</option>
+      <option value="other">Other</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>Location</label>
+    <button type="button" id="captureBtn">Capture My Coordinates</button>
+    <div id="coordsBox" class="coordsBox">No coordinates captured yet</div>
+  </div>
+
+  <div class="field">
+    <label for="mediaInput">Photo or video of the building</label>
+    <input type="file" id="mediaInput" accept="image/*,video/*" capture="environment" />
+    <div id="previewWrap"></div>
+  </div>
+
+  <div class="field">
+    <label for="noteInput">Description (optional)</label>
+    <textarea id="noteInput" placeholder="e.g. Blue gate, next to the primary school"></textarea>
+  </div>
+
+  <button type="button" id="submitBtn">Submit for Verification</button>
+  <div id="statusBox" class="status"></div>
+</main>
+
+<script>
+(function () {
+  var lat = null, lon = null;
+  var captureBtn = document.getElementById('captureBtn');
+  var coordsBox = document.getElementById('coordsBox');
+  var mediaInput = document.getElementById('mediaInput');
+  var previewWrap = document.getElementById('previewWrap');
+  var submitBtn = document.getElementById('submitBtn');
+  var statusBox = document.getElementById('statusBox');
+  var buildingType = document.getElementById('buildingType');
+  var noteInput = document.getElementById('noteInput');
+
+  function setStatus(text, type) {
+    statusBox.textContent = text;
+    statusBox.className = 'status' + (type ? ' ' + type : '');
+  }
+
+  function apiCandidates() {
+    var urls = [];
+    if (location.protocol.indexOf('http') === 0) urls.push(location.origin);
+    urls.push('https://uganda-grid-api-clean-production.up.railway.app');
+    return urls;
+  }
+
+  captureBtn.addEventListener('click', function () {
+    if (!navigator.geolocation) {
+      coordsBox.textContent = 'Location is not supported on this device';
+      coordsBox.className = 'coordsBox';
+      return;
+    }
+    coordsBox.textContent = 'Getting your location...';
+    coordsBox.className = 'coordsBox';
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      lat = pos.coords.latitude;
+      lon = pos.coords.longitude;
+      coordsBox.textContent = 'Captured: ' + lat.toFixed(6) + ', ' + lon.toFixed(6) + ' (accuracy ~' + Math.round(pos.coords.accuracy) + 'm)';
+      coordsBox.className = 'coordsBox ok';
+    }, function () {
+      coordsBox.textContent = 'Unable to get location. Check permissions.';
+      coordsBox.className = 'coordsBox';
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  });
+
+  mediaInput.addEventListener('change', function () {
+    previewWrap.innerHTML = '';
+    var file = mediaInput.files && mediaInput.files[0];
+    if (!file) return;
+    var url = URL.createObjectURL(file);
+    if (file.type.indexOf('video') === 0) {
+      var v = document.createElement('video');
+      v.src = url; v.controls = true; v.className = 'preview';
+      previewWrap.appendChild(v);
+    } else {
+      var img = document.createElement('img');
+      img.src = url; img.className = 'preview';
+      previewWrap.appendChild(img);
+    }
+  });
+
+  submitBtn.addEventListener('click', async function () {
+    if (lat === null || lon === null) {
+      setStatus('Please capture your coordinates first', 'err');
+      return;
+    }
+    submitBtn.disabled = true;
+    setStatus('Submitting...', '');
+
+    var formData = new FormData();
+    formData.append('lat', String(lat));
+    formData.append('lon', String(lon));
+    formData.append('building_type', buildingType.value);
+    formData.append('note', noteInput.value.trim());
+    var file = mediaInput.files && mediaInput.files[0];
+    if (file) formData.append('file', file);
+
+    var ok = false;
+    var candidates = apiCandidates();
+    for (var i = 0; i < candidates.length; i++) {
+      try {
+        var r = await fetch(candidates[i] + '/submissions', { method: 'POST', body: formData });
+        if (r.ok) { ok = true; break; }
+      } catch (e) {}
+    }
+
+    submitBtn.disabled = false;
+    if (ok) {
+      setStatus('Submitted! An official will review your submission.', 'ok');
+      lat = null; lon = null;
+      coordsBox.textContent = 'No coordinates captured yet';
+      coordsBox.className = 'coordsBox';
+      mediaInput.value = '';
+      previewWrap.innerHTML = '';
+      noteInput.value = '';
+    } else {
+      setStatus('Unable to submit. Please try again.', 'err');
+    }
+  });
+})();
+</script>
+</body>
+</html>

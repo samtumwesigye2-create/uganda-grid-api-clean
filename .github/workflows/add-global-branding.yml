@@ -1,0 +1,25 @@
+name: Add Global Uganda National Grid Branding
+on:
+  push:
+    paths:
+      - '.github/workflows/add-global-branding.yml'
+      - 'scripts/add_global_branding.py'
+permissions:
+  contents: write
+jobs:
+  brand:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python scripts/add_global_branding.py
+      - name: Commit branded pages
+        run: |
+          if git diff --quiet -- index.html submit.html ship.html admin.html driver.html review.html test-tool.html track.html business-documents/invoice.html business-documents/bill-of-lading.html business-documents/receipt.html main.py; then
+            echo "No branding changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html submit.html ship.html admin.html driver.html review.html test-tool.html track.html business-documents/invoice.html business-documents/bill-of-lading.html business-documents/receipt.html main.py
+          git commit -m "Add Uganda National Grid logo across all pages [skip ci]"
+          git push origin HEAD:main

@@ -1,0 +1,1749 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uganda National Grid Admin</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background:#0f1220; color:#eee; margin:0; padding:16px; }
+  h1 { font-size:22px; text-align:center; margin-bottom:20px; }
+  h3 { font-size:15px; margin:16px 0 8px; }
+  #passGate { max-width:320px; margin:80px auto; text-align:center; }
+  #passGate input { width:100%; padding:10px; border-radius:8px; border:1px solid #333; background:#1a1d2e; color:#eee; margin-bottom:10px; }
+  #passGate button { width:100%; padding:10px; border-radius:8px; border:none; background:#e2593a; color:#fff; font-size:15px; }
+  #main { display:none; max-width:900px; margin:0 auto; }
+  .tabs { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:20px; }
+  .tab { padding:10px 16px; border-radius:8px; border:1px solid #333; background:#1a1d2e; color:#ccc; cursor:pointer; font-size:14px; }
+  .tab.active { background:#3b5bfd; color:#fff; border-color:#3b5bfd; }
+  .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .subtab { padding:7px 12px; border-radius:6px; border:1px solid #2a2d3e; background:#171a2b; color:#aaa; cursor:pointer; font-size:12px; }
+  .subtab.active { background:#2a3a7a; color:#fff; border-color:#2a3a7a; }
+  .subpanel { display:none; }
+  .subpanel.active { display:block; }
+  .panel { display:none; }
+  .panel.active { display:block; }
+  table { width:100%; border-collapse:collapse; font-size:13px; margin-top:10px; }
+  th, td { border:1px solid #2a2d3e; padding:6px 8px; text-align:left; vertical-align:top; }
+  th { background:#1a1d2e; }
+  .refreshBtn { padding:8px 12px; border-radius:6px; border:none; background:#3b5bfd; color:#fff; margin-bottom:10px; margin-right:6px; font-size:13px; cursor:pointer; }
+  .empty { color:#888; padding:20px; text-align:center; }
+  .badge { padding:2px 8px; border-radius:6px; font-size:12px; }
+  .pending, .unpaid, .assigned { background:#fde8d4; color:#a35b00; }
+  .approved, .paid, .completed, .dropped_off_customer, .dropped_off_warehouse { background:#d4f4dd; color:#1a7a37; }
+  .denied, .void, .failed, .cancelled { background:#fbd4d4; color:#a30000; }
+  .formBox { background:#1a1d2e; border:1px solid #2a2d3e; border-radius:8px; padding:12px; margin-bottom:14px; }
+  .formBox input, .formBox select { width:100%; padding:8px; border-radius:6px; border:1px solid #333; background:#0f1220; color:#eee; margin-bottom:8px; font-size:13px; }
+  .formBox .row2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .formBox button { padding:9px 14px; border-radius:6px; border:none; background:#3b5bfd; color:#fff; font-size:13px; cursor:pointer; }
+  .formBox button.danger { background:#e2593a; }
+  a.viewLink { color:#8fa3ff; }
+  .rowBtn { padding:4px 8px; border-radius:5px; border:none; font-size:11px; cursor:pointer; margin-right:4px; color:#fff; }
+  .rowBtn.edit { background:#3b5bfd; }
+  .rowBtn.delete { background:#e2593a; }
+  .rowBtn.toggle { background:#5a5f7a; }
+  select.statusSelect { padding:5px 6px; border-radius:5px; border:1px solid #333; background:#0f1220; color:#eee; font-size:12px; }
+  .photoThumb { max-width:60px; max-height:60px; border-radius:6px; display:block; }
+  .noPhoto { color:#e2593a; font-size:11px; font-weight:700; }
+
+  .customDropdown { position:relative; display:inline-block; margin-bottom:10px; }
+  .dropdownToggle { padding:9px 14px; border-radius:6px; border:1px solid #333; background:#1a1d2e; color:#eee; font-size:13px; cursor:pointer; }
+  .dropdownToggle .caret { font-size:11px; margin-left:4px; }
+  .dropdownMenu { display:none; position:absolute; top:100%; left:0; margin-top:4px; background:#1a1d2e; border:1px solid #333; border-radius:8px; min-width:180px; z-index:50; max-height:260px; overflow-y:auto; box-shadow:0 6px 16px rgba(0,0,0,.4); }
+  .dropdownMenu.open { display:block; }
+  .dropdownItem { padding:9px 12px; font-size:13px; color:#ccc; cursor:pointer; }
+  .dropdownItem:hover, .dropdownItem.selected { background:#2a3a7a; color:#fff; }
+
+  .notifyToast {
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:#132a18; border:1px solid #275c34; color:#a3f0b8;
+    border-radius:8px; padding:10px 16px; font-size:13px; max-width:90%;
+    text-align:center; z-index:100; display:none;
+  }
+  .notifyToast.show { display:block; }
+  .notifyToast.error { background:#2a1414; border-color:#5a2a2a; color:#f0a3a3; }
+  #jsErrorBanner {
+    display:none; background:#2a1414; border:1px solid #5a2a2a; color:#f0a3a3;
+    border-radius:8px; padding:12px 14px; font-size:12px; margin:0 0 16px;
+    max-width:320px; margin-left:auto; margin-right:auto; word-break:break-word;
+    white-space:pre-wrap;
+  }
+
+  .dashboard-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(120px,1fr)); gap:10px; margin-bottom:16px; }
+  .stat-tile { background:#1a1d2e; border:1px solid #2a2d3e; border-radius:8px; padding:14px; text-align:center; }
+  .stat-tile .stat-value { font-size:20px; font-weight:700; color:#fff; }
+  .stat-tile .stat-label { font-size:11px; color:#999; margin-top:4px; }
+  .stat-tile.warn .stat-value { color:#e2593a; }
+  .barRow { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:12px; }
+  .barRow .barLabel { width:130px; flex-shrink:0; color:#ccc; }
+  .barRow .barTrack { flex:1; background:#0f1220; border-radius:4px; height:16px; overflow:hidden; }
+  .barRow .barFill { background:#3b5bfd; height:100%; }
+  .barRow .barValue { width:70px; text-align:right; color:#999; flex-shrink:0; }
+  .dashNote { font-size:11px; color:#666; margin-top:6px; }
+  .doc-launch-section { margin:0 0 14px; padding:14px 16px; background:#101827; border:1px solid #233149; border-radius:11px; }
+  .doc-launch-title { font-size:12px; font-weight:800; letter-spacing:.05em; color:#5680ff; margin-bottom:10px; }
+  .doc-launch-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  .doc-launch-card { display:flex; align-items:center; gap:10px; text-decoration:none; color:#fff; border-radius:8px; padding:12px 14px; min-height:56px; border:1px solid rgba(255,255,255,.12); }
+  .doc-launch-card.invoice { background:linear-gradient(135deg,#073c30,#075f43); border-color:#078458; }
+  .doc-launch-card.bol { background:linear-gradient(135deg,#102a55,#173d79); border-color:#2c5aaa; }
+  .doc-launch-card.receipt { background:linear-gradient(135deg,#2c1747,#4b216f); border-color:#693598; }
+  .doc-launch-card .doc-icon { font-size:21px; display:inline; margin:0; }
+  .doc-launch-card strong { display:inline; font-size:13px; margin:0; }
+  .doc-launch-card small, .doc-launch-card .doc-action { display:none; }
+  @media (max-width:650px) { .doc-launch-grid { grid-template-columns:1fr; gap:7px; } }
+
+  .admin-section { background:#151829; border:1px solid #2a2d3e; border-radius:10px; padding:12px; margin-bottom:12px; }
+  .admin-section-title { color:#8fa3ff; font-size:11px; font-weight:800; letter-spacing:.06em; margin-bottom:9px; }
+  .welcome-line { font-size:18px; font-weight:800; margin-bottom:2px; }
+  .welcome-sub { color:#8e93a8; font-size:12px; margin-bottom:12px; }
+  .quick-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .quick-btn { border:1px solid #30364e; background:#1a1d2e; color:#eee; border-radius:8px; padding:11px 8px; min-height:66px; cursor:pointer; text-align:center; font-size:12px; }
+  .quick-btn .qicon { display:block; font-size:20px; color:#6580ff; margin-bottom:5px; }
+  .ops-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .op-tile { background:#101421; border:1px solid #292f43; border-radius:8px; padding:10px; }
+  .op-tile .op-label { color:#8e93a8; font-size:10px; }
+  .op-tile .op-value { font-size:19px; font-weight:800; margin-top:3px; }
+  .activity-row { display:flex; gap:9px; align-items:flex-start; padding:9px 0; border-bottom:1px solid #252a3b; }
+  .activity-row:last-child { border-bottom:0; }
+  .activity-icon { width:28px; height:28px; border-radius:50%; background:#252f68; color:#9fb0ff; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+  .activity-main { flex:1; min-width:0; }
+  .activity-text { font-size:12px; color:#ddd; }
+  .activity-time { color:#70768d; font-size:10px; margin-top:2px; }
+  .dashboard-actions { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px; }
+  .last-updated { color:#747b91; font-size:10px; }
+  @media(max-width:650px){
+    .quick-grid { grid-template-columns:repeat(3,1fr); }
+    .ops-grid { grid-template-columns:repeat(2,1fr); }
+    .quick-btn { min-height:60px; padding:9px 5px; font-size:11px; }
+  }
+
+  /* --- Operations dashboard layout --- */
+  body { background:#07111e; padding:0; min-height:100vh; }
+  #main {
+    max-width:1600px;
+    margin:0 auto;
+    padding:18px;
+    grid-template-columns:220px minmax(0,1fr);
+    grid-template-rows:auto minmax(0,1fr);
+    gap:18px;
+  }
+  #main.admin-ready { display:grid !important; }
+  .adminHeader {
+    grid-column:1 / -1;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    padding:0 4px 12px;
+    border-bottom:1px solid #1b2b40;
+  }
+  .adminBrand h1 { text-align:left; font-size:24px; margin:0 0 3px; color:#f5f7fb; }
+  .adminBrand p { margin:0; color:#77879c; font-size:12px; }
+  .adminProfile { display:flex; align-items:center; gap:10px; color:#e9edf4; }
+  .adminAvatar { width:38px; height:38px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:#263eb2; font-weight:800; }
+  .adminRole { color:#7d8ba0; font-size:10px; margin-top:2px; }
+
+  .tabs {
+    grid-column:1;
+    grid-row:2;
+    display:flex;
+    flex-direction:column;
+    align-self:start;
+    position:sticky;
+    top:16px;
+    gap:5px;
+    padding:8px;
+    margin:0;
+    background:#0b1624;
+    border:1px solid #1d2b3d;
+    border-radius:10px;
+  }
+  .tab {
+    width:100%;
+    text-align:left;
+    padding:11px 12px;
+    border:0;
+    border-radius:7px;
+    background:transparent;
+    color:#d6dce5;
+    font-size:13px;
+  }
+  .tab:hover { background:#121f30; }
+  .tab.active { background:linear-gradient(135deg,#3155ed,#4268ff); color:#fff; border:0; }
+
+  .panel { grid-column:2; grid-row:2; min-width:0; }
+  #panel-dashboard { background:transparent; }
+  .dashboard-actions { background:#0d1826; border:1px solid #1d2b3d; border-radius:10px; padding:18px; margin-bottom:12px; }
+  .welcome-line { font-size:21px; }
+  .welcome-sub { font-size:12px; margin-bottom:0; }
+  .dashboard-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin:12px 0 0; }
+  .stat-tile { min-height:116px; text-align:left; padding:15px; border-radius:8px; border:1px solid #24436a; background:linear-gradient(135deg,#102344,#10213a); }
+  .stat-tile:nth-child(2) { border-color:#176246; background:linear-gradient(135deg,#10382f,#0c2c28); }
+  .stat-tile:nth-child(3) { border-color:#563a79; background:linear-gradient(135deg,#35224f,#2d1c43); }
+  .stat-tile:nth-child(4) { border-color:#745518; background:linear-gradient(135deg,#40351c,#332a16); }
+  .stat-tile .stat-value { font-size:28px; margin-top:16px; }
+  .stat-tile .stat-label { font-size:12px; color:#d4dae5; }
+  .stat-tile.warn .stat-value { color:#ffd05a; }
+
+  .admin-section, .doc-launch-section { background:#0d1826; border:1px solid #1d2b3d; border-radius:10px; padding:15px 16px; margin-bottom:12px; }
+  .admin-section-title, .doc-launch-title { color:#5680ff; font-size:12px; font-weight:800; letter-spacing:.04em; margin-bottom:11px; }
+  .quick-grid { grid-template-columns:repeat(6,minmax(0,1fr)); gap:10px; }
+  .quick-btn { min-height:84px; background:#101b2a; border:1px solid #28364a; border-radius:7px; color:#edf2fa; transition:.15s ease; }
+  .quick-btn:hover { transform:translateY(-1px); border-color:#466bff; }
+  .quick-btn .qicon { font-size:25px; color:#4f72ff; }
+  .ops-grid { grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; }
+  .op-tile { border-radius:0; border:0; border-right:1px solid #243247; background:transparent; padding:8px 20px; }
+  .op-tile:first-child { padding-left:8px; }
+  .op-tile:last-child { border-right:0; }
+  .op-tile .op-label { font-size:10px; }
+  .op-tile .op-value { font-size:24px; }
+  .activity-row { padding:10px 4px; }
+  .activity-time { margin-left:auto; }
+  .last-updated { text-align:right; padding:4px 2px 12px; }
+  .barTrack { background:#07101c !important; }
+
+  @media(max-width:1000px) {
+    #main { grid-template-columns:1fr; grid-template-rows:auto auto 1fr; padding:12px; }
+    .adminHeader { grid-column:1; }
+    .tabs { grid-column:1; grid-row:2; position:static; flex-direction:row; flex-wrap:wrap; justify-content:flex-start; padding:7px; }
+    .tab { width:auto; flex:0 0 auto; }
+    .panel { grid-column:1; grid-row:3; }
+    .dashboard-grid { grid-template-columns:repeat(2,1fr); }
+    .quick-grid { grid-template-columns:repeat(3,1fr); }
+  }
+  @media(max-width:600px) {
+    #main { padding:8px; gap:9px; }
+    .adminHeader { padding:6px 4px 9px; }
+    .adminBrand h1 { font-size:19px; }
+    .adminBrand p, .adminProfile .profileText { display:none; }
+    .tabs { gap:4px; overflow-x:auto; flex-wrap:nowrap; -webkit-overflow-scrolling:touch; }
+    .tab { white-space:nowrap; padding:9px 11px; font-size:12px; }
+    .dashboard-actions { padding:13px; }
+    .dashboard-grid { grid-template-columns:repeat(2,1fr); gap:7px; }
+    .stat-tile { min-height:94px; padding:11px; }
+    .stat-tile .stat-value { font-size:22px; margin-top:10px; }
+    .quick-grid { grid-template-columns:repeat(3,1fr); gap:6px; }
+    .quick-btn { min-height:70px; padding:7px 4px; font-size:10px; }
+    .ops-grid { grid-template-columns:repeat(2,1fr); gap:6px; }
+    .op-tile { border:1px solid #243247; border-radius:7px; padding:9px; }
+    .doc-launch-section, .admin-section { padding:11px; }
+  }
+
+</style>
+
+<style id="ungGlobalBrandStyle">
+  .ungGlobalBrand{
+    flex:0 0 auto;
+    width:100%;
+    min-height:58px;
+    padding:5px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#fff;
+    border-bottom:1px solid rgba(15,23,42,.12);
+    position:relative;
+    z-index:4200;
+  }
+  .ungGlobalBrand a{display:flex;align-items:center;justify-content:center;text-decoration:none;line-height:0;}
+  .ungGlobalBrand img{
+    display:block;
+    width:min(230px,62vw);
+    max-height:56px;
+    object-fit:contain;
+  }
+  @media(max-width:600px){
+    .ungGlobalBrand{min-height:52px;padding:4px 10px;}
+    .ungGlobalBrand img{width:min(205px,68vw);max-height:50px;}
+  }
+  @media print{
+    .ungGlobalBrand{border-bottom:0;padding:0 0 8px;min-height:0;}
+    .ungGlobalBrand img{width:190px;max-height:50px;}
+  }
+</style>
+
+</head>
+<body>
+<div class="ungGlobalBrand" id="ungGlobalBrand"><a href="/" aria-label="Uganda National Grid home"><img src="/assets/uganda-national-grid-logo.png" alt="Uganda National Grid" /></a></div>
+
+
+<div id="jsErrorBanner"></div>
+
+<div id="passGate">
+  <h1>Admin Login</h1>
+  <input id="pass" type="password" placeholder="Admin passcode" />
+  <button id="unlockBtn">Enter</button>
+</div>
+
+<div id="main">
+  <header class="adminHeader">
+    <div class="adminBrand">
+      <h1>Uganda National Grid Admin</h1>
+      <p>Manage operations, shipments and documents</p>
+    </div>
+    <div class="adminProfile">
+      <div class="adminAvatar">AD</div>
+      <div class="profileText"><strong>Admin</strong><div class="adminRole">Super Administrator</div></div>
+    </div>
+  </header>
+  <div class="tabs">
+    <div class="tab active" data-tab="dashboard">⌂ Dashboard</div>
+    <div class="tab" data-tab="submissions">▤ Submissions</div>
+    <div class="tab" data-tab="poboxes">📮 P.O. Boxes</div>
+    <div class="tab" data-tab="orders">🛒 Orders</div>
+    <div class="tab" data-tab="analytics">▥ Analytics</div>
+    <div class="tab" data-tab="reports">▧ Reports</div>
+    <div class="tab" data-tab="mailing">✉ Mailing</div>
+    <div class="tab" data-tab="shipments">🚚 Shipments</div>
+    <div class="tab" data-tab="invoices">＄ Invoice Records</div>
+    <div class="tab" data-tab="bol">▤ B/L Records</div>
+    <div class="tab" data-tab="inventory">◇ Inventory</div>
+    <div class="tab" data-tab="fleet">🚚 Fleet</div>
+    <div class="tab" data-tab="staff">● Staff</div>
+    <div class="tab" data-tab="data">◉ Data</div>
+  </div>
+
+
+  <div class="panel" id="panel-submissions">
+    <button class="refreshBtn" onclick="loadSubmissions()">Refresh</button>
+    <div id="submissionsOut"></div>
+  </div>
+
+
+  <div class="panel" id="panel-poboxes">
+    <div class="dashboard-actions">
+      <div><div class="welcome-line">P.O. Box Administration</div><div class="welcome-sub">Review applications, prevent duplicate assignments and maintain the national P.O. Box registry.</div></div>
+      <button class="refreshBtn" onclick="loadPoBoxes()">↻ Refresh</button>
+    </div>
+    <div class="subtabs" id="poBoxSubtabs">
+      <button class="subtab active" type="button" data-po-filter="pending">Pending Review</button>
+      <button class="subtab" type="button" data-po-filter="changes_requested">Changes Requested</button>
+      <button class="subtab" type="button" data-po-filter="approved">Approved</button>
+      <button class="subtab" type="button" data-po-filter="rejected">Rejected</button>
+      <button class="subtab" type="button" data-po-filter="">All</button>
+    </div>
+    <div id="poBoxApplicationsOut"></div>
+    <section class="admin-section" style="margin-top:14px"><div class="admin-section-title">ACTIVE P.O. BOX REGISTRY</div><div id="poBoxRegistryOut"></div></section>
+  </div>
+
+  <div class="panel active" id="panel-dashboard">
+    <section class="dashboard-actions">
+      <div>
+        <div class="welcome-line">Welcome back, Admin 👋</div>
+        <div class="welcome-sub">Here’s what’s happening with your operations today.</div>
+      </div>
+      <button class="refreshBtn" onclick="loadDashboard()">↻ Refresh</button>
+      <div id="dashboardStats" class="dashboard-grid"></div>
+    </section>
+
+    <section class="doc-launch-section">
+      <div class="doc-launch-title">BUSINESS DOCUMENTS</div>
+      <div class="doc-launch-grid">
+        <a class="doc-launch-card invoice" href="/business-documents/invoice.html"><span class="doc-icon">＄</span><strong>Invoice</strong></a>
+        <a class="doc-launch-card bol" href="/business-documents/bill-of-lading.html"><span class="doc-icon">▤</span><strong>Bill of Lading</strong></a>
+        <a class="doc-launch-card receipt" href="/business-documents/receipt.html"><span class="doc-icon">▧</span><strong>Receipt</strong></a>
+      </div>
+    </section>
+
+    <section class="admin-section">
+      <div class="admin-section-title">QUICK ACTIONS</div>
+      <div class="quick-grid">
+        <button class="quick-btn" onclick="window.location.href='/submit'"><span class="qicon">＋</span>New Submission</button>
+        <button class="quick-btn" onclick="switchAdminTab('shipments');setTimeout(()=>document.getElementById('shipLookupInput')?.focus(),100)"><span class="qicon">⌖</span>Track Shipment</button>
+        <button class="quick-btn" onclick="switchAdminTab('inventory');setTimeout(()=>document.getElementById('invProdSku')?.focus(),100)"><span class="qicon">◇</span>Add Inventory</button>
+        <button class="quick-btn" onclick="switchAdminTab('reports')"><span class="qicon">▧</span>Reports</button>
+        <button class="quick-btn" onclick="switchAdminTab('mailing')"><span class="qicon">✉</span>Mailing</button>
+        <button class="quick-btn" onclick="switchAdminTab('staff');setTimeout(()=>document.getElementById('staffName')?.focus(),100)"><span class="qicon">●</span>Add Staff</button>
+      </div>
+    </section>
+
+    <section class="admin-section">
+      <div class="admin-section-title">OPERATIONAL OVERVIEW</div>
+      <div id="operationalOverview" class="ops-grid"></div>
+    </section>
+
+    <section class="admin-section">
+      <div class="admin-section-title">RECENT ACTIVITY</div>
+      <div id="recentActivity"></div>
+    </section>
+
+    <section class="admin-section">
+      <div class="admin-section-title">STOCK BY WAREHOUSE</div>
+      <div id="dashboardWarehouseOut"></div>
+    </section>
+
+    <section class="admin-section">
+      <div class="admin-section-title">LOW STOCK ITEMS</div>
+      <div id="dashboardLowStockOut"></div>
+    </section>
+    <div class="last-updated" id="dashboardLastUpdated"></div>
+  </div>
+
+  <div class="panel" id="panel-orders">
+    <div class="subtabs">
+      <div class="subtab active" data-subtab="inbound">Inbound Receipts</div>
+      <div class="subtab" data-subtab="outbound">Outbound Shipments</div>
+      <div class="subtab" data-subtab="fulfillment">Pick / Pack / Ship</div>
+    </div>
+
+    <div class="subpanel active" id="subpanel-inbound">
+      <div class="formBox">
+        <input id="orderInboundFilterSku" placeholder="Filter by SKU (optional)" />
+        <button onclick="loadInboundReceipts()">Load Inbound Receipts</button>
+      </div>
+      <div id="orderInboundOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-outbound">
+      <button class="refreshBtn" onclick="loadOutboundShipments()">Refresh</button>
+      <div id="orderOutboundOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-fulfillment">
+      <div class="formBox">
+        <input id="orderFulfillFilterDriver" placeholder="Filter by driver ID (optional)" />
+        <button onclick="loadFulfillmentTasks()">Load Tasks</button>
+      </div>
+      <div id="orderFulfillOut"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-analytics">
+    <button class="refreshBtn" onclick="loadAnalytics()">Refresh</button>
+    <div id="analyticsStats" class="dashboard-grid"></div>
+    <h3>Shipments by Status</h3>
+    <div id="analyticsShipmentChart"></div>
+    <h3>Invoices by Status</h3>
+    <div id="analyticsInvoiceChart"></div>
+    <div class="dashNote">Storage cost tracking isn't available yet — the backend doesn't record a cost-per-warehouse or cost-per-unit field to report on.</div>
+  </div>
+
+  <div class="panel" id="panel-reports">
+    <button class="refreshBtn" onclick="loadReports()">Refresh</button>
+    <div id="reportsOut"></div>
+  </div>
+
+  <div class="panel" id="panel-mailing">
+    <button class="refreshBtn" onclick="loadMailing()">Refresh</button>
+    <div id="mailingOut"></div>
+  </div>
+
+  <div class="panel" id="panel-shipments">
+    <div class="formBox">
+      <h3 style="margin-top:0;">Look Up &amp; Update a Shipment</h3>
+      <input id="shipLookupInput" placeholder="Tracking number (e.g. UG-SHIP-000001)" />
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <button onclick="lookupShipment()">Look Up</button>
+        <div id="shipLookupActions" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;"></div>
+      </div>
+      <div id="shipLookupOut" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="formBox">
+      <input id="shipSearchInput" placeholder="Search loaded list by tracking number" />
+    </div>
+    <div class="customDropdown" id="shipStatusDropdown">
+      <button type="button" class="dropdownToggle" id="shipStatusToggle">All statuses <span class="caret">▾</span></button>
+      <div class="dropdownMenu" id="shipStatusMenu">
+        <div class="dropdownItem" data-value="">All statuses</div>
+        <div class="dropdownItem" data-value="created">Created</div>
+        <div class="dropdownItem" data-value="picked_up">Picked up</div>
+        <div class="dropdownItem" data-value="in_transit">In transit</div>
+        <div class="dropdownItem" data-value="out_for_delivery">Out for delivery</div>
+        <div class="dropdownItem" data-value="delivered">Delivered</div>
+        <div class="dropdownItem" data-value="failed_delivery">Failed delivery</div>
+        <div class="dropdownItem" data-value="returned">Returned</div>
+        <div class="dropdownItem" data-value="cancelled">Cancelled</div>
+        <div class="dropdownItem" data-value="delayed">Delayed</div>
+      </div>
+    </div>
+    <button class="refreshBtn" onclick="loadShipments()">Refresh List</button>
+    <div id="shipmentsOut"></div>
+  </div>
+
+  <div class="panel" id="panel-invoices">
+    <div class="formBox">
+      <h3 style="margin-top:0;">Create Invoice</h3>
+      <input id="invShipNum" placeholder="Shipment number (e.g. UG-SHIP-000001)" />
+      <input id="invBillName" placeholder="Bill to name" />
+      <input id="invBillAddr" placeholder="Bill to address" />
+      <input id="invTaxRate" type="number" step="0.1" placeholder="Tax rate % (optional, default 0)" />
+      <button onclick="createInvoice()">Create Invoice</button>
+    </div>
+    <button class="refreshBtn" onclick="loadInvoices()">Refresh</button>
+    <div id="invoicesOut"></div>
+  </div>
+
+  <div class="panel" id="panel-bol">
+    <div class="formBox">
+      <h3 style="margin-top:0;">Create Bill of Lading</h3>
+      <input id="bolShipNum" placeholder="Shipment number" />
+      <div class="row2">
+        <input id="bolShipperName" placeholder="Shipper name" />
+        <input id="bolShipperAddr" placeholder="Shipper address" />
+      </div>
+      <div class="row2">
+        <input id="bolConsigneeName" placeholder="Consignee name" />
+        <input id="bolConsigneeAddr" placeholder="Consignee address" />
+      </div>
+      <input id="bolCarrier" placeholder="Carrier" />
+      <input id="bolGoods" placeholder="Goods description" />
+      <input id="bolQuantity" placeholder="Quantity" />
+      <button onclick="createBol()">Create Bill of Lading</button>
+    </div>
+    <button class="refreshBtn" onclick="loadBol()">Refresh</button>
+    <div id="bolOut"></div>
+  </div>
+
+  <div class="panel" id="panel-inventory">
+    <div class="subtabs">
+      <div class="subtab active" data-subtab="products">Products</div>
+      <div class="subtab" data-subtab="warehouses">Warehouses</div>
+      <div class="subtab" data-subtab="stock">Stock Movements</div>
+      <div class="subtab" data-subtab="reorder">Reorder Needed</div>
+    </div>
+
+    <div class="subpanel active" id="subpanel-products">
+      <div class="formBox">
+        <h3 style="margin-top:0;">Add Product</h3>
+        <div class="row2">
+          <input id="invProdSku" placeholder="SKU" />
+          <input id="invProdName" placeholder="Product name" />
+        </div>
+        <div class="row2">
+          <input id="invProdCost" type="number" step="0.01" placeholder="Unit cost (UGX)" />
+          <input id="invProdInitQty" type="number" step="0.01" placeholder="Initial quantity" />
+        </div>
+        <div class="row2">
+          <input id="invProdReorderPoint" type="number" step="0.01" placeholder="Reorder point" />
+          <input id="invProdReorderQty" type="number" step="0.01" placeholder="Reorder quantity" />
+        </div>
+        <button onclick="createProduct()">Add Product</button>
+      </div>
+      <div class="formBox">
+        <h3 style="margin-top:0;">Receive / Dispatch Stock</h3>
+        <div class="row2">
+          <input id="invMoveSku" placeholder="SKU" />
+          <input id="invMoveQty" type="number" step="0.01" placeholder="Quantity" />
+        </div>
+        <input id="invMoveNote" placeholder="Note" />
+        <div class="row2">
+          <button onclick="receiveStock()">Receive</button>
+          <button class="danger" onclick="dispatchStock()">Dispatch</button>
+        </div>
+      </div>
+      <button class="refreshBtn" onclick="loadInventory()">Refresh Products</button>
+      <div id="inventoryOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-warehouses">
+      <div class="formBox">
+        <h3 style="margin-top:0;">Add Warehouse</h3>
+        <input id="whName" placeholder="Warehouse name" />
+        <input id="whAddress" placeholder="Address" />
+        <button onclick="createWarehouse()">Add Warehouse</button>
+      </div>
+      <button class="refreshBtn" onclick="loadWarehouses()">Refresh Warehouses</button>
+      <div id="warehousesOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-stock">
+      <div class="formBox">
+        <input id="movFilterSku" placeholder="Filter by SKU (optional)" />
+        <button onclick="loadMovements()">Load Movements</button>
+      </div>
+      <div id="movementsOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-reorder">
+      <button class="refreshBtn" onclick="loadReorder()">Refresh Reorder List</button>
+      <div id="reorderOut"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-fleet">
+    <div class="subtabs">
+      <div class="subtab active" data-subtab="vehicles">Vehicles</div>
+      <div class="subtab" data-subtab="drivers">Drivers</div>
+      <div class="subtab" data-subtab="tasks">Dispatch Tasks</div>
+      <div class="subtab" data-subtab="photoaudit">Photo Audit</div>
+    </div>
+
+    <div class="subpanel active" id="subpanel-vehicles">
+      <div class="formBox">
+        <h3 style="margin-top:0;">Add Vehicle</h3>
+        <div class="row2">
+          <input id="vehPlate" placeholder="Plate number" />
+          <input id="vehType" placeholder="Type (van, truck, motorbike)" />
+        </div>
+        <input id="vehCapacity" type="number" step="0.1" placeholder="Capacity (kg)" />
+        <button onclick="createVehicle()">Add Vehicle</button>
+      </div>
+      <button class="refreshBtn" onclick="loadVehicles()">Refresh Vehicles</button>
+      <div id="vehiclesOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-drivers">
+      <div class="formBox">
+        <h3 style="margin-top:0;">Add Driver</h3>
+        <div class="row2">
+          <input id="drvName" placeholder="Driver name" />
+          <input id="drvPhone" placeholder="Phone" />
+        </div>
+        <input id="drvPasscode" placeholder="Passcode to assign" />
+        <input id="drvVehicleId" placeholder="Vehicle ID (optional, see Vehicles tab)" />
+        <button onclick="createDriver()">Add Driver</button>
+      </div>
+      <button class="refreshBtn" onclick="loadDrivers()">Refresh Drivers</button>
+      <div id="driversOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-tasks">
+      <div class="formBox">
+        <h3 style="margin-top:0;">Create Dispatch Task</h3>
+        <select id="taskType">
+          <option value="pickup">Pickup</option>
+          <option value="dropoff_customer">Dropoff — Customer</option>
+          <option value="dropoff_warehouse">Dropoff — Warehouse</option>
+          <option value="warehouse_transfer">Warehouse Transfer</option>
+        </select>
+        <input id="taskLocation" placeholder="Location (address or description)" />
+        <input id="taskShipNum" placeholder="Shipment number (optional)" />
+        <input id="taskDriverId" placeholder="Driver ID (see Drivers tab)" />
+        <input id="taskNotes" placeholder="Notes (optional)" />
+        <button onclick="createTask()">Create Task</button>
+      </div>
+      <div class="formBox">
+        <input id="taskFilterDriver" placeholder="Filter by driver ID (optional)" />
+        <button onclick="loadTasks()">Load Tasks</button>
+      </div>
+      <div id="tasksOut"></div>
+    </div>
+
+    <div class="subpanel" id="subpanel-photoaudit">
+      <div class="formBox">
+        <input id="auditFilterDriver" placeholder="Filter by driver ID (optional)" />
+        <button onclick="loadPhotoAudit()">Run Audit</button>
+      </div>
+      <div id="photoAuditOut"></div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-staff">
+    <div class="formBox">
+      <h3 style="margin-top:0;">Add Staff Member</h3>
+      <input id="staffName" placeholder="Staff name" />
+      <input id="staffPasscode" placeholder="Passcode to assign" />
+      <input id="staffPermissions" placeholder="Permissions, e.g. inventory:read,inventory:write" />
+      <button onclick="createStaff()">Add Staff</button>
+    </div>
+    <button class="refreshBtn" onclick="loadStaff()">Refresh</button>
+    <div id="staffOut"></div>
+  </div>
+
+  <div class="panel" id="panel-data">
+    <input id="filterType" placeholder="Filter by form_type (blank = all)" style="padding:8px;border-radius:6px;border:1px solid #333;background:#1a1d2e;color:#eee;" />
+    <button class="refreshBtn" onclick="loadData()">Refresh</button>
+    <button class="refreshBtn" onclick="exportData()">Export CSV</button>
+    <div id="dataStats" style="color:#aaa;font-size:13px;margin:8px 0;"></div>
+    <div id="dataOut"></div>
+  </div>
+</div>
+
+<div class="notifyToast" id="notifyToast"></div>
+
+<script>
+window.onerror = function(message, source, lineno, colno, error) {
+  var banner = document.getElementById('jsErrorBanner');
+  banner.style.display = 'block';
+  banner.textContent = 'Page error: ' + message + ' (line ' + lineno + ')';
+  return false;
+};
+
+let PASS = "";
+
+function unlock() {
+  PASS = document.getElementById('pass').value;
+  document.getElementById('passGate').style.display = 'none';
+  document.getElementById('main').classList.add('admin-ready');
+  loadDashboard();
+}
+
+document.getElementById('unlockBtn').addEventListener('click', unlock);
+document.getElementById('pass').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') unlock();
+});
+
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    const name = tab.dataset.tab;
+    document.getElementById('panel-' + name).classList.add('active');
+    if (name === 'submissions') loadSubmissions();
+    if (name === 'poboxes') loadPoBoxes();
+    if (name === 'dashboard') loadDashboard();
+    if (name === 'orders') loadInboundReceipts();
+    if (name === 'analytics') loadAnalytics();
+    if (name === 'reports') loadReports();
+    if (name === 'mailing') loadMailing();
+    if (name === 'shipments') loadShipments();
+    if (name === 'invoices') loadInvoices();
+    if (name === 'bol') loadBol();
+    if (name === 'inventory') loadInventory();
+    if (name === 'fleet') loadVehicles();
+    if (name === 'staff') loadStaff();
+    if (name === 'data') loadData();
+  });
+});
+
+function switchAdminTab(name) {
+  const tab = document.querySelector('.tab[data-tab="' + name + '"]');
+  if (tab) tab.click();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+document.querySelectorAll('.subtab').forEach(sub => {
+  sub.addEventListener('click', () => {
+    const parentPanel = sub.closest('.panel');
+    parentPanel.querySelectorAll('.subtab').forEach(t => t.classList.remove('active'));
+    parentPanel.querySelectorAll('.subpanel').forEach(p => p.classList.remove('active'));
+    sub.classList.add('active');
+    const name = sub.dataset.subtab;
+    document.getElementById('subpanel-' + name).classList.add('active');
+    if (name === 'products') loadInventory();
+    if (name === 'warehouses') loadWarehouses();
+    if (name === 'reorder') loadReorder();
+    if (name === 'vehicles') loadVehicles();
+    if (name === 'drivers') loadDrivers();
+    if (name === 'tasks') loadTasks();
+    if (name === 'photoaudit') { /* wait for manual run */ }
+    if (name === 'inbound') loadInboundReceipts();
+    if (name === 'outbound') loadOutboundShipments();
+    if (name === 'fulfillment') loadFulfillmentTasks();
+  });
+});
+
+let shipStatusFilter = '';
+const shipStatusToggle = document.getElementById('shipStatusToggle');
+const shipStatusMenu = document.getElementById('shipStatusMenu');
+
+shipStatusToggle.addEventListener('click', (e) => {
+  e.stopPropagation();
+  shipStatusMenu.classList.toggle('open');
+});
+
+shipStatusMenu.querySelectorAll('.dropdownItem').forEach(item => {
+  item.addEventListener('click', () => {
+    shipStatusMenu.querySelectorAll('.dropdownItem').forEach(i => i.classList.remove('selected'));
+    item.classList.add('selected');
+    shipStatusFilter = item.dataset.value;
+    shipStatusToggle.innerHTML = item.textContent + ' <span class="caret">▾</span>';
+    shipStatusMenu.classList.remove('open');
+    loadShipments();
+  });
+});
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.dropdownMenu.open').forEach(m => m.classList.remove('open'));
+});
+
+const SHIP_STATUS_OPTIONS = [
+  ['created','Created'],
+  ['picked_up','Picked up'],
+  ['in_transit','In transit'],
+  ['out_for_delivery','Out for delivery'],
+  ['delivered','Delivered'],
+  ['failed_delivery','Failed delivery'],
+  ['returned','Returned'],
+  ['cancelled','Cancelled'],
+  ['delayed','Delayed'],
+];
+
+function buildStatusDropdownHtml(idBase, currentValue) {
+  const currentLabel = (SHIP_STATUS_OPTIONS.find(o => o[0] === currentValue) || SHIP_STATUS_OPTIONS[0])[1];
+  return `
+    <div class="customDropdown" id="${idBase}Dropdown">
+      <button type="button" class="dropdownToggle" id="${idBase}Toggle">${currentLabel} <span class="caret">▾</span></button>
+      <div class="dropdownMenu" id="${idBase}Menu">
+        ${SHIP_STATUS_OPTIONS.map(([val, label]) =>
+          `<div class="dropdownItem${val === currentValue ? ' selected' : ''}" data-value="${val}">${label}</div>`
+        ).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function wireStatusDropdown(idBase, onSelect) {
+  const toggle = document.getElementById(idBase + 'Toggle');
+  const menu = document.getElementById(idBase + 'Menu');
+  if (!toggle || !menu) return;
+  toggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.dropdownMenu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
+    menu.classList.toggle('open');
+  });
+  menu.querySelectorAll('.dropdownItem').forEach(item => {
+    item.addEventListener('click', () => {
+      menu.querySelectorAll('.dropdownItem').forEach(i => i.classList.remove('selected'));
+      item.classList.add('selected');
+      toggle.innerHTML = item.textContent + ' <span class="caret">▾</span>';
+      menu.classList.remove('open');
+      onSelect(item.dataset.value);
+    });
+  });
+}
+
+function authHeaders() {
+  return { 'X-Admin-Passcode': PASS, 'x-access-code': PASS };
+}
+
+async function authedFetch(url) {
+  const res = await fetch(url, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Request failed: ' + res.status);
+  return res.json();
+}
+
+async function authedPost(url, params, method) {
+  const res = await fetch(url, {
+    method: method || 'POST',
+    headers: { ...authHeaders(), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(params)
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || ('Request failed: ' + res.status));
+  return data;
+}
+
+async function authedDelete(url) {
+  const res = await fetch(url, { method: 'DELETE', headers: authHeaders() });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || ('Request failed: ' + res.status));
+  return data;
+}
+
+function renderTable(container, rows, columns) {
+  if (!rows.length) {
+    container.innerHTML = '<div class="empty">No records yet.</div>';
+    return;
+  }
+  let html = '<table><thead><tr>';
+  columns.forEach(c => html += `<th>${c.label}</th>`);
+  html += '</tr></thead><tbody>';
+  rows.forEach(r => {
+    html += '<tr>';
+    columns.forEach(c => html += `<td>${c.render ? c.render(r) : (r[c.key] ?? '')}</td>`);
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+function escapeAttr(s) { return String(s).replace(/'/g, "\\'"); }
+
+function showNotifyToast(message, isError) {
+  const toast = document.getElementById('notifyToast');
+  toast.textContent = message;
+  toast.classList.toggle('error', !!isError);
+  toast.classList.add('show');
+  clearTimeout(showNotifyToast._t);
+  showNotifyToast._t = setTimeout(() => toast.classList.remove('show'), 5000);
+}
+
+async function loadSubmissions() {
+  const out = document.getElementById('submissionsOut');
+  try {
+    const data = await authedFetch('/submissions');
+    renderTable(out, data.results, [
+      { label: 'Building', key: 'building_type' },
+      { label: 'Note', key: 'note' },
+      { label: 'Status', render: r => `<span class="badge ${r.status}">${r.status}</span>` },
+      { label: 'Assigned', render: r => r.assigned_grid_id || '—' },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading submissions.</div>'; }
+}
+
+async function loadReports() {
+  const out = document.getElementById('reportsOut');
+  try {
+    const res = await fetch('/reports');
+    const data = await res.json();
+    renderTable(out, data.results, [
+      { label: 'Category', key: 'category' },
+      { label: 'Note', key: 'note' },
+      { label: 'Location', render: r => `${r.lat.toFixed(4)}, ${r.lon.toFixed(4)}` },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading reports.</div>'; }
+}
+
+async function loadMailing() {
+  const out = document.getElementById('mailingOut');
+  try {
+    const data = await authedFetch('/mail/list');
+    renderTable(out, data.results, [
+      { label: 'Email', key: 'email' },
+      { label: 'Name', key: 'name' },
+      { label: 'Subscribed', render: r => new Date(r.created_at * 1000).toLocaleDateString() },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading mailing list.</div>'; }
+}
+
+// ---- Dashboard ----
+
+function renderBarChart(countsObj) {
+  const entries = Object.entries(countsObj);
+  if (!entries.length) return '<div class="empty">No data yet.</div>';
+  const max = Math.max(...entries.map(([, v]) => v));
+  return entries.map(([label, value]) => `
+    <div class="barRow">
+      <div class="barLabel">${label.replace(/_/g, ' ')}</div>
+      <div class="barTrack"><div class="barFill" style="width:${(value / max * 100).toFixed(0)}%"></div></div>
+      <div class="barValue">${value}</div>
+    </div>
+  `).join('');
+}
+
+async function loadDashboard() {
+  const statsBox = document.getElementById('dashboardStats');
+  const whOut = document.getElementById('dashboardWarehouseOut');
+  const lowOut = document.getElementById('dashboardLowStockOut');
+  const opsOut = document.getElementById('operationalOverview');
+  const activityOut = document.getElementById('recentActivity');
+  statsBox.innerHTML = '<div class="empty">Loading…</div>';
+  try {
+    const [productsData, warehousesData, movementsData, reorderData, shipData, invData, subData] = await Promise.all([
+      authedFetch('/inventory/products'),
+      authedFetch('/inventory/warehouses'),
+      authedFetch('/inventory/movements'),
+      authedFetch('/inventory/reorder'),
+      authedFetch('/ship/list'),
+      authedFetch('/invoices'),
+      authedFetch('/submissions'),
+    ]);
+
+    const products = productsData.results || [];
+    const warehouses = warehousesData.results || [];
+    const movements = movementsData.results || [];
+    const reorder = reorderData.results || [];
+    const shipments = shipData.results || [];
+    const invoices = invData.results || [];
+    const submissions = subData.results || [];
+
+    const activeShipments = shipments.filter(s => !['delivered','cancelled','returned'].includes(s.delivery_status || 'created')).length;
+    const pendingSubmissions = submissions.filter(s => (s.status || 'pending') === 'pending').length;
+    const unpaidInvoices = invoices.filter(i => !['paid','void'].includes(i.status || 'unpaid')).length;
+    const totalUnits = products.reduce((sum,p) => sum + Number(p.total_quantity_on_hand || 0), 0);
+
+    statsBox.innerHTML = `
+      <div class="stat-tile"><div class="stat-label">Total Submissions</div><div class="stat-value">${submissions.length}</div></div>
+      <div class="stat-tile"><div class="stat-label">Active Shipments</div><div class="stat-value">${activeShipments}</div></div>
+      <div class="stat-tile"><div class="stat-label">Inventory Units</div><div class="stat-value">${totalUnits.toLocaleString()}</div></div>
+      <div class="stat-tile${pendingSubmissions + unpaidInvoices ? ' warn' : ''}"><div class="stat-label">Pending Items</div><div class="stat-value">${pendingSubmissions + unpaidInvoices}</div></div>
+    `;
+
+    const statusCount = status => shipments.filter(s => (s.delivery_status || 'created') === status).length;
+    const inTransit = statusCount('in_transit') + statusCount('out_for_delivery') + statusCount('picked_up');
+    const delivered = statusCount('delivered');
+    const pending = statusCount('created') + statusCount('delayed');
+    const cancelled = statusCount('cancelled') + statusCount('returned') + statusCount('failed_delivery');
+    opsOut.innerHTML = `
+      <div class="op-tile"><div class="op-label">🚚 IN TRANSIT</div><div class="op-value">${inTransit}</div><div class="op-label">Shipments</div></div>
+      <div class="op-tile"><div class="op-label">✓ DELIVERED</div><div class="op-value">${delivered}</div><div class="op-label">Shipments</div></div>
+      <div class="op-tile"><div class="op-label">◷ PENDING</div><div class="op-value">${pending}</div><div class="op-label">Shipments</div></div>
+      <div class="op-tile"><div class="op-label">✕ CANCELLED / FAILED</div><div class="op-value">${cancelled}</div><div class="op-label">Shipments</div></div>
+    `;
+
+    const stockByWarehouse = {};
+    movements.forEach(m => {
+      const wid = m.warehouse_id || 'main';
+      const qty = Number(m.quantity || 0);
+      const delta = m.movement_type === 'dispatch' ? -qty : qty;
+      stockByWarehouse[wid] = (stockByWarehouse[wid] || 0) + delta;
+    });
+    const whRows = warehouses.map(w => ({name:w.name, units:Math.max(0, stockByWarehouse[w.id] || 0)}));
+    if (whRows.length) {
+      const maxUnits = Math.max(1, ...whRows.map(r => r.units));
+      whOut.innerHTML = whRows.map(r => `<div class="barRow"><div class="barLabel">${r.name}</div><div class="barTrack"><div class="barFill" style="width:${(r.units/maxUnits*100).toFixed(0)}%"></div></div><div class="barValue">${r.units.toLocaleString()}</div></div>`).join('');
+    } else whOut.innerHTML = '<div class="empty">No warehouses yet.</div>';
+
+    if (reorder.length) {
+      renderTable(lowOut, reorder, [
+        { label:'SKU', key:'sku' }, { label:'Name', key:'name' },
+        { label:'On Hand', key:'quantity_on_hand' }, { label:'Reorder Point', key:'reorder_point' }
+      ]);
+    } else lowOut.innerHTML = '<div class="empty">Nothing below reorder point.</div>';
+
+    const activity = [];
+    shipments.forEach(s => activity.push({t:Number(s.updated_at || s.created_at || 0), icon:'🚚', text:`Shipment ${s.shipment_number || ''} updated to ${(s.delivery_status || 'created').replace(/_/g,' ')}`}));
+    submissions.forEach(s => activity.push({t:Number(s.created_at || 0), icon:'＋', text:`New ${s.building_type || 'building'} submission — ${s.status || 'pending'}`}));
+    invoices.forEach(i => activity.push({t:Number(i.created_at || 0), icon:'＄', text:`Invoice ${i.invoice_number || ''} — ${i.status || 'unpaid'}`}));
+    movements.forEach(m => activity.push({t:Number(m.created_at || 0), icon:'◇', text:`Inventory ${m.movement_type || 'movement'} — ${m.product_sku || ''}`}));
+    activity.sort((a,b) => b.t-a.t);
+    const recent = activity.filter(a => a.t > 0).slice(0,5);
+    activityOut.innerHTML = recent.length ? recent.map(a => `<div class="activity-row"><div class="activity-icon">${a.icon}</div><div class="activity-main"><div class="activity-text">${a.text}</div><div class="activity-time">${new Date(a.t*1000).toLocaleString()}</div></div></div>`).join('') : '<div class="empty">No recent activity yet.</div>';
+    document.getElementById('dashboardLastUpdated').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    statsBox.innerHTML = '<div class="empty">Error loading dashboard.</div>';
+    if (opsOut) opsOut.innerHTML = '<div class="empty">Operational data unavailable.</div>';
+    if (activityOut) activityOut.innerHTML = '<div class="empty">Recent activity unavailable.</div>';
+  }
+}
+
+// ---- Orders ----
+
+async function loadInboundReceipts() {
+  const out = document.getElementById('orderInboundOut');
+  const sku = document.getElementById('orderInboundFilterSku').value.trim();
+  try {
+    const url = '/inventory/movements' + (sku ? ('?sku=' + encodeURIComponent(sku)) : '');
+    const data = await authedFetch(url);
+    const receipts = (data.results || []).filter(m => m.movement_type === 'receive');
+    renderTable(out, receipts, [
+      { label: 'SKU', key: 'product_sku' },
+      { label: 'Warehouse', key: 'warehouse_id' },
+      { label: 'Qty Received', key: 'quantity' },
+      { label: 'Note', key: 'note' },
+      { label: 'When', render: r => new Date(r.created_at * 1000).toLocaleString() },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading inbound receipts.</div>'; }
+}
+
+async function loadOutboundShipments() {
+  const out = document.getElementById('orderOutboundOut');
+  try {
+    const data = await authedFetch('/ship/list');
+    renderTable(out, data.results, [
+      { label: '#', key: 'shipment_number' },
+      { label: 'Delivery', key: 'delivery' },
+      { label: 'Weight', render: r => r.weight_kg + ' kg' },
+      { label: 'Payment', render: r => `<span class="badge ${r.status === 'paid' ? 'paid' : 'pending'}">${r.status}</span>` },
+      { label: 'Fulfillment Status', render: r => `<span class="badge">${(r.delivery_status || 'created').replace(/_/g, ' ')}</span>` },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading outbound shipments.</div>'; }
+}
+
+async function loadFulfillmentTasks() {
+  const out = document.getElementById('orderFulfillOut');
+  const driverId = document.getElementById('orderFulfillFilterDriver').value.trim();
+  try {
+    const url = '/dispatch/tasks' + (driverId ? ('?driver_id=' + encodeURIComponent(driverId)) : '');
+    const data = await authedFetch(url);
+    renderTable(out, data.results, [
+      { label: '#', key: 'task_number' },
+      { label: 'Stage', render: r => r.task_type.replace(/_/g, ' ') },
+      { label: 'Location', key: 'location_text' },
+      { label: 'Status', render: r => `<span class="badge ${r.status}">${r.status.replace(/_/g, ' ')}</span>` },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading fulfillment tasks.</div>'; }
+}
+
+// ---- Analytics ----
+
+async function loadAnalytics() {
+  const statsBox = document.getElementById('analyticsStats');
+  const shipChart = document.getElementById('analyticsShipmentChart');
+  const invChart = document.getElementById('analyticsInvoiceChart');
+  statsBox.innerHTML = '<div class="empty">Loading…</div>';
+  shipChart.innerHTML = '';
+  invChart.innerHTML = '';
+  try {
+    const [shipData, invData] = await Promise.all([
+      authedFetch('/ship/list'),
+      authedFetch('/invoices'),
+    ]);
+    const shipments = shipData.results || [];
+    const invoices = invData.results || [];
+
+    const totalShipments = shipments.length;
+    const totalWeight = shipments.reduce((s, r) => s + Number(r.weight_kg || 0), 0);
+    const paidRevenue = invoices.filter(i => i.status === 'paid').reduce((s, i) => s + Number(i.total_ugx || 0), 0);
+    const outstandingRevenue = invoices.filter(i => i.status !== 'paid' && i.status !== 'void').reduce((s, i) => s + Number(i.total_ugx || 0), 0);
+
+    statsBox.innerHTML = `
+      <div class="stat-tile"><div class="stat-value">${totalShipments}</div><div class="stat-label">Total Shipments</div></div>
+      <div class="stat-tile"><div class="stat-value">${totalWeight.toLocaleString()} kg</div><div class="stat-label">Total Weight Shipped</div></div>
+      <div class="stat-tile"><div class="stat-value">UGX ${paidRevenue.toLocaleString()}</div><div class="stat-label">Revenue Collected</div></div>
+      <div class="stat-tile${outstandingRevenue ? ' warn' : ''}"><div class="stat-value">UGX ${outstandingRevenue.toLocaleString()}</div><div class="stat-label">Outstanding Invoices</div></div>
+    `;
+
+    const shipCounts = {};
+    shipments.forEach(s => {
+      const key = s.delivery_status || 'created';
+      shipCounts[key] = (shipCounts[key] || 0) + 1;
+    });
+    shipChart.innerHTML = renderBarChart(shipCounts);
+
+    const invCounts = {};
+    invoices.forEach(i => {
+      const key = i.status || 'unknown';
+      invCounts[key] = (invCounts[key] || 0) + 1;
+    });
+    invChart.innerHTML = renderBarChart(invCounts);
+  } catch (e) {
+    statsBox.innerHTML = '<div class="empty">Error loading analytics.</div>';
+  }
+}
+
+let shipLookupCurrentNumber = '';
+let shipLookupSelectedStatus = 'created';
+
+async function lookupShipment() {
+  const number = document.getElementById('shipLookupInput').value.trim();
+  const out = document.getElementById('shipLookupOut');
+  const actions = document.getElementById('shipLookupActions');
+  if (!number) { out.innerHTML = '<div class="empty">Enter a tracking number.</div>'; actions.innerHTML = ''; return; }
+  out.innerHTML = '<div class="empty">Looking up…</div>';
+  actions.innerHTML = '';
+  try {
+    const data = await authedFetch('/ship/' + encodeURIComponent(number) + '/admin-lookup');
+    const contact = [data.recipient_name, data.recipient_email, data.recipient_phone]
+      .filter(Boolean).join(' · ') || 'No contact info on file';
+    const current = (data.current_status || 'created').replace('_', ' ');
+    const currentValue = data.current_status || 'created';
+    shipLookupCurrentNumber = data.shipment_number;
+    shipLookupSelectedStatus = currentValue;
+
+    out.innerHTML = `
+      <div style="margin-bottom:10px;">
+        <strong>${data.shipment_number}</strong>
+        <span class="badge ${data.status === 'paid' ? 'paid' : 'pending'}">${data.status}</span>
+        <div style="font-size:12px;color:#999;margin-top:4px;">${data.pickup} → ${data.delivery}</div>
+        <div style="font-size:12px;color:#999;margin-top:2px;">Current status: ${current}</div>
+        <div style="font-size:12px;color:#999;margin-top:2px;">Will notify: ${contact}</div>
+      </div>
+      <input id="shipLookupNote" placeholder="Note for customer (optional)" />
+    `;
+
+    actions.innerHTML = buildStatusDropdownHtml('shipLookupStatus', currentValue) +
+      '<button onclick="saveShipmentStatus()">Save</button>';
+
+    wireStatusDropdown('shipLookupStatus', (newStatus) => {
+      shipLookupSelectedStatus = newStatus;
+    });
+  } catch (e) {
+    out.innerHTML = '<div class="empty">' + e.message + '</div>';
+  }
+}
+
+async function saveShipmentStatus() {
+  const noteInput = document.getElementById('shipLookupNote');
+  const note = noteInput ? noteInput.value.trim() : '';
+  await updateShipStatus(shipLookupCurrentNumber, shipLookupSelectedStatus, note);
+  lookupShipment();
+}
+
+let lastShipments = [];
+
+async function loadShipments() {
+  const out = document.getElementById('shipmentsOut');
+  const filter = shipStatusFilter;
+  try {
+    const url = '/ship/list' + (filter ? ('?delivery_status=' + encodeURIComponent(filter)) : '');
+    const data = await authedFetch(url);
+    lastShipments = data.results;
+    renderFilteredShipments();
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading shipments.</div>'; }
+}
+
+function shipRowDropdownId(shipmentNumber) {
+  return 'shipRowStatus_' + shipmentNumber.replace(/[^a-zA-Z0-9]/g, '_');
+}
+
+function renderFilteredShipments() {
+  const out = document.getElementById('shipmentsOut');
+  const query = document.getElementById('shipSearchInput').value.trim().toLowerCase();
+  const rows = query
+    ? lastShipments.filter(r => (r.shipment_number || '').toLowerCase().includes(query))
+    : lastShipments;
+  renderTable(out, rows, [
+    { label: '#', key: 'shipment_number' },
+    { label: 'Pickup', key: 'pickup' },
+    { label: 'Delivery', key: 'delivery' },
+    { label: 'Weight', render: r => r.weight_kg + ' kg' },
+    { label: 'Rate', render: r => 'UGX ' + Number(r.rate_ugx).toLocaleString() },
+    { label: 'Payment', render: r => `<span class="badge ${r.status === 'paid' ? 'paid' : 'pending'}">${r.status}</span>` },
+    { label: 'Delivery Status', render: r =>
+        buildStatusDropdownHtml(shipRowDropdownId(r.shipment_number), r.delivery_status || 'created')
+    },
+  ]);
+  rows.forEach(r => {
+    wireStatusDropdown(shipRowDropdownId(r.shipment_number), async (newStatus) => {
+      await updateShipStatus(r.shipment_number, newStatus, '');
+      loadShipments();
+    });
+  });
+}
+
+document.getElementById('shipSearchInput').addEventListener('input', renderFilteredShipments);
+
+async function updateShipStatus(shipmentNumber, newStatus, note) {
+  try {
+    const data = await authedPost('/ship/' + shipmentNumber + '/status', { delivery_status: newStatus, note: note || '' });
+    const notified = data.notified || {};
+    const parts = [];
+    if (notified.email_sent) parts.push('email sent');
+    if (notified.sms_sent) parts.push('SMS sent');
+    const label = newStatus.replace(/_/g, ' ');
+    showNotifyToast(
+      parts.length
+        ? `${shipmentNumber} updated to "${label}" — ${parts.join(' and ')}.`
+        : `${shipmentNumber} updated to "${label}" — no contact info on file, nothing sent.`
+    );
+  } catch (e) {
+    showNotifyToast(e.message, true);
+  }
+}
+
+async function createInvoice() {
+  const shipmentNumber = document.getElementById('invShipNum').value.trim();
+  const billName = document.getElementById('invBillName').value.trim();
+  const billAddr = document.getElementById('invBillAddr').value.trim();
+  const taxRate = document.getElementById('invTaxRate').value.trim() || '0';
+  if (!shipmentNumber || !billName || !billAddr) { alert('Fill in shipment number, bill name, and address'); return; }
+  try {
+    await authedPost('/invoices/create', {
+      shipment_number: shipmentNumber,
+      bill_to_name: billName,
+      bill_to_address: billAddr,
+      tax_rate_percent: taxRate
+    });
+    document.getElementById('invShipNum').value = '';
+    document.getElementById('invBillName').value = '';
+    document.getElementById('invBillAddr').value = '';
+    document.getElementById('invTaxRate').value = '';
+    loadInvoices();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadInvoices() {
+  const out = document.getElementById('invoicesOut');
+  try {
+    const data = await authedFetch('/invoices');
+    renderTable(out, data.results, [
+      { label: '#', key: 'invoice_number' },
+      { label: 'Bill To', key: 'bill_to_name' },
+      { label: 'Total', render: r => 'UGX ' + Number(r.total_ugx).toLocaleString() },
+      { label: 'Status', render: r => `<span class="badge ${r.status}">${r.status}</span>` },
+      { label: '', render: r => `<a class="viewLink" href="/invoices/${r.invoice_number}" target="_blank">View</a>` },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading invoices.</div>'; }
+}
+
+async function createBol() {
+  const params = {
+    shipment_number: document.getElementById('bolShipNum').value.trim(),
+    shipper_name: document.getElementById('bolShipperName').value.trim(),
+    shipper_address: document.getElementById('bolShipperAddr').value.trim(),
+    consignee_name: document.getElementById('bolConsigneeName').value.trim(),
+    consignee_address: document.getElementById('bolConsigneeAddr').value.trim(),
+    carrier: document.getElementById('bolCarrier').value.trim(),
+    goods_description: document.getElementById('bolGoods').value.trim(),
+    quantity: document.getElementById('bolQuantity').value.trim(),
+  };
+  if (Object.values(params).some(v => !v)) { alert('Fill in all fields'); return; }
+  try {
+    await authedPost('/bol/create', params);
+    ['bolShipNum','bolShipperName','bolShipperAddr','bolConsigneeName','bolConsigneeAddr','bolCarrier','bolGoods','bolQuantity'].forEach(id => document.getElementById(id).value = '');
+    loadBol();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadBol() {
+  const out = document.getElementById('bolOut');
+  try {
+    const data = await authedFetch('/bol');
+    renderTable(out, data.results, [
+      { label: '#', key: 'bol_number' },
+      { label: 'Shipper', key: 'shipper_name' },
+      { label: 'Consignee', key: 'consignee_name' },
+      { label: 'Carrier', key: 'carrier' },
+      { label: '', render: r => `<a class="viewLink" href="/bol/${r.bol_number}" target="_blank">View</a>` },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading bills of lading.</div>'; }
+}
+
+async function createWarehouse() {
+  const name = document.getElementById('whName').value.trim();
+  const address = document.getElementById('whAddress').value.trim();
+  if (!name) { alert('Warehouse name is required'); return; }
+  try {
+    await authedPost('/inventory/warehouses', { name, address });
+    document.getElementById('whName').value = '';
+    document.getElementById('whAddress').value = '';
+    loadWarehouses();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadWarehouses() {
+  const out = document.getElementById('warehousesOut');
+  try {
+    const data = await authedFetch('/inventory/warehouses');
+    renderTable(out, data.results, [
+      { label: 'Name', key: 'name' },
+      { label: 'Address', key: 'address' },
+      { label: 'Active', render: r => r.is_active ? 'Yes' : 'No' },
+      { label: 'Actions', render: r => r.id === 'main'
+          ? '<span style="color:#888;">default</span>'
+          : `<button class="rowBtn edit" onclick="editWarehouse('${r.id}','${escapeAttr(r.name)}','${escapeAttr(r.address || '')}')">Edit</button>` +
+            `<button class="rowBtn delete" onclick="deactivateWarehouse('${r.id}')">Deactivate</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading warehouses.</div>'; }
+}
+
+async function editWarehouse(id, currentName, currentAddress) {
+  const newName = prompt('Warehouse name:', currentName);
+  if (newName === null) return;
+  const newAddress = prompt('Address:', currentAddress);
+  if (newAddress === null) return;
+  try {
+    await authedPost('/inventory/warehouses/' + id, { name: newName, address: newAddress }, 'PUT');
+    loadWarehouses();
+  } catch (e) { alert(e.message); }
+}
+
+async function deactivateWarehouse(id) {
+  if (!confirm('Deactivate this warehouse?')) return;
+  try {
+    await authedDelete('/inventory/warehouses/' + id);
+    loadWarehouses();
+  } catch (e) { alert(e.message); }
+}
+
+async function createProduct() {
+  const sku = document.getElementById('invProdSku').value.trim();
+  const name = document.getElementById('invProdName').value.trim();
+  if (!sku || !name) { alert('SKU and name are required'); return; }
+  try {
+    await authedPost('/inventory/products', {
+      sku,
+      name,
+      unit_cost: document.getElementById('invProdCost').value.trim() || '0',
+      initial_quantity: document.getElementById('invProdInitQty').value.trim() || '0',
+      reorder_point: document.getElementById('invProdReorderPoint').value.trim() || '0',
+      reorder_quantity: document.getElementById('invProdReorderQty').value.trim() || '0',
+      warehouse_id: 'main'
+    });
+    ['invProdSku','invProdName','invProdCost','invProdInitQty','invProdReorderPoint','invProdReorderQty'].forEach(id => document.getElementById(id).value = '');
+    loadInventory();
+  } catch (e) { alert(e.message); }
+}
+
+async function receiveStock() {
+  const sku = document.getElementById('invMoveSku').value.trim();
+  const qty = document.getElementById('invMoveQty').value.trim();
+  if (!sku || !qty) { alert('SKU and quantity are required'); return; }
+  try {
+    await authedPost('/inventory/stock/receive', { sku, quantity: qty, note: document.getElementById('invMoveNote').value.trim(), warehouse_id: 'main' });
+    loadInventory();
+  } catch (e) { alert(e.message); }
+}
+
+async function dispatchStock() {
+  const sku = document.getElementById('invMoveSku').value.trim();
+  const qty = document.getElementById('invMoveQty').value.trim();
+  if (!sku || !qty) { alert('SKU and quantity are required'); return; }
+  try {
+    await authedPost('/inventory/stock/dispatch', { sku, quantity: qty, note: document.getElementById('invMoveNote').value.trim(), warehouse_id: 'main' });
+    loadInventory();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadInventory() {
+  const out = document.getElementById('inventoryOut');
+  try {
+    const data = await authedFetch('/inventory/products');
+    renderTable(out, data.results, [
+      { label: 'SKU', key: 'sku' },
+      { label: 'Name', key: 'name' },
+      { label: 'On Hand', key: 'total_quantity_on_hand' },
+      { label: 'Reorder Point', key: 'reorder_point' },
+      { label: 'Unit Cost', render: r => 'UGX ' + Number(r.unit_cost).toLocaleString() },
+      { label: 'Actions', render: r =>
+          `<button class="rowBtn edit" onclick="editProduct('${escapeAttr(r.sku)}','${escapeAttr(r.name)}','${r.unit_cost}','${r.reorder_point}','${r.reorder_quantity}')">Edit</button>` +
+          `<button class="rowBtn delete" onclick="deleteProduct('${escapeAttr(r.sku)}')">Delete</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading inventory.</div>'; }
+}
+
+async function editProduct(sku, currentName, currentCost, currentReorderPoint, currentReorderQty) {
+  const newName = prompt('Product name:', currentName);
+  if (newName === null) return;
+  const newCost = prompt('Unit cost (UGX):', currentCost);
+  if (newCost === null) return;
+  const newReorderPoint = prompt('Reorder point:', currentReorderPoint);
+  if (newReorderPoint === null) return;
+  const newReorderQty = prompt('Reorder quantity:', currentReorderQty);
+  if (newReorderQty === null) return;
+  try {
+    await authedPost('/inventory/products/' + sku, {
+      name: newName, unit_cost: newCost, reorder_point: newReorderPoint, reorder_quantity: newReorderQty
+    }, 'PUT');
+    loadInventory();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteProduct(sku) {
+  if (!confirm('Delete product ' + sku + '? This removes it and its stock records (movement history is kept).')) return;
+  try {
+    await authedDelete('/inventory/products/' + sku);
+    loadInventory();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadMovements() {
+  const out = document.getElementById('movementsOut');
+  const sku = document.getElementById('movFilterSku').value.trim();
+  try {
+    const url = '/inventory/movements' + (sku ? ('?sku=' + encodeURIComponent(sku)) : '');
+    const data = await authedFetch(url);
+    renderTable(out, data.results, [
+      { label: 'SKU', key: 'product_sku' },
+      { label: 'Warehouse', key: 'warehouse_id' },
+      { label: 'Type', key: 'movement_type' },
+      { label: 'Qty', key: 'quantity' },
+      { label: 'Note', key: 'note' },
+      { label: 'When', render: r => new Date(r.created_at * 1000).toLocaleString() },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading movements.</div>'; }
+}
+
+async function loadReorder() {
+  const out = document.getElementById('reorderOut');
+  try {
+    const data = await authedFetch('/inventory/reorder');
+    renderTable(out, data.results, [
+      { label: 'SKU', key: 'sku' },
+      { label: 'Name', key: 'name' },
+      { label: 'On Hand', key: 'quantity_on_hand' },
+      { label: 'Reorder Point', key: 'reorder_point' },
+      { label: 'Suggested Reorder Qty', key: 'suggested_reorder_quantity' },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading reorder list.</div>'; }
+}
+
+// ---- Fleet: Vehicles ----
+
+async function createVehicle() {
+  const plate_number = document.getElementById('vehPlate').value.trim();
+  const vehicle_type = document.getElementById('vehType').value.trim();
+  const capacity_kg = document.getElementById('vehCapacity').value.trim() || '0';
+  if (!plate_number || !vehicle_type) { alert('Plate number and type are required'); return; }
+  try {
+    await authedPost('/fleet/vehicles', { plate_number, vehicle_type, capacity_kg });
+    document.getElementById('vehPlate').value = '';
+    document.getElementById('vehType').value = '';
+    document.getElementById('vehCapacity').value = '';
+    loadVehicles();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadVehicles() {
+  const out = document.getElementById('vehiclesOut');
+  try {
+    const data = await authedFetch('/fleet/vehicles');
+    renderTable(out, data.results, [
+      { label: 'Plate', key: 'plate_number' },
+      { label: 'Type', key: 'vehicle_type' },
+      { label: 'Capacity (kg)', key: 'capacity_kg' },
+      { label: 'Status', render: r => `<span class="badge ${r.status === 'available' ? 'approved' : r.status === 'maintenance' ? 'denied' : 'pending'}">${r.status}</span>` },
+      { label: 'ID', render: r => `<span style="font-size:10px;color:#888;">${r.id}</span>` },
+      { label: 'Actions', render: r =>
+          `<button class="rowBtn edit" onclick="editVehicle('${r.id}','${escapeAttr(r.plate_number)}','${escapeAttr(r.vehicle_type)}','${r.capacity_kg}','${r.status}')">Edit</button>` +
+          `<button class="rowBtn delete" onclick="deleteVehicle('${r.id}')">Delete</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading vehicles.</div>'; }
+}
+
+async function editVehicle(id, plate, type, capacity, status) {
+  const newPlate = prompt('Plate number:', plate);
+  if (newPlate === null) return;
+  const newType = prompt('Vehicle type:', type);
+  if (newType === null) return;
+  const newCapacity = prompt('Capacity (kg):', capacity);
+  if (newCapacity === null) return;
+  const newStatus = prompt('Status (available / in_use / maintenance):', status);
+  if (newStatus === null) return;
+  try {
+    await authedPost('/fleet/vehicles/' + id, {
+      plate_number: newPlate, vehicle_type: newType, capacity_kg: newCapacity, status: newStatus
+    }, 'PUT');
+    loadVehicles();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteVehicle(id) {
+  if (!confirm('Delete this vehicle?')) return;
+  try {
+    await authedDelete('/fleet/vehicles/' + id);
+    loadVehicles();
+  } catch (e) { alert(e.message); }
+}
+
+// ---- Fleet: Drivers ----
+
+async function createDriver() {
+  const name = document.getElementById('drvName').value.trim();
+  const phone = document.getElementById('drvPhone').value.trim();
+  const passcode = document.getElementById('drvPasscode').value.trim();
+  const vehicle_id = document.getElementById('drvVehicleId').value.trim();
+  if (!name || !passcode) { alert('Name and passcode are required'); return; }
+  try {
+    await authedPost('/fleet/drivers', { name, phone, passcode, vehicle_id });
+    document.getElementById('drvName').value = '';
+    document.getElementById('drvPhone').value = '';
+    document.getElementById('drvPasscode').value = '';
+    document.getElementById('drvVehicleId').value = '';
+    loadDrivers();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadDrivers() {
+  const out = document.getElementById('driversOut');
+  try {
+    const data = await authedFetch('/fleet/drivers');
+    renderTable(out, data.results, [
+      { label: 'Name', key: 'name' },
+      { label: 'Phone', key: 'phone' },
+      { label: 'Status', render: r => `<span class="badge ${r.status === 'on_duty' ? 'approved' : 'pending'}">${r.status}</span>` },
+      { label: 'Last Location', render: r => r.current_lat ? `${r.current_lat.toFixed(4)}, ${r.current_lon.toFixed(4)}` : '—' },
+      { label: 'ID', render: r => `<span style="font-size:10px;color:#888;">${r.id}</span>` },
+      { label: 'Active', render: r => r.is_active ? 'Yes' : 'No' },
+      { label: 'Actions', render: r =>
+          `<button class="rowBtn edit" onclick="editDriver('${r.id}','${escapeAttr(r.name)}','${escapeAttr(r.phone || '')}','${r.is_active}')">Edit</button>` +
+          `<button class="rowBtn delete" onclick="deleteDriver('${r.id}')">Delete</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading drivers.</div>'; }
+}
+
+async function editDriver(id, name, phone, isActive) {
+  const newName = prompt('Driver name:', name);
+  if (newName === null) return;
+  const newPhone = prompt('Phone:', phone);
+  if (newPhone === null) return;
+  const activeInput = prompt('Active? (yes/no):', isActive === 'true' || isActive === '1' ? 'yes' : 'no');
+  if (activeInput === null) return;
+  try {
+    await authedPost('/fleet/drivers/' + id, {
+      name: newName, phone: newPhone, is_active: activeInput.toLowerCase().startsWith('y') ? 'true' : 'false'
+    }, 'PUT');
+    loadDrivers();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteDriver(id) {
+  if (!confirm('Delete this driver?')) return;
+  try {
+    await authedDelete('/fleet/drivers/' + id);
+    loadDrivers();
+  } catch (e) { alert(e.message); }
+}
+
+// ---- Fleet: Dispatch Tasks ----
+
+async function createTask() {
+  const task_type = document.getElementById('taskType').value;
+  const location_text = document.getElementById('taskLocation').value.trim();
+  const shipment_number = document.getElementById('taskShipNum').value.trim();
+  const driver_id = document.getElementById('taskDriverId').value.trim();
+  const notes = document.getElementById('taskNotes').value.trim();
+  if (!location_text) { alert('Location is required'); return; }
+  try {
+    await authedPost('/dispatch/tasks', { task_type, location_text, shipment_number, driver_id, notes });
+    document.getElementById('taskLocation').value = '';
+    document.getElementById('taskShipNum').value = '';
+    document.getElementById('taskDriverId').value = '';
+    document.getElementById('taskNotes').value = '';
+    loadTasks();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadTasks() {
+  const out = document.getElementById('tasksOut');
+  const driverId = document.getElementById('taskFilterDriver').value.trim();
+  try {
+    const url = '/dispatch/tasks' + (driverId ? ('?driver_id=' + encodeURIComponent(driverId)) : '');
+    const data = await authedFetch(url);
+    renderTable(out, data.results, [
+      { label: '#', key: 'task_number' },
+      { label: 'Type', render: r => r.task_type.replace(/_/g, ' ') },
+      { label: 'Location', key: 'location_text' },
+      { label: 'Status', render: r => `<span class="badge ${r.status}">${r.status.replace(/_/g,' ')}</span>` },
+      { label: 'Photo', render: r => r.photo_url
+          ? `<img class="photoThumb" src="${r.photo_url}" onclick="window.open('${r.photo_url}','_blank')" />`
+          : '<span class="noPhoto">missing</span>'
+      },
+      { label: 'Actions', render: r =>
+          `<button class="rowBtn edit" onclick="reassignTask('${r.id}')">Reassign</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading tasks.</div>'; }
+}
+
+async function reassignTask(taskId) {
+  const driverId = prompt('New driver ID:');
+  if (driverId === null) return;
+  try {
+    await authedPost('/dispatch/tasks/' + taskId + '/assign', { driver_id: driverId }, 'PUT');
+    loadTasks();
+  } catch (e) { alert(e.message); }
+}
+
+// ---- Fleet: Photo Audit ----
+
+async function loadPhotoAudit() {
+  const out = document.getElementById('photoAuditOut');
+  const driverId = document.getElementById('auditFilterDriver').value.trim();
+  try {
+    const url = '/dispatch/photo-audit' + (driverId ? ('?driver_id=' + encodeURIComponent(driverId)) : '');
+    const data = await authedFetch(url);
+    out.innerHTML = `
+      <div class="formBox">
+        <div style="font-size:14px;">Total proof-required tasks: <strong>${data.total_proof_required_tasks}</strong></div>
+        <div style="font-size:14px;color:#1a7a37;">With photo: <strong>${data.tasks_with_photo}</strong></div>
+        <div style="font-size:14px;color:#a30000;">Missing photo: <strong>${data.tasks_missing_photo}</strong></div>
+      </div>
+    `;
+    if (data.missing.length) {
+      const div = document.createElement('div');
+      renderTable(div, data.missing, [
+        { label: '#', key: 'task_number' },
+        { label: 'Type', render: r => r.task_type.replace(/_/g,' ') },
+        { label: 'Location', key: 'location_text' },
+        { label: 'Status', key: 'status' },
+      ]);
+      out.appendChild(div);
+    }
+  } catch (e) { out.innerHTML = '<div class="empty">Error running audit.</div>'; }
+}
+
+// ---- Staff ----
+
+async function createStaff() {
+  const name = document.getElementById('staffName').value.trim();
+  const passcode = document.getElementById('staffPasscode').value.trim();
+  const permissions = document.getElementById('staffPermissions').value.trim();
+  if (!name || !passcode || !permissions) { alert('Fill in name, passcode, and permissions'); return; }
+  try {
+    await authedPost('/staff', { name, passcode, permissions });
+    document.getElementById('staffName').value = '';
+    document.getElementById('staffPasscode').value = '';
+    document.getElementById('staffPermissions').value = '';
+    loadStaff();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadStaff() {
+  const out = document.getElementById('staffOut');
+  try {
+    const data = await authedFetch('/staff');
+    renderTable(out, data.results, [
+      { label: 'Name', key: 'name' },
+      { label: 'Permissions', key: 'permissions' },
+      { label: 'Active', render: r => r.is_active ? 'Yes' : 'No' },
+      { label: 'Actions', render: r =>
+          `<button class="rowBtn edit" onclick="editStaff('${r.id}','${escapeAttr(r.name)}','${escapeAttr(r.permissions)}')">Edit</button>` +
+          `<button class="rowBtn toggle" onclick="toggleStaff('${r.id}',${r.is_active})">${r.is_active ? 'Deactivate' : 'Activate'}</button>` +
+          `<button class="rowBtn delete" onclick="deleteStaff('${r.id}')">Delete</button>`
+      },
+    ]);
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading staff.</div>'; }
+}
+
+async function editStaff(id, currentName, currentPermissions) {
+  const newName = prompt('Staff name:', currentName);
+  if (newName === null) return;
+  const newPermissions = prompt('Permissions (comma-separated):', currentPermissions);
+  if (newPermissions === null) return;
+  try {
+    await authedPost('/staff/' + id, { name: newName, permissions: newPermissions }, 'PUT');
+    loadStaff();
+  } catch (e) { alert(e.message); }
+}
+
+async function toggleStaff(id, currentlyActive) {
+  try {
+    await authedPost('/staff/' + id, { is_active: currentlyActive ? 'false' : 'true' }, 'PUT');
+    loadStaff();
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteStaff(id) {
+  if (!confirm('Delete this staff member? This cannot be undone.')) return;
+  try {
+    await authedDelete('/staff/' + id);
+    loadStaff();
+  } catch (e) { alert(e.message); }
+}
+
+// ---- Data ----
+
+async function loadData() {
+  const type = document.getElementById('filterType').value.trim();
+  const out = document.getElementById('dataOut');
+  const statsBox = document.getElementById('dataStats');
+  try {
+    const url = '/data/records' + (type ? ('?form_type=' + encodeURIComponent(type)) : '');
+    const data = await authedFetch(url);
+    renderTable(out, data.results, [
+      { label: 'Type', key: 'form_type' },
+      { label: 'Data', render: r => `<pre style="white-space:pre-wrap;margin:0;font-size:12px;">${JSON.stringify(r.payload, null, 2)}</pre>` },
+      { label: 'Created', render: r => new Date(r.created_at * 1000).toLocaleString() },
+    ]);
+    const stats = await authedFetch('/data/stats');
+    statsBox.textContent = `Total: ${stats.total_records} — ` +
+      Object.entries(stats.by_form_type).map(([k, v]) => `${k}: ${v}`).join(', ');
+  } catch (e) { out.innerHTML = '<div class="empty">Error loading data.</div>'; }
+}
+
+function exportData() {
+  const type = document.getElementById('filterType').value.trim();
+  const url = '/data/export.csv' + (type ? ('?form_type=' + encodeURIComponent(type)) : '');
+  fetch(url, { headers: authHeaders() })
+    .then(res => res.blob())
+    .then(blob => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'data_export.csv';
+      a.click();
+    });
+}
+</script>
+
+<script id="poBoxAdminJsV1">
+let poBoxFilter='pending';
+function poEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function poDate(ts){try{return new Date(Number(ts)*1000).toLocaleString()}catch(e){return ''}}
+async function poDecision(id,action){
+ let note='', assigned='';
+ if(action==='request_changes'){note=prompt('Tell the customer exactly what must be changed:')||'';if(!note)return;}
+ if(action==='reject'){note=prompt('Reason for rejection (shown to customer):')||'';if(!note)return;}
+ if(action==='approve'){if(!confirm('Approve this application? The system will block duplicate addresses and P.O. Box numbers.'))return;assigned=prompt('Optional: enter a specific P.O. Box number, or leave blank for automatic assignment:')||'';note=prompt('Optional approval note:')||'';}
+ try{const d=await authedPost('/admin/po-box/applications/'+encodeURIComponent(id)+'/decision',{action,admin_note:note,assigned_po_box:assigned});showToast(action==='approve'?'Approved and assigned '+d.po_box:'Application updated');await loadPoBoxes();}
+ catch(e){showToast(e.message||'Unable to update application',true);}
+}
+function renderPoApps(rows){
+ const out=document.getElementById('poBoxApplicationsOut'); if(!out)return;
+ if(!rows.length){out.innerHTML='<div class="empty">No P.O. Box applications in this status.</div>';return;}
+ out.innerHTML=rows.map(r=>`<div class="admin-section" style="margin-bottom:9px">
+   <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b>${poEsc(r.id)}</b><div style="font-size:12px;color:#9aa4bd;margin-top:3px">${poEsc(r.name)} • ${poEsc(r.email||r.phone)}</div></div><span class="badge ${poEsc(r.status)}">${poEsc(String(r.status).replaceAll('_',' '))}</span></div>
+   <div style="font-size:12px;line-height:1.55;margin-top:9px"><b>Physical address:</b> ${poEsc(r.physical_address)} ${r.grid_id?' • <b>Grid ID:</b> '+poEsc(r.grid_id):''}<br><b>Branch:</b> ${poEsc(r.preferred_branch)} • <b>Size:</b> ${poEsc(r.box_size)}${r.business_name?'<br><b>Business:</b> '+poEsc(r.business_name):''}${r.notes?'<br><b>Applicant notes:</b> '+poEsc(r.notes):''}${r.admin_note?'<br><b>Admin note:</b> '+poEsc(r.admin_note):''}${r.assigned_po_box?'<br><b>Assigned P.O. Box:</b> '+poEsc(r.assigned_po_box):''}<br><span style="color:#687489">Revision ${poEsc(r.revision)} • ${poDate(r.created_at)}</span></div>
+   ${r.status==='pending'?`<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"><button class="rowBtn edit" onclick="poDecision('${poEsc(r.id)}','approve')">Approve</button><button class="rowBtn toggle" onclick="poDecision('${poEsc(r.id)}','request_changes')">Request Change</button><button class="rowBtn delete" onclick="poDecision('${poEsc(r.id)}','reject')">Reject</button></div>`:''}
+ </div>`).join('');
+}
+async function loadPoBoxes(){
+ const appsOut=document.getElementById('poBoxApplicationsOut'),regOut=document.getElementById('poBoxRegistryOut'); if(!appsOut||!regOut)return;
+ appsOut.innerHTML='<div class="empty">Loading applications…</div>';regOut.innerHTML='<div class="empty">Loading registry…</div>';
+ try{const q=poBoxFilter?'?status='+encodeURIComponent(poBoxFilter):'';const [a,r]=await Promise.all([authedFetch('/admin/po-box/applications'+q),authedFetch('/admin/po-box/registry')]);renderPoApps(a.results||[]);
+   const rows=r.results||[];if(!rows.length){regOut.innerHTML='<div class="empty">No P.O. Boxes assigned yet.</div>';}else{renderTable(regOut,rows,[{label:'P.O. Box',key:'po_box'},{label:'Holder',key:'holder_name'},{label:'Physical Address',key:'physical_address'},{label:'Grid ID',key:'grid_id'},{label:'Branch',key:'branch'},{label:'Size',key:'box_size'},{label:'Status',render:x=>'<span class="badge approved">'+poEsc(x.status)+'</span>'}]);}
+ }catch(e){appsOut.innerHTML='<div class="empty">'+poEsc(e.message||'Unable to load')+'</div>';regOut.innerHTML='';}
+}
+document.querySelectorAll('[data-po-filter]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-po-filter]').forEach(x=>x.classList.remove('active'));b.classList.add('active');poBoxFilter=b.dataset.poFilter||'';loadPoBoxes();}));
+</script>
+
+</body>
+</html>

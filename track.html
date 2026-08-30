@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Track Your Shipment — Uganda National Grid</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background:#0f1220; color:#eee; margin:0; padding:16px;
+    min-height:100vh;
+  }
+  .wrap { max-width:480px; margin:0 auto; }
+  h1 { font-size:20px; text-align:center; margin:24px 0 6px; }
+  .subtitle { text-align:center; color:#999; font-size:13px; margin-bottom:24px; }
+
+  .searchBox { display:flex; gap:8px; margin-bottom:24px; }
+  .searchBox input {
+    flex:1; padding:12px; border-radius:8px; border:1px solid #333;
+    background:#1a1d2e; color:#eee; font-size:15px;
+  }
+  .searchBox button {
+    padding:12px 18px; border-radius:8px; border:none;
+    background:#e2593a; color:#fff; font-size:15px; cursor:pointer;
+  }
+  .searchBox button:disabled { opacity:.6; cursor:default; }
+
+  .hint { color:#777; font-size:12px; text-align:center; margin-top:-16px; margin-bottom:20px; }
+
+  .card {
+    background:#171a2b; border:1px solid #2a2d3e; border-radius:12px;
+    padding:18px; margin-bottom:16px; display:none;
+  }
+  .card.show { display:block; }
+
+  .shipNum { font-size:16px; font-weight:700; margin-bottom:2px; }
+  .shipType { color:#999; font-size:12px; margin-bottom:14px; }
+
+  .route {
+    background:#0f1220; border:1px solid #2a2d3e; border-radius:8px;
+    padding:10px 12px; font-size:13px; margin-bottom:16px;
+  }
+  .route div { margin-bottom:4px; }
+  .route .label { color:#888; font-size:11px; text-transform:uppercase; letter-spacing:.03em; }
+
+  .currentStatus {
+    display:inline-block; padding:6px 14px; border-radius:999px;
+    background:#2a3a7a; color:#dbe6ff; font-size:13px; font-weight:600;
+    text-transform:capitalize; margin-bottom:18px;
+  }
+
+  .timeline { list-style:none; margin:0; padding:0; }
+  .timeline li {
+    position:relative; padding:0 0 18px 22px; border-left:2px solid #2a2d3e;
+  }
+  .timeline li:last-child { border-left:2px solid transparent; padding-bottom:0; }
+  .timeline li::before {
+    content:''; position:absolute; left:-7px; top:2px; width:12px; height:12px;
+    border-radius:50%; background:#3b5bfd; border:2px solid #171a2b;
+  }
+  .timeline li.current::before { background:#e2593a; }
+  .tStatus { font-size:13px; font-weight:600; text-transform:capitalize; }
+  .tNote { font-size:12px; color:#bbb; margin-top:2px; }
+  .tWhen { font-size:11px; color:#777; margin-top:2px; }
+
+  .errorBox {
+    display:none; background:#2a1414; border:1px solid #5a2a2a; color:#f0a3a3;
+    border-radius:8px; padding:12px 14px; font-size:13px; margin-bottom:16px;
+  }
+  .errorBox.show { display:block; }
+
+  .loadingBox {
+    display:none; text-align:center; color:#999; font-size:13px; padding:20px 0;
+  }
+  .loadingBox.show { display:block; }
+</style>
+
+<style id="ungGlobalBrandStyle">
+  .ungGlobalBrand{
+    flex:0 0 auto;
+    width:100%;
+    min-height:58px;
+    padding:5px 12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#fff;
+    border-bottom:1px solid rgba(15,23,42,.12);
+    position:relative;
+    z-index:4200;
+  }
+  .ungGlobalBrand a{display:flex;align-items:center;justify-content:center;text-decoration:none;line-height:0;}
+  .ungGlobalBrand img{
+    display:block;
+    width:min(230px,62vw);
+    max-height:56px;
+    object-fit:contain;
+  }
+  @media(max-width:600px){
+    .ungGlobalBrand{min-height:52px;padding:4px 10px;}
+    .ungGlobalBrand img{width:min(205px,68vw);max-height:50px;}
+  }
+  @media print{
+    .ungGlobalBrand{border-bottom:0;padding:0 0 8px;min-height:0;}
+    .ungGlobalBrand img{width:190px;max-height:50px;}
+  }
+</style>
+
+</head>
+<body>
+<div class="ungGlobalBrand" id="ungGlobalBrand"><a href="/" aria-label="Uganda National Grid home"><img src="/assets/uganda-national-grid-logo.png" alt="Uganda National Grid" /></a></div>
+
+
+<div class="wrap">
+  <h1>Track Your Shipment</h1>
+  <div class="subtitle">Uganda National Grid — Ship &amp; Mail</div>
+
+  <div class="searchBox">
+    <input id="trackInput" placeholder="e.g. UG-SHIP-000001" autocomplete="off" />
+    <button id="trackBtn" onclick="doTrack()">Track</button>
+  </div>
+  <div class="hint">Enter the shipment number from your receipt</div>
+
+  <div class="errorBox" id="errorBox"></div>
+  <div class="loadingBox" id="loadingBox">Looking up shipment…</div>
+
+  <div class="card" id="resultCard">
+    <div class="shipNum" id="rShipNum"></div>
+    <div class="shipType" id="rShipType"></div>
+
+    <div class="route">
+      <div><span class="label">Pickup</span><br><span id="rPickup"></span></div>
+      <div><span class="label">Delivery</span><br><span id="rDelivery"></span></div>
+    </div>
+
+    <div id="rCurrentStatus"></div>
+
+    <ul class="timeline" id="rTimeline"></ul>
+  </div>
+</div>
+
+<script>
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+const input = document.getElementById('trackInput');
+input.addEventListener('keydown', (e) => { if (e.key === 'Enter') doTrack(); });
+
+// Support linking straight to a result, e.g. track.html?ship=UG-SHIP-000001
+const params = new URLSearchParams(window.location.search);
+const preset = params.get('ship');
+if (preset) {
+  input.value = preset;
+  doTrack();
+}
+
+async function doTrack() {
+  const shipmentNumber = input.value.trim();
+  const errorBox = document.getElementById('errorBox');
+  const loadingBox = document.getElementById('loadingBox');
+  const card = document.getElementById('resultCard');
+  const btn = document.getElementById('trackBtn');
+
+  errorBox.classList.remove('show');
+  card.classList.remove('show');
+
+  if (!shipmentNumber) {
+    errorBox.textContent = 'Enter a shipment number to track.';
+    errorBox.classList.add('show');
+    return;
+  }
+
+  btn.disabled = true;
+  loadingBox.classList.add('show');
+
+  try {
+    const res = await fetch('/ship/' + encodeURIComponent(shipmentNumber) + '/track');
+    if (!res.ok) {
+      if (res.status === 404) {
+        throw new Error("We couldn't find a shipment with that number. Double-check it and try again.");
+      }
+      throw new Error('Something went wrong looking up that shipment (status ' + res.status + ').');
+    }
+    const data = await res.json();
+    renderResult(data);
+  } catch (e) {
+    errorBox.textContent = e.message;
+    errorBox.classList.add('show');
+  } finally {
+    btn.disabled = false;
+    loadingBox.classList.remove('show');
+  }
+}
+
+function renderResult(data) {
+  document.getElementById('rShipNum').textContent = data.shipment_number;
+  document.getElementById('rShipType').textContent =
+    (data.shipment_type === 'international' ? 'International' : 'Domestic') + ' shipment';
+  document.getElementById('rPickup').textContent = data.pickup;
+  document.getElementById('rDelivery').textContent = data.delivery;
+  document.getElementById('rCurrentStatus').innerHTML =
+    `<span class="currentStatus">${escapeHtml((data.current_status || '').replace(/_/g, ' '))}</span>`;
+
+  const timelineEl = document.getElementById('rTimeline');
+  if (!data.history.length) {
+    timelineEl.innerHTML = '<li>No status history yet.</li>';
+  } else {
+    timelineEl.innerHTML = data.history.map((h, i) => {
+      const isCurrent = i === data.history.length - 1;
+      return `
+        <li class="${isCurrent ? 'current' : ''}">
+          <div class="tStatus">${escapeHtml(h.status.replace(/_/g, ' '))}</div>
+          ${h.note ? `<div class="tNote">${escapeHtml(h.note)}</div>` : ''}
+          <div class="tWhen">${escapeHtml(h.at)}</div>
+        </li>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('resultCard').classList.add('show');
+}
+</script>
+</body>
+</html>
