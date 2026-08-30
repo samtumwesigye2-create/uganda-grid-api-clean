@@ -1,28 +1,22 @@
-"""Postal assignment helpers for the finalized Uganda National Grid ZIP plan.
-
-The old 20xxx-30xxx automatic geometry is retired. Manual admin polygons remain
-valid overrides. Where a locality has a loaded population-cluster layer (see
-national_zip_clusters.py), coordinates resolve to an exact ZIP from that layer.
-Everywhere else, coordinates resolve to the finalized district allocation range
-and an exact ZIP is accepted only when explicitly supplied and verified as an
-active code inside that range.
-"""
+"""Postal assignment helpers for the finalized Uganda National Grid ZIP plan."""
 
 from fastapi import HTTPException
 from manual_zip_assignments import match_point as match_manual_zip
 from national_zip_coordinate import district_allocation_for_coordinate
 from national_zip_registry import lookup_zip
-from national_zip_clusters import cluster_zip_for_coordinate
+
+try:
+    from national_zip_clusters import cluster_zip_for_coordinate
+except ModuleNotFoundError:
+    def cluster_zip_for_coordinate(latitude, longitude):
+        return None
 
 
 def _manual_result(manual):
     code = str(manual.get("zip_code", "")).strip().zfill(5)
     canonical = lookup_zip(code)
     if not canonical or canonical.get("reserved"):
-        raise HTTPException(
-            status_code=409,
-            detail="Manual ZIP override uses a code that is not active in the finalized national registry",
-        )
+        raise HTTPException(status_code=409, detail="Manual ZIP override uses a code that is not active in the finalized national registry")
     return {
         "zip_code": code,
         "name": manual.get("name", ""),
@@ -37,19 +31,6 @@ def _manual_result(manual):
 
 
 def resolve_zip(latitude: float, longitude: float, region: str = "", zip_code: str = ""):
-    """Resolve/validate a finalized national ZIP for coordinates.
-
-    Resolution order:
-      1. Manual admin override (unchanged).
-      2. Explicit zip_code supplied by the caller (unchanged) -- validated
-         against the registry and, where available, against the coordinate's
-         district allocation range.
-      3. Population-cluster layer (national_zip_clusters.py) -- returns an
-         exact ZIP where a locality's cluster polygons have been loaded.
-      4. District allocation range with zip_code left empty
-         ("assignment_pending") -- the original fallback, for every locality
-         that doesn't have a cluster layer loaded yet.
-    """
     manual = match_manual_zip(latitude, longitude)
     if manual:
         return _manual_result(manual)
@@ -68,13 +49,9 @@ def resolve_zip(latitude: float, longitude: float, region: str = "", zip_code: s
             raise HTTPException(status_code=400, detail="ZIP code is outside the finalized national registry")
         if canonical.get("reserved"):
             raise HTTPException(status_code=400, detail="Reserved ZIP codes cannot be assigned to addresses")
-
         candidates = (allocation or {}).get("candidates", [])
-        if candidates:
-            allowed = any(c["zip_start"] <= requested <= c["zip_end"] for c in candidates)
-            if not allowed:
-                raise HTTPException(status_code=400, detail="ZIP code does not belong to the coordinate's district allocation")
-
+        if candidates and not any(c["zip_start"] <= requested <= c["zip_end"] for c in candidates):
+            raise HTTPException(status_code=400, detail="ZIP code does not belong to the coordinate's district allocation")
         return {
             "zip_code": requested,
             "name": canonical.get("district", ""),
@@ -89,10 +66,8 @@ def resolve_zip(latitude: float, longitude: float, region: str = "", zip_code: s
     cluster_result = cluster_zip_for_coordinate(latitude, longitude)
     if cluster_result:
         return cluster_result
-
     if not allocation:
         return None
-
     candidates = allocation.get("candidates", [])
     return {
         "zip_code": "",
@@ -106,4 +81,3 @@ def resolve_zip(latitude: float, longitude: float, region: str = "", zip_code: s
         "candidates": candidates,
         "detail": allocation.get("detail"),
     }
-
