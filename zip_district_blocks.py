@@ -69,18 +69,12 @@ ALBERTINE_RIFT_DISTRICTS = {
 }
 
 WEST_NILE_DISTRICTS = {
-    "Adjumani": {"start": 32250, "end": 32499},
-    "Arua District": {"start": 32500, "end": 32649},
-    "Arua City": {"start": 32650, "end": 32949},
-    "Moyo": {"start": 32950, "end": 33049},
-    "Nebbi": {"start": 33050, "end": 33299},
-    "Yumbe": {"start": 33300, "end": 34049},
-    "Koboko": {"start": 34050, "end": 34249},
-    "Maracha": {"start": 34250, "end": 34449},
-    "Zombo": {"start": 34450, "end": 34699},
-    "Pakwach": {"start": 34700, "end": 34849},
-    "Madi-Okollo": {"start": 34850, "end": 34999},
-    "Obongi": {"start": 35000, "end": 35149},
+    "Adjumani": {"start": 32250, "end": 32499}, "Arua District": {"start": 32500, "end": 32649},
+    "Arua City": {"start": 32650, "end": 32949}, "Moyo": {"start": 32950, "end": 33049},
+    "Nebbi": {"start": 33050, "end": 33299}, "Yumbe": {"start": 33300, "end": 34049},
+    "Koboko": {"start": 34050, "end": 34249}, "Maracha": {"start": 34250, "end": 34449},
+    "Zombo": {"start": 34450, "end": 34699}, "Pakwach": {"start": 34700, "end": 34849},
+    "Madi-Okollo": {"start": 34850, "end": 34999}, "Obongi": {"start": 35000, "end": 35149},
     "Terego": {"start": 35150, "end": 35399},
 }
 
@@ -141,9 +135,15 @@ KYOGA_KWANIA_DISTRICTS = {
     "Soroti City": {"start": 80900, "end": 80999}, "Kalaki": {"start": 81000, "end": 81149},
     "Amuria": {"start": 81150, "end": 81349}, "Bukedea": {"start": 81350, "end": 81599},
     "Katakwi": {"start": 81600, "end": 81799}, "Ngora": {"start": 81800, "end": 82099},
-    "Bukedi Combined": {"start": 82100, "end": 83849, "status": "pending_7_district_split"},
+    "Busia": {"population_2024": 412_018, "population_55m": 497_047, "start": 82100, "end": 82399},
+    "Pallisa": {"population_2024": 330_961, "population_55m": 399_082, "start": 82400, "end": 82649},
+    "Tororo": {"population_2024": 609_117, "population_55m": 734_693, "start": 82650, "end": 83099},
+    "Budaka": {"population_2024": 281_106, "population_55m": 339_067, "start": 83100, "end": 83299},
+    "Butaleja": {"population_2024": 312_713, "population_55m": 377_167, "start": 83300, "end": 83549},
+    "Kibuku": {"population_2024": 259_540, "population_55m": 313_051, "start": 83550, "end": 83749},
+    "Butebo": {"population_2024": 171_289, "population_55m": 206_616, "start": 83750, "end": 83899},
 }
-KYOGA_KWANIA_GROWTH_RESERVE = (83850, 89999)
+KYOGA_KWANIA_GROWTH_RESERVE = (83900, 89999)
 
 ASWA_SAVANNAH_DISTRICTS = {
     "Gulu": {"start": 90000, "end": 90099}, "Gulu City": {"start": 90100, "end": 90299},
