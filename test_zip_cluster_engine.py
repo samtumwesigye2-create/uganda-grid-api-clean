@@ -35,6 +35,20 @@ class ZipClusterEngineTests(unittest.TestCase):
         self.assertEqual(merged[1]["population"], 900)
         self.assertTrue(merged[1]["under_minimum_review"])
 
+    def test_mulajje_nkokonjeru_merge_allowed_under_same_town_council(self):
+        # Regression for the Buikwe 14703-14705 area: different wards/parishes
+        # may merge when their reconstructed administrative parent is identical.
+        units = [
+            {"subcounty": "Nkokonjeru Town Council", "parish": "Mulajje Ward", "population": 760, "source_parish": "Mulajje Ward", "source_unit_ids": ["mulajje-3"]},
+            {"subcounty": "Nkokonjeru Town Council", "parish": "Nkokonjeru Ward", "population": 820, "source_parish": "Nkokonjeru Ward", "source_unit_ids": ["nkokonjeru-1"]},
+        ]
+        merged = merge_undersized_units(units)
+        self.assertEqual(len(merged), 1)
+        self.assertEqual(merged[0]["subcounty"], "Nkokonjeru Town Council")
+        self.assertEqual(merged[0]["population"], 1580)
+        self.assertEqual(merged[0]["source_parishes"], ["Mulajje Ward", "Nkokonjeru Ward"])
+        self.assertFalse(merged[0].get("under_minimum_review", False))
+
     def test_never_merges_across_subcounty_boundary(self):
         units = [
             {"subcounty": "A", "parish": "Small A", "population": 700, "source_parish": "Small A", "source_unit_ids": ["a"]},
