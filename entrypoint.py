@@ -9,6 +9,8 @@ from national_zip_coordinate import district_allocation_for_coordinate
 from special_postal_zones import category_for_special_zip, namespace_summary
 from special_zip_assignments import list_assignments as list_special_zips, available_codes, category_catalog, persistence_status as special_persistence_status
 from manual_zip_assignments import persistence_status as manual_persistence_status
+from zip_cluster_engine import build_district_zip_clusters
+from buikwe_county_2024_fixture import BUIKWE_COUNTY_2024, EXPECTED_SOURCE_PARISHES, EXPECTED_SOURCE_POPULATION
 
 app.include_router(national_zip_router)
 
@@ -45,6 +47,25 @@ def national_search(q:str=Query(...,min_length=1)):
         seen.add(key);merged.append(item)
         if len(merged)>=50:break
     return {"count":len(merged),"results":merged}
+
+@app.get("/zip-clusters/pilot/buikwe-county")
+def buikwe_county_zip_clusters(include_clusters:bool=Query(default=True)):
+    result=build_district_zip_clusters(BUIKWE_COUNTY_2024,"Buikwe")
+    source_ok=(result["source_parishes"]==EXPECTED_SOURCE_PARISHES and result["source_population"]==EXPECTED_SOURCE_POPULATION)
+    baseline_ok=(result["assigned_zip_units"]==131 and result["clusters"][0]["zip_code"]=="14600" and result["clusters"][-1]["zip_code"]=="14730")
+    payload={
+        "pilot":"Buikwe County",
+        "status":"PASS" if source_ok and baseline_ok else "FAIL",
+        "source":"UBOS NPHC 2024",
+        "source_validated":source_ok,
+        "baseline_validated":baseline_ok,
+        **{k:v for k,v in result.items() if k!="clusters"},
+        "first_zip":result["clusters"][0]["zip_code"],
+        "last_zip":result["clusters"][-1]["zip_code"],
+        "cluster_population":sum(x["population"] for x in result["clusters"]),
+    }
+    if include_clusters:payload["clusters"]=result["clusters"]
+    return payload
 
 @app.get("/special-zips/namespace")
 def special_zip_namespace():return namespace_summary()
