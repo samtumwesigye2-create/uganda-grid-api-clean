@@ -1,24 +1,24 @@
 """UGAMAP population-based geographic ZIP policy.
 
-This module defines the planning rules for the next-generation automatic
-geographic ZIP generator. It intentionally does not renumber existing ZIPs.
-Existing/protected/manual/special ZIP assignments remain authoritative until
-migration is explicitly performed.
+Planning policy for the next-generation geographic ZIP generator. Existing,
+protected, manual and special ZIP assignments remain authoritative until an
+explicit migration is performed.
 """
 
 ZIP_POPULATION_MIN = 1000
 ZIP_POPULATION_TARGET = 1650
 ZIP_POPULATION_MAX = 2500
 
+# UNG planning baseline used for capacity engineering. Source population
+# datasets may be retained separately for geographic/distribution analysis.
+NATIONAL_PLANNING_POPULATION = 50_000_000
+NATIONAL_TARGET_ZIPS = 30_303  # round(50,000,000 / 1,650)
+
 # Five-digit national architecture.
 SPECIAL_NATIONAL_RANGE = (0, 9999)       # 00000-09999
 GEOGRAPHIC_RANGE = (10000, 99999)        # 10000-99999
 
-# The first allocation layer is the 10-state architecture. Numeric capacity
-# will be apportioned by verified state population before automatic issuance.
-STATE_ALLOCATION_MODE = "population_weighted"
-
-# Administrative/geographic hierarchy used to construct contiguous zones.
+STATE_ALLOCATION_MODE = "planning_population_weighted"
 ALLOCATION_HIERARCHY = (
     "state",
     "district",
@@ -26,7 +26,6 @@ ALLOCATION_HIERARCHY = (
     "population_cluster",
 )
 
-# Guardrails for generated zones.
 REQUIRE_CONTIGUOUS_GEOMETRY = True
 ALLOW_CROSS_STATE_ZIPS = False
 MANUAL_ASSIGNMENT_MODE = "override_only"
@@ -34,8 +33,17 @@ PRESERVE_EXISTING_ZIPS = True
 PRESERVE_SPECIAL_00XXX = True
 
 
+def zip_requirement(population: int) -> int:
+    """Return target ZIP count at the 1,650-person planning target."""
+    if population < 0:
+        raise ValueError("population must be non-negative")
+    return round(population / ZIP_POPULATION_TARGET)
+
+
 def policy_summary():
     return {
+        "planning_population": NATIONAL_PLANNING_POPULATION,
+        "national_target_zips": NATIONAL_TARGET_ZIPS,
         "population_per_zip": {
             "minimum": ZIP_POPULATION_MIN,
             "target": ZIP_POPULATION_TARGET,
@@ -51,5 +59,5 @@ def policy_summary():
         "manual_assignment": MANUAL_ASSIGNMENT_MODE,
         "preserve_existing_zips": PRESERVE_EXISTING_ZIPS,
         "preserve_special_00xxx": PRESERVE_SPECIAL_00XXX,
-        "status": "policy_locked_population_data_required_for_generation",
+        "status": "50m_planning_baseline_locked",
     }
