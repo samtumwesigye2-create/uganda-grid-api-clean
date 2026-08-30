@@ -1,1 +1,2375 @@
-{"type":"FeatureCollection","features":[]}
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11400",
+        "population": 1624,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.483978,
+              -0.005249
+            ],
+            [
+              32.48875,
+              -0.017044
+            ],
+            [
+              32.49025,
+              -0.014227
+            ],
+            [
+              32.490428,
+              -0.005207
+            ],
+            [
+              32.48986,
+              -0.004221
+            ],
+            [
+              32.488002,
+              -0.00404
+            ],
+            [
+              32.484019,
+              -0.004957
+            ],
+            [
+              32.483978,
+              -0.005249
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11401",
+        "population": 1624,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.475503,
+              0.005566
+            ],
+            [
+              32.476715,
+              0.003258
+            ],
+            [
+              32.480252,
+              -7.1e-05
+            ],
+            [
+              32.482953,
+              -0.001988
+            ],
+            [
+              32.483358,
+              0.00012
+            ],
+            [
+              32.479032,
+              0.00579
+            ],
+            [
+              32.475503,
+              0.005566
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11402",
+        "population": 1624,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.483553,
+              0.000266
+            ],
+            [
+              32.48406,
+              -0.0028
+            ],
+            [
+              32.489182,
+              -0.003372
+            ],
+            [
+              32.490635,
+              -0.001245
+            ],
+            [
+              32.488062,
+              0.002979
+            ],
+            [
+              32.486498,
+              0.005037
+            ],
+            [
+              32.483569,
+              0.002983
+            ],
+            [
+              32.483553,
+              0.000266
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11403",
+        "population": 1624,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.466514,
+              0.022691
+            ],
+            [
+              32.472663,
+              0.01305
+            ],
+            [
+              32.476596,
+              0.016597
+            ],
+            [
+              32.473486,
+              0.021258
+            ],
+            [
+              32.469323,
+              0.022686
+            ],
+            [
+              32.466514,
+              0.022691
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11404",
+        "population": 1624,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.479371,
+              0.011718
+            ],
+            [
+              32.481599,
+              0.007918
+            ],
+            [
+              32.483431,
+              0.006525
+            ],
+            [
+              32.489705,
+              0.006066
+            ],
+            [
+              32.490067,
+              0.011248
+            ],
+            [
+              32.488702,
+              0.012652
+            ],
+            [
+              32.483105,
+              0.012528
+            ],
+            [
+              32.479371,
+              0.011718
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11405",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.479037,
+              0.016228
+            ],
+            [
+              32.486628,
+              0.014595
+            ],
+            [
+              32.488221,
+              0.02144
+            ],
+            [
+              32.479663,
+              0.018308
+            ],
+            [
+              32.479037,
+              0.016228
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11406",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.462126,
+              0.032444
+            ],
+            [
+              32.46735,
+              0.02326
+            ],
+            [
+              32.471652,
+              0.026958
+            ],
+            [
+              32.472117,
+              0.02995
+            ],
+            [
+              32.462126,
+              0.032444
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11407",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.459213,
+              0.037871
+            ],
+            [
+              32.462286,
+              0.033908
+            ],
+            [
+              32.471069,
+              0.035474
+            ],
+            [
+              32.469365,
+              0.038528
+            ],
+            [
+              32.467069,
+              0.040947
+            ],
+            [
+              32.463992,
+              0.041379
+            ],
+            [
+              32.459213,
+              0.037871
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11408",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.460708,
+              0.045302
+            ],
+            [
+              32.462746,
+              0.04355
+            ],
+            [
+              32.465431,
+              0.042163
+            ],
+            [
+              32.467462,
+              0.043336
+            ],
+            [
+              32.468689,
+              0.047003
+            ],
+            [
+              32.468749,
+              0.047429
+            ],
+            [
+              32.461818,
+              0.049127
+            ],
+            [
+              32.460708,
+              0.045302
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11409",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.474807,
+              0.025293
+            ],
+            [
+              32.489284,
+              0.025906
+            ],
+            [
+              32.487974,
+              0.028841
+            ],
+            [
+              32.483102,
+              0.034429
+            ],
+            [
+              32.476809,
+              0.03385
+            ],
+            [
+              32.474925,
+              0.026886
+            ],
+            [
+              32.474807,
+              0.025293
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11410",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.472243,
+              0.037461
+            ],
+            [
+              32.478144,
+              0.036295
+            ],
+            [
+              32.479169,
+              0.036786
+            ],
+            [
+              32.480982,
+              0.04396
+            ],
+            [
+              32.482028,
+              0.049049
+            ],
+            [
+              32.473135,
+              0.049303
+            ],
+            [
+              32.472502,
+              0.04667
+            ],
+            [
+              32.472243,
+              0.037461
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11411",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.483161,
+              0.04409
+            ],
+            [
+              32.483242,
+              0.034463
+            ],
+            [
+              32.489353,
+              0.036328
+            ],
+            [
+              32.490085,
+              0.048927
+            ],
+            [
+              32.488634,
+              0.049199
+            ],
+            [
+              32.483161,
+              0.04409
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11412",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.46009,
+              0.051381
+            ],
+            [
+              32.463857,
+              0.049313
+            ],
+            [
+              32.466675,
+              0.049485
+            ],
+            [
+              32.477486,
+              0.054895
+            ],
+            [
+              32.472982,
+              0.058122
+            ],
+            [
+              32.469318,
+              0.057825
+            ],
+            [
+              32.460171,
+              0.053783
+            ],
+            [
+              32.46009,
+              0.051381
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11413",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.459427,
+              0.073149
+            ],
+            [
+              32.463425,
+              0.064268
+            ],
+            [
+              32.468768,
+              0.059344
+            ],
+            [
+              32.46963,
+              0.065962
+            ],
+            [
+              32.469166,
+              0.067306
+            ],
+            [
+              32.464894,
+              0.075434
+            ],
+            [
+              32.459427,
+              0.073149
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11414",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.471273,
+              0.059109
+            ],
+            [
+              32.478005,
+              0.060145
+            ],
+            [
+              32.476923,
+              0.067381
+            ],
+            [
+              32.475308,
+              0.0764
+            ],
+            [
+              32.471418,
+              0.075794
+            ],
+            [
+              32.471273,
+              0.059109
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11415",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.478844,
+              0.050113
+            ],
+            [
+              32.479202,
+              0.049428
+            ],
+            [
+              32.485557,
+              0.04995
+            ],
+            [
+              32.4901,
+              0.053485
+            ],
+            [
+              32.489406,
+              0.057748
+            ],
+            [
+              32.487533,
+              0.059893
+            ],
+            [
+              32.480742,
+              0.057747
+            ],
+            [
+              32.478844,
+              0.050113
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11416",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.478797,
+              0.061059
+            ],
+            [
+              32.489463,
+              0.06123
+            ],
+            [
+              32.490006,
+              0.061873
+            ],
+            [
+              32.490434,
+              0.062831
+            ],
+            [
+              32.489198,
+              0.067024
+            ],
+            [
+              32.485119,
+              0.067744
+            ],
+            [
+              32.479996,
+              0.062866
+            ],
+            [
+              32.478797,
+              0.061059
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11417",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.481987,
+              0.068097
+            ],
+            [
+              32.489539,
+              0.068811
+            ],
+            [
+              32.48867,
+              0.070966
+            ],
+            [
+              32.483276,
+              0.077411
+            ],
+            [
+              32.482138,
+              0.074314
+            ],
+            [
+              32.482109,
+              0.073161
+            ],
+            [
+              32.481987,
+              0.068097
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11418",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.447888,
+              0.085295
+            ],
+            [
+              32.453565,
+              0.078933
+            ],
+            [
+              32.457708,
+              0.078038
+            ],
+            [
+              32.461005,
+              0.080946
+            ],
+            [
+              32.462101,
+              0.083564
+            ],
+            [
+              32.461468,
+              0.084916
+            ],
+            [
+              32.447888,
+              0.085295
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11419",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.448926,
+              0.088763
+            ],
+            [
+              32.449737,
+              0.086049
+            ],
+            [
+              32.450665,
+              0.085362
+            ],
+            [
+              32.460258,
+              0.085918
+            ],
+            [
+              32.462198,
+              0.091465
+            ],
+            [
+              32.462831,
+              0.095921
+            ],
+            [
+              32.455343,
+              0.094212
+            ],
+            [
+              32.448926,
+              0.088763
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11420",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.454327,
+              0.097988
+            ],
+            [
+              32.456465,
+              0.095974
+            ],
+            [
+              32.458875,
+              0.097951
+            ],
+            [
+              32.459873,
+              0.100172
+            ],
+            [
+              32.460698,
+              0.103587
+            ],
+            [
+              32.457004,
+              0.101746
+            ],
+            [
+              32.454327,
+              0.097988
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11421",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.46366,
+              0.089854
+            ],
+            [
+              32.464562,
+              0.082334
+            ],
+            [
+              32.470094,
+              0.078199
+            ],
+            [
+              32.468812,
+              0.08525
+            ],
+            [
+              32.465607,
+              0.089894
+            ],
+            [
+              32.46366,
+              0.089854
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11422",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.46286,
+              0.100547
+            ],
+            [
+              32.464353,
+              0.091294
+            ],
+            [
+              32.469758,
+              0.090323
+            ],
+            [
+              32.47086,
+              0.091363
+            ],
+            [
+              32.469575,
+              0.096678
+            ],
+            [
+              32.46286,
+              0.100547
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11423",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.471132,
+              0.078857
+            ],
+            [
+              32.479221,
+              0.07802
+            ],
+            [
+              32.479157,
+              0.082733
+            ],
+            [
+              32.477664,
+              0.090499
+            ],
+            [
+              32.47425,
+              0.093499
+            ],
+            [
+              32.4724,
+              0.094002
+            ],
+            [
+              32.471776,
+              0.091851
+            ],
+            [
+              32.471132,
+              0.078857
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11424",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division A",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.479238,
+              0.082384
+            ],
+            [
+              32.480587,
+              0.078315
+            ],
+            [
+              32.486764,
+              0.078314
+            ],
+            [
+              32.48723,
+              0.078609
+            ],
+            [
+              32.487006,
+              0.081662
+            ],
+            [
+              32.486071,
+              0.082351
+            ],
+            [
+              32.479879,
+              0.086771
+            ],
+            [
+              32.479238,
+              0.082384
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11425",
+        "population": 1624,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.405316,
+              -0.142843
+            ],
+            [
+              32.414099,
+              -0.148479
+            ],
+            [
+              32.416096,
+              -0.14901
+            ],
+            [
+              32.430193,
+              -0.152253
+            ],
+            [
+              32.436825,
+              -0.144665
+            ],
+            [
+              32.433945,
+              -0.13931
+            ],
+            [
+              32.405316,
+              -0.142843
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11426",
+        "population": 1624,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.405759,
+              -0.117414
+            ],
+            [
+              32.406249,
+              -0.124619
+            ],
+            [
+              32.41155,
+              -0.129573
+            ],
+            [
+              32.422596,
+              -0.127821
+            ],
+            [
+              32.423317,
+              -0.119781
+            ],
+            [
+              32.414366,
+              -0.099025
+            ],
+            [
+              32.405759,
+              -0.117414
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11427",
+        "population": 1624,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.424142,
+              -0.117427
+            ],
+            [
+              32.438935,
+              -0.128586
+            ],
+            [
+              32.4397,
+              -0.098717
+            ],
+            [
+              32.438371,
+              -0.096568
+            ],
+            [
+              32.425612,
+              -0.096936
+            ],
+            [
+              32.424142,
+              -0.117427
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11428",
+        "population": 1624,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.445411,
+              -0.138563
+            ],
+            [
+              32.458277,
+              -0.149138
+            ],
+            [
+              32.465641,
+              -0.149984
+            ],
+            [
+              32.479909,
+              -0.149081
+            ],
+            [
+              32.486968,
+              -0.134877
+            ],
+            [
+              32.445411,
+              -0.138563
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11429",
+        "population": 1624,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.440134,
+              -0.108792
+            ],
+            [
+              32.443726,
+              -0.118581
+            ],
+            [
+              32.450838,
+              -0.123127
+            ],
+            [
+              32.466737,
+              -0.132777
+            ],
+            [
+              32.462466,
+              -0.102509
+            ],
+            [
+              32.449928,
+              -0.101548
+            ],
+            [
+              32.440134,
+              -0.108792
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11430",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.467073,
+              -0.108433
+            ],
+            [
+              32.469625,
+              -0.128747
+            ],
+            [
+              32.474415,
+              -0.133865
+            ],
+            [
+              32.480817,
+              -0.132332
+            ],
+            [
+              32.485243,
+              -0.11909
+            ],
+            [
+              32.487365,
+              -0.101448
+            ],
+            [
+              32.469159,
+              -0.104282
+            ],
+            [
+              32.467073,
+              -0.108433
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11431",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.403964,
+              -0.053858
+            ],
+            [
+              32.404036,
+              -0.061281
+            ],
+            [
+              32.404631,
+              -0.092075
+            ],
+            [
+              32.419584,
+              -0.081497
+            ],
+            [
+              32.417654,
+              -0.049086
+            ],
+            [
+              32.403964,
+              -0.053858
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11432",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.420858,
+              -0.090542
+            ],
+            [
+              32.427438,
+              -0.094845
+            ],
+            [
+              32.435757,
+              -0.092819
+            ],
+            [
+              32.446937,
+              -0.088534
+            ],
+            [
+              32.443814,
+              -0.083189
+            ],
+            [
+              32.435045,
+              -0.076936
+            ],
+            [
+              32.431792,
+              -0.077817
+            ],
+            [
+              32.420858,
+              -0.090542
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11433",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.421262,
+              -0.049938
+            ],
+            [
+              32.424492,
+              -0.075582
+            ],
+            [
+              32.433333,
+              -0.075559
+            ],
+            [
+              32.451322,
+              -0.049734
+            ],
+            [
+              32.421262,
+              -0.049938
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11434",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.451434,
+              -0.090235
+            ],
+            [
+              32.45205,
+              -0.091768
+            ],
+            [
+              32.457966,
+              -0.093642
+            ],
+            [
+              32.465829,
+              -0.095482
+            ],
+            [
+              32.480354,
+              -0.096504
+            ],
+            [
+              32.477335,
+              -0.089543
+            ],
+            [
+              32.451434,
+              -0.090235
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11435",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.45207,
+              -0.069971
+            ],
+            [
+              32.452463,
+              -0.08365
+            ],
+            [
+              32.458134,
+              -0.084836
+            ],
+            [
+              32.475237,
+              -0.083533
+            ],
+            [
+              32.479919,
+              -0.075112
+            ],
+            [
+              32.475852,
+              -0.068929
+            ],
+            [
+              32.457818,
+              -0.068723
+            ],
+            [
+              32.45207,
+              -0.069971
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11436",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.456777,
+              -0.050636
+            ],
+            [
+              32.457261,
+              -0.056039
+            ],
+            [
+              32.45798,
+              -0.059601
+            ],
+            [
+              32.460564,
+              -0.067114
+            ],
+            [
+              32.470983,
+              -0.060911
+            ],
+            [
+              32.475325,
+              -0.057365
+            ],
+            [
+              32.482359,
+              -0.051156
+            ],
+            [
+              32.46705,
+              -0.050001
+            ],
+            [
+              32.456777,
+              -0.050636
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11437",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.40318,
+              -0.036804
+            ],
+            [
+              32.413844,
+              -0.043604
+            ],
+            [
+              32.439913,
+              -0.045215
+            ],
+            [
+              32.434881,
+              -0.04065
+            ],
+            [
+              32.40388,
+              -0.022616
+            ],
+            [
+              32.40318,
+              -0.036804
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11438",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.405298,
+              -0.008746
+            ],
+            [
+              32.407584,
+              -0.018701
+            ],
+            [
+              32.411656,
+              -0.017036
+            ],
+            [
+              32.42028,
+              -0.009122
+            ],
+            [
+              32.421371,
+              -0.00569
+            ],
+            [
+              32.419989,
+              -0.002064
+            ],
+            [
+              32.411193,
+              -0.00201
+            ],
+            [
+              32.405298,
+              -0.008746
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11439",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.422448,
+              -0.014904
+            ],
+            [
+              32.439808,
+              -0.021883
+            ],
+            [
+              32.443906,
+              -0.019988
+            ],
+            [
+              32.440343,
+              -0.002224
+            ],
+            [
+              32.43374,
+              -0.001871
+            ],
+            [
+              32.430225,
+              -0.004355
+            ],
+            [
+              32.422448,
+              -0.014904
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11440",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.44754,
+              -0.038255
+            ],
+            [
+              32.459367,
+              -0.047916
+            ],
+            [
+              32.48329,
+              -0.047274
+            ],
+            [
+              32.488736,
+              -0.040434
+            ],
+            [
+              32.44754,
+              -0.038255
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11441",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.445853,
+              -0.035068
+            ],
+            [
+              32.464087,
+              -0.035035
+            ],
+            [
+              32.471883,
+              -0.02915
+            ],
+            [
+              32.470567,
+              -0.015948
+            ],
+            [
+              32.465726,
+              -0.005063
+            ],
+            [
+              32.463487,
+              -0.003032
+            ],
+            [
+              32.458616,
+              -0.002502
+            ],
+            [
+              32.456834,
+              -0.0047
+            ],
+            [
+              32.445853,
+              -0.035068
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11442",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.473734,
+              -0.002933
+            ],
+            [
+              32.4738,
+              -0.016856
+            ],
+            [
+              32.475435,
+              -0.029518
+            ],
+            [
+              32.481764,
+              -0.034357
+            ],
+            [
+              32.487265,
+              -0.033755
+            ],
+            [
+              32.482518,
+              -0.008259
+            ],
+            [
+              32.473734,
+              -0.002933
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11443",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.406308,
+              0.017931
+            ],
+            [
+              32.418838,
+              0.001834
+            ],
+            [
+              32.426044,
+              -0.001114
+            ],
+            [
+              32.433184,
+              0.013678
+            ],
+            [
+              32.432197,
+              0.0243
+            ],
+            [
+              32.422463,
+              0.022368
+            ],
+            [
+              32.406308,
+              0.017931
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11444",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.434364,
+              0.027837
+            ],
+            [
+              32.434628,
+              -0.000433
+            ],
+            [
+              32.447677,
+              -0.001761
+            ],
+            [
+              32.449307,
+              0.022472
+            ],
+            [
+              32.437189,
+              0.02738
+            ],
+            [
+              32.434364,
+              0.027837
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11445",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.449373,
+              0.025438
+            ],
+            [
+              32.450204,
+              0.016661
+            ],
+            [
+              32.454133,
+              0.004008
+            ],
+            [
+              32.468776,
+              -0.0001
+            ],
+            [
+              32.470621,
+              0.012596
+            ],
+            [
+              32.463871,
+              0.021262
+            ],
+            [
+              32.460812,
+              0.02249
+            ],
+            [
+              32.449373,
+              0.025438
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11446",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.407191,
+              0.030053
+            ],
+            [
+              32.414128,
+              0.030663
+            ],
+            [
+              32.415495,
+              0.035562
+            ],
+            [
+              32.416408,
+              0.046361
+            ],
+            [
+              32.410521,
+              0.052604
+            ],
+            [
+              32.408577,
+              0.052189
+            ],
+            [
+              32.407798,
+              0.042772
+            ],
+            [
+              32.407191,
+              0.030053
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11447",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.416891,
+              0.031887
+            ],
+            [
+              32.42327,
+              0.030591
+            ],
+            [
+              32.436597,
+              0.032937
+            ],
+            [
+              32.437761,
+              0.034061
+            ],
+            [
+              32.436033,
+              0.056011
+            ],
+            [
+              32.417343,
+              0.050578
+            ],
+            [
+              32.416891,
+              0.031887
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11448",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.44104,
+              0.029817
+            ],
+            [
+              32.448846,
+              0.029238
+            ],
+            [
+              32.458422,
+              0.032459
+            ],
+            [
+              32.460454,
+              0.033595
+            ],
+            [
+              32.458365,
+              0.042101
+            ],
+            [
+              32.450074,
+              0.051029
+            ],
+            [
+              32.443936,
+              0.04556
+            ],
+            [
+              32.44104,
+              0.029817
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "zip_code": "11449",
+        "population": 1623,
+        "district": "Wakiso",
+        "state_key": "KAMPALA_CENTRAL",
+        "subcounty": "Entebbe Municipality",
+        "source_parish": "Division B",
+        "geometry_status": "population_placeholder_with_demo_geometry"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              32.438753,
+              0.071118
+            ],
+            [
+              32.441228,
+              0.055705
+            ],
+            [
+              32.453622,
+              0.05567
+            ],
+            [
+              32.461369,
+              0.058356
+            ],
+            [
+              32.45903,
+              0.067786
+            ],
+            [
+              32.447172,
+              0.077497
+            ],
+            [
+              32.445719,
+              0.077409
+            ],
+            [
+              32.438753,
+              0.071118
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
