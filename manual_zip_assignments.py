@@ -16,20 +16,9 @@ BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 STORE=os.path.join(BASE_DIR,"manual_zip_assignments.json")
 DATABASE_URL=os.environ.get("DATABASE_URL","").strip()
 
-# Canonical ownership. ENT is a protected postal enclave geographically inside
-# Kampala Metropolitan, so all 21xxx Entebbe reserve ZIPs remain owned by KMP.
 REGION_TO_STATE={
-    "KLA":"KMP",
-    "JIN":"NIL",
-    "MBA":"WHS",
-    "MBL":"ELG",
-    "GUL":"NSV",
-    "ARU":"WNL",
-    "SOR":"EPL",
-    "MOR":"KRM",
-    "HOI":"ALB",
-    "MSK":"LKV",
-    "ENT":"KMP",
+    "KLA":"KMP","JIN":"NIL","MBA":"WHS","MBL":"ELG","GUL":"NSV",
+    "ARU":"WNL","SOR":"EPL","MOR":"KRM","HOI":"ALB","MSK":"LKV","ENT":"KMP",
 }
 
 def canonical_state_for_region(region):
@@ -68,29 +57,42 @@ def _init_db():
                 CREATE INDEX IF NOT EXISTS idx_manual_zip_region ON manual_zip_assignments(postal_region);
                 """)
         return True
-    finally:conn.close()
+    finally:
+        conn.close()
 
 def _load_json():
     try:
         with open(STORE,"r",encoding="utf-8") as f:
             return [_canonicalize_item(x) for x in json.load(f)]
-    except Exception:return []
+    except Exception:
+        return []
 
 def _save_json(items):
     with open(STORE,"w",encoding="utf-8") as f:
         json.dump([_canonicalize_item(x) for x in items],f,ensure_ascii=False,indent=2)
 
 def _load():
-    conn=_connect()
-    if not conn:return _load_json()
+    if not DATABASE_URL:
+        return _load_json()
+    conn=None
     try:
+        _init_db()
+        conn=_connect()
         with conn.cursor() as cur:
             cur.execute("SELECT zip_code,postal_region,state_code,name,geometry FROM manual_zip_assignments ORDER BY created_at,zip_code")
             rows=cur.fetchall()
         return [_canonicalize_item({"zip_code":r[0],"postal_region":r[1],"state_code":r[2],"name":r[3],"geometry":r[4],"manual":True}) for r in rows]
-    finally:conn.close()
+    except Exception as e:
+        # Manual assignments must never take down the national ZIP layer.
+        print("Manual ZIP database read unavailable:",e)
+        return []
+    finally:
+        if conn:
+            try:conn.close()
+            except Exception:pass
 
 def _insert_db(item):
+    _init_db()
     conn=_connect()
     if not conn:return False
     try:
@@ -103,6 +105,7 @@ def _insert_db(item):
     finally:conn.close()
 
 def _delete_db(zip_code):
+    _init_db()
     conn=_connect()
     if not conn:return None
     try:
@@ -129,37 +132,22 @@ def create_assignment(zip_code,region,state_code,name,geometry):
         raise ValueError("ZIP is not a reserve code for this region")
     if zip_code not in available_reserves(region):
         raise ValueError("Reserve ZIP already assigned")
-
     owner=canonical_state_for_region(region)
-    if not owner:
-        raise ValueError("Postal region has no registered state owner")
-
+    if not owner:raise ValueError("Postal region has no registered state owner")
     supplied=str(state_code or "").strip().upper()
     if supplied and supplied!=owner:
         raise ValueError(f"ZIP {zip_code} belongs to state {owner} and cannot be assigned to {supplied}")
-
     geom=shape(geometry)
     if geom.is_empty or not geom.is_valid or geom.geom_type not in {"Polygon","MultiPolygon"}:
         raise ValueError("Valid polygon geometry required")
-
-    item={
-        "zip_code":zip_code,
-        "postal_region":region,
-        "state_code":owner,
-        "name":name.strip() or zip_code,
-        "geometry":mapping(geom),
-        "manual":True,
-        "state_forced_by_zip":True,
-    }
-    if DATABASE_URL:
-        _insert_db(item)
+    item={"zip_code":zip_code,"postal_region":region,"state_code":owner,"name":name.strip() or zip_code,"geometry":mapping(geom),"manual":True,"state_forced_by_zip":True}
+    if DATABASE_URL:_insert_db(item)
     else:
         items=_load_json();items.append(item);_save_json(items)
     return item
 
 def delete_assignment(zip_code):
-    if DATABASE_URL:
-        return bool(_delete_db(zip_code))
+    if DATABASE_URL:return bool(_delete_db(zip_code))
     items=_load_json();new=[x for x in items if x.get("zip_code")!=zip_code]
     if len(new)==len(items):return False
     _save_json(new);return True
@@ -176,4 +164,4 @@ def feature_collection():
     return {"type":"FeatureCollection","features":[{"type":"Feature","properties":{k:v for k,v in x.items() if k!="geometry"},"geometry":x["geometry"]} for x in _load()]}
 
 try:_init_db()
-except Exception:pass
+except Exception as e:print("Manual ZIP database init unavailable:",e)
