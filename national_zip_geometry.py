@@ -13,6 +13,7 @@ from shapely.ops import unary_union
 from state_geometry import _state_geometries, DISTRICT_GEOJSON_URL
 from state_district_registry import DISTRICT_TO_STATE
 from postal_zones import REGIONS, ENTEBBE_BOUNDS
+from district_population import population_for_district
 
 STATE_TO_POSTAL = {
     "KMP": "KLA", "LKV": "MSK", "NIL": "JIN", "WHS": "MBA", "ELG": "MBL",
@@ -73,6 +74,46 @@ def _expand_to_target(clusters, target):
     return clusters
 
 
+def _expand_to_target_by_population(items, target):
+    """Same as _expand_to_target, but always splits the highest-population
+    piece rather than the largest-area piece, so dense areas (cities) get
+    cut into more/smaller ZIP zones than sparse rural land of the same size.
+
+    items: list of [geometry, population]. A split piece's population is
+    divided between the two halves in proportion to their area, since we
+    don't have population data finer than district level to split on.
+    """
+    items = [list(it) for it in items]
+    while len(items) < target:
+        idx = max(range(len(items)), key=lambda i: items[i][1])
+        geom, pop = items.pop(idx)
+        a, b = _bisect(geom)
+        total_area = a.area + b.area
+        pa, pb = (pop / 2, pop / 2) if total_area <= 0 else (pop * a.area / total_area, pop * b.area / total_area)
+        items.append([a, pa]); items.append([b, pb])
+    return items
+
+
+def _merge_to_target_by_population(items, target):
+    """Population-aware counterpart to _merge_to_target: merges the pair
+    with the smallest combined population first (preferring touching
+    neighbors), so sparse districts consolidate into fewer ZIP zones."""
+    items = [list(it) for it in items]
+    while len(items) > target:
+        best = None
+        for i in range(len(items)):
+            for j in range(i + 1, len(items)):
+                a, pa = items[i]; b, pb = items[j]
+                touching = a.touches(b) or a.intersects(b) or a.distance(b) < 1e-8
+                score = (0 if touching else 1, pa + pb, _distance(a, b))
+                if best is None or score < best[0]: best = (score, i, j)
+        _, i, j = best
+        a, pa = items[i]; b, pb = items[j]
+        merged = unary_union([a, b])
+        items = [it for k, it in enumerate(items) if k not in (i, j)] + [[merged, pa + pb]]
+    return items
+
+
 def _sort_local(zones): return sorted(zones,key=lambda g:(-g.representative_point().y,g.representative_point().x))
 
 def _entebbe_clip(kmp_geom):
@@ -104,13 +145,14 @@ def _zones():
     island_union=unary_union([g for name,_,g in districts if name in ISLAND_DISTRICTS])
     for state_code,(props,state_geom) in state_geoms.items():
         region=STATE_TO_POSTAL[state_code]; zip_codes=REGIONS[region]["zip_codes"]; target=len(zip_codes)
-        parts=[g for name,code,g in districts if code==state_code and name not in ISLAND_DISTRICTS]
+        parts=[(g,population_for_district(name)) for name,code,g in districts if code==state_code and name not in ISLAND_DISTRICTS]
         working=state_geom.difference(island_union)
         if state_code=="KMP":
-            enclave=_entebbe_clip(state_geom); working=working.difference(enclave); parts=[g.difference(enclave) for g in parts]; parts=[g for g in parts if not g.is_empty]
-        clusters=_merge_to_target(parts,target) if len(parts)>target else parts
-        clusters=_expand_to_target(clusters,target) if len(clusters)<target else clusters
-        clusters=_sort_local(clusters)
+            enclave=_entebbe_clip(state_geom); working=working.difference(enclave)
+            parts=[(g.difference(enclave),pop) for g,pop in parts]; parts=[(g,pop) for g,pop in parts if not g.is_empty]
+        items=_merge_to_target_by_population(parts,target) if len(parts)>target else [list(p) for p in parts]
+        items=_expand_to_target_by_population(items,target) if len(items)<target else items
+        clusters=_sort_local([g for g,_ in items])
         assigned=[]; covered=None
         for geom in clusters:
             clipped=geom.intersection(working)
@@ -155,3 +197,4 @@ def zip_feature_collection():
 def validation_status():
     zones=_zones(); ent_count=len(_entebbe_city_zones(dict((p["state_code"],g) for p,g in _state_geometries()).get("KMP")))+len(_island_zones(_district_geometries()))
     return {"state_count":len(zones),"state_zip_zone_count":sum(len(v["zones"]) for v in zones.values()),"entebbe_islands_zone_count":ent_count,"display_zone_count":sum(len(v["zones"]) for v in zones.values())+ent_count,"zones_per_state":{k:len(v["zones"]) for k,v in zones.items()},"method":"district/locality-based variable density allocation"}
+
