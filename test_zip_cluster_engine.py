@@ -1,5 +1,10 @@
 import unittest
 
+from buikwe_county_2024_fixture import (
+    BUIKWE_COUNTY_2024,
+    EXPECTED_SOURCE_PARISHES,
+    EXPECTED_SOURCE_POPULATION,
+)
 from zip_cluster_engine import (
     split_oversized_parishes,
     merge_undersized_units,
@@ -13,6 +18,38 @@ class ZipClusterEngineTests(unittest.TestCase):
         start, end, _, district = district_range("Buikwe")
         self.assertEqual((start, end), (14600, 14999))
         self.assertEqual(district, "Buikwe")
+
+    def test_buikwe_county_2024_official_baseline(self):
+        """Lock the verified UBOS Buikwe County pilot baseline.
+
+        This fixture is Buikwe County only, not the whole Buikwe District.
+        Under the canonical split/merge rules it produces 131 ZIP clusters.
+        """
+        self.assertEqual(len(BUIKWE_COUNTY_2024), EXPECTED_SOURCE_PARISHES)
+        self.assertEqual(EXPECTED_SOURCE_PARISHES, 31)
+        self.assertEqual(
+            sum(row["population"] for row in BUIKWE_COUNTY_2024),
+            EXPECTED_SOURCE_POPULATION,
+        )
+        self.assertEqual(EXPECTED_SOURCE_POPULATION, 188879)
+
+        result = build_district_zip_clusters(BUIKWE_COUNTY_2024, "Buikwe")
+        self.assertEqual(result["source_parishes"], 31)
+        self.assertEqual(result["source_population"], 188879)
+        self.assertEqual(result["split_units"], 131)
+        self.assertEqual(result["assigned_zip_units"], 131)
+        self.assertEqual(result["under_minimum_review_count"], 0)
+        self.assertEqual(result["remaining_capacity"], 269)
+
+        clusters = result["clusters"]
+        self.assertEqual(clusters[0]["zip_code"], "14600")
+        self.assertEqual(clusters[-1]["zip_code"], "14730")
+        self.assertEqual(
+            [row["zip_code"] for row in clusters],
+            [f"{14600 + i:05d}" for i in range(131)],
+        )
+        self.assertEqual(sum(row["population"] for row in clusters), 188879)
+        self.assertTrue(all(1000 <= row["population"] <= 2500 for row in clusters))
 
     def test_kitazi_6097_splits_into_four_near_equal_units(self):
         rows = [{"subcounty": "Example SC", "parish": "Kitazi", "population": 6097}]
@@ -36,8 +73,6 @@ class ZipClusterEngineTests(unittest.TestCase):
         self.assertTrue(merged[1]["under_minimum_review"])
 
     def test_mulajje_nkokonjeru_merge_allowed_under_same_town_council(self):
-        # Regression for the Buikwe 14703-14705 area: different wards/parishes
-        # may merge when their reconstructed administrative parent is identical.
         units = [
             {"subcounty": "Nkokonjeru Town Council", "parish": "Mulajje Ward", "population": 760, "source_parish": "Mulajje Ward", "source_unit_ids": ["mulajje-3"]},
             {"subcounty": "Nkokonjeru Town Council", "parish": "Nkokonjeru Ward", "population": 820, "source_parish": "Nkokonjeru Ward", "source_unit_ids": ["nkokonjeru-1"]},
