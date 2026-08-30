@@ -1,13 +1,17 @@
 """Production application entrypoint.
 
 Extends the existing Uganda National Grid FastAPI application with the finalized
-national ZIP registry, ZIP-aware search, and district-grounded coordinate lookup.
-Legacy 00xxx special ZIP assignments remain stored for history/admin migration but
-are not exposed as active address ZIPs because 00000-09999 is permanently reserved.
+national ZIP registry, ZIP-aware search, district-grounded coordinate lookup,
+and the active 00xxx special-ZIP namespace.
+
+Policy:
+- 00000-09999: special facilities only; never ordinary residential/district assignment.
+- Entebbe protected pilot ZIPs 21401-21405 remain grandfathered through the legacy
+  Entebbe resolver until an explicit migration is approved.
 """
 
 from fastapi import Query
-from main import app, addresses
+from main import app, addresses, special_zip_search_records
 from national_zip_api import router as national_zip_router
 from national_zip_registry import lookup_zip
 from national_zip_coordinate import district_allocation_for_coordinate
@@ -21,6 +25,10 @@ def _zip_search_result(query: str):
         return None
     result = lookup_zip(q.zfill(5))
     if not result:
+        return None
+    # Assigned special ZIPs are surfaced by special_zip_search_records().
+    # Do not add a generic duplicate result for the 00xxx namespace.
+    if result.get("special_only"):
         return None
     return {
         "grid_id": result["zip_code"],
@@ -57,7 +65,14 @@ def national_search(q: str = Query(..., min_length=1)):
     if zip_result:
         results.append(zip_result)
 
-    # Legacy 00xxx special assignments are intentionally excluded from active search.
+    special = [
+        a for a in special_zip_search_records()
+        if x in str(a.get("zip_code", "")).lower()
+        or x in str(a.get("address", "")).lower()
+        or x in str(a.get("locality", "")).lower()
+        or x in str(a.get("special_category", "")).lower()
+    ]
+
     normal = [
         a for a in addresses
         if x in str(a.get("grid_id", "")).lower()
@@ -67,7 +82,7 @@ def national_search(q: str = Query(..., min_length=1)):
 
     seen = set()
     merged = []
-    for item in results + normal:
+    for item in special + results + normal:
         key = (str(item.get("grid_id", "")), str(item.get("zip_code", "")), str(item.get("address", "")))
         if key in seen:
             continue
