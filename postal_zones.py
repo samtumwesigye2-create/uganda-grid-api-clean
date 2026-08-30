@@ -4,6 +4,10 @@ Postal allocation keeps the existing ZIP prefixes and locations while public
 region labels follow the new federal state names. Existing active, reserve,
 manual and protected ZIP assignments are not renumbered or moved.
 
+Katonga Highland State and Albertine Rift State each have 40 reserve ZIP codes
+for authorized admin assignment; other regions retain their existing reserve
+capacity.
+
 Existing Entebbe ZIP codes 21401-21405 remain permanently preserved.
 The expanded 21406-21420 capacity provides substantially more Lake Victoria
 island/locality coverage while retaining the common 21 prefix.
@@ -17,13 +21,13 @@ DENSE_REGIONS={"JIN","MBA","MBL","GUL"};STANDARD_REGIONS={"ARU","SOR","MOR","HOI
 REGIONS={
  "KLA":_region("Kampala Central State","20",50,"metropolitan"),
  "JIN":_region("Nile Source State","22",40,"dense"),
- "MBA":_region("Katonga Highland State","23",40,"dense"),
+ "MBA":_region("Katonga Highland State","23",40,"dense",40),
  "MBL":_region("Elgon Karamoja State","24",40,"dense"),
  "GUL":_region("Aswa Savannah State","25",40,"dense"),
  "ARU":_region("West Nile State","26",30,"standard"),
  "SOR":_region("Kyoga Kwania State","27",30,"standard"),
  "MOR":_region("Karamoja State","28",30,"standard"),
- "HOI":_region("Albertine Rift State","29",30,"standard"),
+ "HOI":_region("Albertine Rift State","29",30,"standard",40),
  "MSK":_region("Victoria Equatorial State","30",30,"standard"),
  "ENT":_region("Entebbe & Lake Victoria Islands","21",20,"islands"),
 }
