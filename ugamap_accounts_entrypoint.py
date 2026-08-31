@@ -9,10 +9,12 @@ from ugamap_admin_users import router as ugamap_admin_users_router
 from user_profile_store import user_for_token
 from incident_records.account_link import attach_reporter, vote_once, list_user_reports
 from incident_records.reputation import reputation_for, reputation_for_incident
+from backup_monitor import router as backup_monitor_router
 import backup_reconcile  # starts best-effort UGAMAP + UGASHIP backup worker
 
 app.include_router(ugamap_accounts_router)
 app.include_router(ugamap_admin_users_router)
+app.include_router(backup_monitor_router)
 
 def _account_user(authorization: str):
     value=(authorization or '').strip()
