@@ -58,8 +58,18 @@ app.include_router(ugamap_core_router)
 for route in list(app.router.routes):
     path = getattr(route, "path", None)
     methods = getattr(route, "methods", set())
-    if path in {"/search", "/address/{grid_id}", "/coordinates/lookup", "/app.js"} and "GET" in methods:
+    if path in {"/", "/search", "/address/{grid_id}", "/coordinates/lookup", "/app.js"} and "GET" in methods:
         app.router.routes.remove(route)
+
+
+@app.get("/", include_in_schema=False)
+def public_home_with_boundaries():
+    source = Path("index.html").read_text(encoding="utf-8")
+    if "/boundaries.js" not in source:
+        leaflet = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>'
+        injected = leaflet + '\n<script src="/boundaries.js?v=3"></script>'
+        source = source.replace(leaflet, injected, 1)
+    return Response(source, media_type="text/html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/search", tags=["UGAMAP Core Compatibility"])
@@ -82,12 +92,7 @@ def public_coordinate_lookup_via_core(
 
 @app.get("/app.js", include_in_schema=False)
 def public_app_js_via_core():
-    """Serve the existing UI with its routing call redirected to /core/route.
-
-    Keeping this adaptation in the Core wrapper means main/app.js stay untouched
-    until the migration PR is accepted, while browsers no longer call Valhalla
-    directly.
-    """
+    """Serve the existing UI with its routing call redirected to /core/route."""
     source = Path("app.js").read_text(encoding="utf-8")
     old_start = "  async function fetchValhalla(payload, attempt = 1) {"
     old_end = "  function decodeShape(str) {"
