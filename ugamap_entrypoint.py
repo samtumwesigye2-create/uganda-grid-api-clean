@@ -19,6 +19,7 @@ from ugamap_core import (
     configure_core,
     core_address,
     core_location,
+    core_reports,
     core_search,
     router as ugamap_core_router,
 )
@@ -58,7 +59,7 @@ app.include_router(ugamap_core_router)
 for route in list(app.router.routes):
     path = getattr(route, "path", None)
     methods = getattr(route, "methods", set())
-    if path in {"/", "/search", "/address/{grid_id}", "/coordinates/lookup", "/app.js"} and "GET" in methods:
+    if path in {"/", "/search", "/address/{grid_id}", "/coordinates/lookup", "/reports", "/app.js"} and "GET" in methods:
         app.router.routes.remove(route)
 
 
@@ -88,6 +89,11 @@ def public_coordinate_lookup_via_core(
     tolerance_m: float = Query(default=15.0, ge=0.0, le=500.0),
 ):
     return core_location(lat=lat, lon=lon, tolerance_m=tolerance_m)
+
+
+@app.get("/reports", tags=["UGAMAP Core Compatibility"])
+def public_reports_via_core():
+    return core_reports()
 
 
 @app.get("/app.js", include_in_schema=False)
