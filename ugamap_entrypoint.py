@@ -1,10 +1,9 @@
-"""Production entrypoint with UGAMAP Core enabled.
+"""Production entrypoint with UGAMAP Core enabled."""
 
-This wrapper leaves the existing production entrypoint intact, then attaches
-UGAMAP Core and routes public compatibility endpoints through it.
-"""
+from pathlib import Path
 
 from fastapi import Query
+from fastapi.responses import Response
 
 from entrypoint import app, national_search
 from main import (
@@ -41,9 +40,6 @@ def _core_address_lookup(grid_id: str):
 
 
 def _core_location_lookup(lat: float, lon: float, tolerance_m: float):
-    # Delegate to the proven coordinate resolver while Core becomes the
-    # stable public contract. This preserves nearest-address matching,
-    # state-boundary validation and ZIP assignment behavior exactly.
     return legacy_coordinate_lookup(lat=lat, lon=lon, tolerance_m=tolerance_m)
 
 
@@ -56,18 +52,13 @@ configure_core(
     address_lookup=_core_address_lookup,
     location_lookup=_core_location_lookup,
 )
-
 app.include_router(ugamap_core_router)
 
-# Keep the public app's existing contracts while routing them through Core.
+# Preserve public URLs while moving their implementation behind Core.
 for route in list(app.router.routes):
     path = getattr(route, "path", None)
     methods = getattr(route, "methods", set())
-    if path == "/search" and "GET" in methods:
-        app.router.routes.remove(route)
-    elif path == "/address/{grid_id}" and "GET" in methods:
-        app.router.routes.remove(route)
-    elif path == "/coordinates/lookup" and "GET" in methods:
+    if path in {"/search", "/address/{grid_id}", "/coordinates/lookup", "/app.js"} and "GET" in methods:
         app.router.routes.remove(route)
 
 
@@ -83,8 +74,61 @@ def public_address_via_core(grid_id: str):
 
 @app.get("/coordinates/lookup", tags=["UGAMAP Core Compatibility"])
 def public_coordinate_lookup_via_core(
-    lat: float = Query(...),
-    lon: float = Query(...),
+    lat: float = Query(...), lon: float = Query(...),
     tolerance_m: float = Query(default=15.0, ge=0.0, le=500.0),
 ):
     return core_location(lat=lat, lon=lon, tolerance_m=tolerance_m)
+
+
+@app.get("/app.js", include_in_schema=False)
+def public_app_js_via_core():
+    """Serve the existing UI with its routing call redirected to /core/route.
+
+    Keeping this adaptation in the Core wrapper means main/app.js stay untouched
+    until the migration PR is accepted, while browsers no longer call Valhalla
+    directly.
+    """
+    source = Path("app.js").read_text(encoding="utf-8")
+    old_start = "  async function fetchValhalla(payload, attempt = 1) {"
+    old_end = "  function decodeShape(str) {"
+    start = source.find(old_start)
+    end = source.find(old_end, start)
+    if start < 0 or end < 0:
+        return Response(source, media_type="application/javascript")
+
+    replacement = r'''  async function getRoute(a, b) {
+    const params = new URLSearchParams({
+      start_lat: String(a.lat), start_lon: String(a.lon),
+      dest_lat: String(b.lat), dest_lon: String(b.lon),
+      mode: mode.value
+    });
+    let lastError = null;
+    for (const base of apiCandidates()) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+        const r = await fetch(base + '/core/route?' + params.toString(), { signal: controller.signal });
+        clearTimeout(timeoutId);
+        const d = await r.json();
+        if (!r.ok) throw new Error((d && d.detail) || ('HTTP ' + r.status));
+        const pts = Array.isArray(d.points) ? d.points : [];
+        if (pts.length < 2) throw new Error('No route found');
+        const cumDist = computeCumDist(pts);
+        const maneuvers = parseManeuvers(d.maneuvers || [], pts, cumDist);
+        return {
+          pts,
+          distance: Number(d.distance_m || 0),
+          duration: Number(d.duration_s || 0),
+          maneuvers,
+          cumDist
+        };
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw lastError || new Error('UGAMAP routing service unavailable');
+  }
+
+'''
+    patched = source[:start] + replacement + source[end:]
+    return Response(patched, media_type="application/javascript", headers={"Cache-Control": "no-cache"})
