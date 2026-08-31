@@ -6,12 +6,12 @@
   function setToken(v) { if (v) localStorage.setItem(TOKEN_KEY, v); else localStorage.removeItem(TOKEN_KEY); }
   function authHeaders() { const t = token(); return t ? { Authorization: 'Bearer ' + t } : {}; }
   function form(data) { const x = new URLSearchParams(); Object.entries(data).forEach(([k,v]) => { if (v !== undefined && v !== null) x.set(k, v); }); return x; }
-  function esc(v) { return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
   function style() {
     if (document.getElementById('ugAcctStyle')) return;
     const s = document.createElement('style'); s.id='ugAcctStyle'; s.textContent=`
-      #ugAcctBtn{position:fixed;right:14px;top:14px;z-index:9500;border:1px solid #334155;background:#111827;color:#fff;border-radius:999px;padding:9px 13px;font:600 13px system-ui;box-shadow:0 6px 18px #0005}
+      #ugAcctBtn{display:none!important}
+      #ugAcctMoreBtn{width:100%;margin:0 0 12px;padding:11px 12px;border-radius:10px;border:1px solid var(--border-subtle,#334155);background:var(--bg-input,#111827);color:#fff;font:700 14px system-ui;text-align:left}
       #ugAcctModal{position:fixed;inset:0;z-index:12000;background:#0009;display:none;align-items:center;justify-content:center;padding:16px}
       #ugAcctCard{width:min(430px,100%);max-height:88vh;overflow:auto;background:#0f172a;color:#e5e7eb;border:1px solid #334155;border-radius:16px;padding:16px;font-family:system-ui}
       #ugAcctCard h3{margin:0 0 12px;font-size:18px} #ugAcctCard input{width:100%;padding:11px;border-radius:9px;border:1px solid #334155;background:#111827;color:#fff;margin:6px 0;font-size:16px}
@@ -21,11 +21,18 @@
     `; document.head.appendChild(s);
   }
 
+  function installMoreAccountButton(){
+    const more=document.querySelector('#moreOverlay .modal-box');
+    if(!more || document.getElementById('ugAcctMoreBtn')) return;
+    const b=document.createElement('button'); b.id='ugAcctMoreBtn'; b.type='button'; b.textContent='👤 Account';
+    const heading=more.querySelector('h3');
+    if(heading && heading.nextSibling) more.insertBefore(b,heading.nextSibling); else more.prepend(b);
+    b.onclick=()=>{ const overlay=document.getElementById('moreOverlay'); if(overlay) overlay.classList.remove('active'); open(); };
+  }
+
   function ensureUI() {
-    style();
-    if (!document.getElementById('ugAcctBtn')) {
-      const b=document.createElement('button'); b.id='ugAcctBtn'; b.type='button'; b.textContent='Account'; b.onclick=open; document.body.appendChild(b);
-    }
+    style(); installMoreAccountButton();
+    const old=document.getElementById('ugAcctBtn'); if(old) old.remove();
     if (document.getElementById('ugAcctModal')) return;
     const m=document.createElement('div'); m.id='ugAcctModal'; m.innerHTML=`<div id="ugAcctCard">
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><h3>UGAMAP Account</h3><button id="ugAcctClose" class="secondary" type="button">Close</button></div>
@@ -58,7 +65,7 @@
   function setMsg(text, bad=false){const e=document.getElementById('ugAcctMsg'); if(e){e.textContent=text||'';e.style.color=bad?'#fca5a5':'#86efac';}}
   function close(){const m=document.getElementById('ugAcctModal');if(m)m.style.display='none';}
   async function open(){ensureUI();document.getElementById('ugAcctModal').style.display='flex';await refreshUser();}
-  function render(){const guest=document.getElementById('ugAcctGuest'),profile=document.getElementById('ugAcctProfile'),btn=document.getElementById('ugAcctBtn'); if(!guest)return; const signed=!!currentUser;guest.style.display=signed?'none':'block';profile.style.display=signed?'block':'none';btn.textContent=signed?'Profile':'Account';if(signed){document.getElementById('ugAcctIdentity').textContent=currentUser.email||currentUser.id;document.getElementById('ugProfileEmail').value=currentUser.email||'';document.getElementById('ugProfilePhone').value=currentUser.phone||'';document.getElementById('ugProfileAddress').value=currentUser.address||'';}}
+  function render(){const guest=document.getElementById('ugAcctGuest'),profile=document.getElementById('ugAcctProfile'),btn=document.getElementById('ugAcctMoreBtn'); if(!guest)return; const signed=!!currentUser;guest.style.display=signed?'none':'block';profile.style.display=signed?'block':'none';if(btn)btn.textContent=signed?'👤 Profile':'👤 Account';if(signed){document.getElementById('ugAcctIdentity').textContent=currentUser.email||currentUser.id;document.getElementById('ugProfileEmail').value=currentUser.email||'';document.getElementById('ugProfilePhone').value=currentUser.phone||'';document.getElementById('ugProfileAddress').value=currentUser.address||'';}}
   async function api(path,opt={}){const r=await fetch(path,opt);let d={};try{d=await r.json();}catch(_){ }if(!r.ok)throw new Error(d.detail||('HTTP '+r.status));return d;}
   async function refreshUser(){if(!token()){currentUser=null;render();return;}try{currentUser=await api('/account/me',{headers:authHeaders()});render();}catch(e){setToken('');currentUser=null;render();setMsg('Session expired. Please log in again.',true);}}
   async function login(){setMsg('Signing in...');try{const d=await api('/account/login',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:form({email:document.getElementById('ugLoginEmail').value.trim(),password:document.getElementById('ugLoginPassword').value})});setToken(d.token);currentUser=d.user;render();setMsg('Logged in.');}catch(e){setMsg(e.message,true);}}
