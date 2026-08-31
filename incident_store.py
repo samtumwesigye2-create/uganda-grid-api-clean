@@ -1,14 +1,18 @@
-import os, threading, time
+import os, time
 
 DATABASE_URL=os.environ.get("DATABASE_URL","").strip()
-_lock=threading.Lock()
-_memory=[]
 
 
 def _connect():
     if not DATABASE_URL:return None
     import psycopg2
     return psycopg2.connect(DATABASE_URL)
+
+
+def _require_conn():
+    conn=_connect()
+    if not conn:raise RuntimeError("Durable PostgreSQL storage is required for incident changes")
+    return conn
 
 
 def init_incident_store():
@@ -33,20 +37,40 @@ def init_incident_store():
                     confirm_no INTEGER NOT NULL DEFAULT 0,
                     community_status VARCHAR(24) NOT NULL DEFAULT 'unverified'
                 );
+                CREATE TABLE IF NOT EXISTS ugamap_incident_audit(
+                    audit_id BIGSERIAL PRIMARY KEY,
+                    incident_id UUID NOT NULL,
+                    action VARCHAR(32) NOT NULL,
+                    value TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );
                 CREATE INDEX IF NOT EXISTS idx_ugamap_incidents_status_created ON ugamap_incidents(status,created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_ugamap_incidents_coords ON ugamap_incidents(lat,lon);
+                CREATE INDEX IF NOT EXISTS idx_ugamap_incident_audit_incident ON ugamap_incident_audit(incident_id,created_at DESC);
                 """)
         return True
     finally:conn.close()
 
 
+def persistence_status():
+    if not DATABASE_URL:return {"durable":False,"backend":"none","message":"DATABASE_URL is not configured; writes are blocked"}
+    try:
+        conn=_connect()
+        if not conn:return {"durable":False,"backend":"none","message":"PostgreSQL unavailable; writes are blocked"}
+        try:
+            with conn.cursor() as cur:cur.execute("SELECT 1");cur.fetchone()
+        finally:conn.close()
+        return {"durable":True,"backend":"postgresql","message":"Incident changes are stored permanently until changed by admin"}
+    except Exception as exc:
+        return {"durable":False,"backend":"postgresql","message":"PostgreSQL unavailable; writes are blocked","error":str(exc)[:160]}
+
+
+def _audit(cur,incident_id,action,value=""):
+    cur.execute("INSERT INTO ugamap_incident_audit(incident_id,action,value) VALUES(%s,%s,%s)",(incident_id,action,str(value or "")[:500]))
+
+
 def create_incident(record, media_data=None):
-    conn=_connect()
-    row=dict(record)
-    if not conn:
-        row['_media_data']=media_data
-        with _lock:_memory.append(row)
-        return dict(row)
+    conn=_require_conn();row=dict(record)
     try:
         with conn:
             with conn.cursor() as cur:
@@ -54,14 +78,14 @@ def create_incident(record, media_data=None):
                 (id,category,lat,lon,note,status,created_at,media_type,media_data,confirm_yes,confirm_no,community_status)
                 VALUES(%s,%s,%s,%s,%s,%s,to_timestamp(%s),%s,%s,%s,%s,%s)""",
                 (row['id'],row['category'],row['lat'],row['lon'],row.get('note',''),row.get('status','new'),row['created_at'],row.get('media_type'),media_data,row.get('confirm_yes',0),row.get('confirm_no',0),row.get('community_status','unverified')))
+                _audit(cur,row['id'],'created',row.get('status','new'))
         return get_incident(row['id'])
     finally:conn.close()
 
 
 def list_incidents():
     conn=_connect()
-    if not conn:
-        with _lock:return [public_row(x) for x in reversed(_memory)]
+    if not conn:return []
     try:
         with conn.cursor() as cur:
             cur.execute("""SELECT id,category,lat,lon,note,status,EXTRACT(EPOCH FROM created_at),EXTRACT(EPOCH FROM status_updated_at),media_type,(media_data IS NOT NULL),confirm_yes,confirm_no,community_status FROM ugamap_incidents ORDER BY created_at DESC""")
@@ -71,10 +95,7 @@ def list_incidents():
 
 def get_incident(incident_id):
     conn=_connect()
-    if not conn:
-        with _lock:
-            x=next((x for x in _memory if x['id']==incident_id),None)
-            return public_row(x) if x else None
+    if not conn:return None
     try:
         with conn.cursor() as cur:
             cur.execute("""SELECT id,category,lat,lon,note,status,EXTRACT(EPOCH FROM created_at),EXTRACT(EPOCH FROM status_updated_at),media_type,(media_data IS NOT NULL),confirm_yes,confirm_no,community_status FROM ugamap_incidents WHERE id=%s""",(incident_id,))
@@ -83,45 +104,32 @@ def get_incident(incident_id):
 
 
 def update_status(incident_id,status):
-    now=time.time();conn=_connect()
-    if not conn:
-        with _lock:
-            for x in _memory:
-                if x['id']==incident_id:
-                    x['status']=status;x['status_updated_at']=now;return public_row(x)
-        return None
+    now=time.time();conn=_require_conn()
     try:
         with conn:
-            with conn.cursor() as cur:cur.execute("UPDATE ugamap_incidents SET status=%s,status_updated_at=to_timestamp(%s) WHERE id=%s",(status,now,incident_id))
+            with conn.cursor() as cur:
+                cur.execute("UPDATE ugamap_incidents SET status=%s,status_updated_at=to_timestamp(%s) WHERE id=%s",(status,now,incident_id))
+                if cur.rowcount:_audit(cur,incident_id,'admin_status',status)
         return get_incident(incident_id)
     finally:conn.close()
 
 
 def confirm_incident(incident_id, confirmed):
-    conn=_connect()
-    if not conn:
-        with _lock:
-            for x in _memory:
-                if x['id']==incident_id:
-                    k='confirm_yes' if confirmed else 'confirm_no';x[k]=int(x.get(k,0))+1
-                    y,n=int(x.get('confirm_yes',0)),int(x.get('confirm_no',0));x['community_status']='confirmed' if y>=2 and y>n else ('disputed' if n>=2 and n>=y else 'unverified');return public_row(x)
-        return None
+    conn=_require_conn();col='confirm_yes' if confirmed else 'confirm_no'
     try:
-        col='confirm_yes' if confirmed else 'confirm_no'
         with conn:
             with conn.cursor() as cur:
                 cur.execute(f"UPDATE ugamap_incidents SET {col}={col}+1 WHERE id=%s",(incident_id,))
+                if not cur.rowcount:return None
                 cur.execute("""UPDATE ugamap_incidents SET community_status=CASE WHEN confirm_yes>=2 AND confirm_yes>confirm_no THEN 'confirmed' WHEN confirm_no>=2 AND confirm_no>=confirm_yes THEN 'disputed' ELSE 'unverified' END WHERE id=%s""",(incident_id,))
+                _audit(cur,incident_id,'community_vote','confirm' if confirmed else 'not_there')
         return get_incident(incident_id)
     finally:conn.close()
 
 
 def get_media(incident_id):
     conn=_connect()
-    if not conn:
-        with _lock:
-            x=next((x for x in _memory if x['id']==incident_id),None)
-            return ((x or {}).get('_media_data'),(x or {}).get('media_type')) if x else (None,None)
+    if not conn:return (None,None)
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT media_data,media_type FROM ugamap_incidents WHERE id=%s",(incident_id,));r=cur.fetchone()
@@ -129,11 +137,14 @@ def get_media(incident_id):
     finally:conn.close()
 
 
-def public_row(x):
-    if not x:return None
-    r={k:v for k,v in x.items() if not k.startswith('_')}
-    if x.get('_media_data') is not None:r['media_url']='/report-media/'+str(x['id'])
-    return r
+def incident_audit(incident_id):
+    conn=_connect()
+    if not conn:return []
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT audit_id,action,value,EXTRACT(EPOCH FROM created_at) FROM ugamap_incident_audit WHERE incident_id=%s ORDER BY created_at DESC",(incident_id,))
+            return [{"audit_id":r[0],"action":r[1],"value":r[2],"created_at":float(r[3])} for r in cur.fetchall()]
+    finally:conn.close()
 
 
 def _row(r):
