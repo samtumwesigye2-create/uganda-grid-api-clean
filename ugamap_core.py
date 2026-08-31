@@ -11,6 +11,7 @@ _state_lookup: Optional[Callable[[float, float], Any]] = None
 _zip_lookup: Optional[Callable[[float, float], Any]] = None
 _reports_source: Optional[Callable[[], Iterable[dict[str, Any]]]] = None
 _search_source: Optional[Callable[[str, int], Any]] = None
+_address_lookup: Optional[Callable[[str], Any]] = None
 
 
 def configure_core(
@@ -20,14 +21,16 @@ def configure_core(
     zip_lookup: Optional[Callable[[float, float], Any]] = None,
     reports_source: Optional[Callable[[], Iterable[dict[str, Any]]]] = None,
     search_source: Optional[Callable[[str, int], Any]] = None,
+    address_lookup: Optional[Callable[[str], Any]] = None,
 ) -> None:
     """Connect UGAMAP Core to the application's existing data/services."""
-    global _address_source, _state_lookup, _zip_lookup, _reports_source, _search_source
+    global _address_source, _state_lookup, _zip_lookup, _reports_source, _search_source, _address_lookup
     _address_source = address_source
     _state_lookup = state_lookup
     _zip_lookup = zip_lookup
     _reports_source = reports_source
     _search_source = search_source
+    _address_lookup = address_lookup
 
 
 def _addresses() -> list[dict[str, Any]]:
@@ -45,6 +48,10 @@ def _normalized_address(record: dict[str, Any]) -> dict[str, Any]:
         "state_code": record.get("state_code"),
         "state_name": record.get("state_name"),
         "address_type": record.get("address_type"),
+        **{k: v for k, v in record.items() if k not in {
+            "grid_id", "address", "display_name", "latitude", "longitude",
+            "zip_code", "state_code", "state_name", "address_type"
+        }},
     }
 
 
@@ -53,7 +60,7 @@ def core_status() -> dict[str, Any]:
     return {
         "status": "ok",
         "service": "UGAMAP Core",
-        "version": "1.1",
+        "version": "1.2",
         "records": len(_addresses()),
         "capabilities": ["address", "search", "location", "reports"],
     }
@@ -61,9 +68,19 @@ def core_status() -> dict[str, Any]:
 
 @router.get("/address/{grid_id}")
 def core_address(grid_id: str) -> dict[str, Any]:
-    key = grid_id.strip().lower()
+    key = grid_id.strip()
+    if _address_lookup:
+        try:
+            record = _address_lookup(key)
+        except HTTPException:
+            raise
+        if record:
+            return _normalized_address(dict(record))
+        raise HTTPException(status_code=404, detail="UGAMAP location not found")
+
+    lowered = key.lower()
     for record in _addresses():
-        if str(record.get("grid_id", "")).strip().lower() == key:
+        if str(record.get("grid_id", "")).strip().lower() == lowered:
             return _normalized_address(record)
     raise HTTPException(status_code=404, detail="UGAMAP location not found")
 
