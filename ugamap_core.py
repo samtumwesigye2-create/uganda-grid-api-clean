@@ -12,6 +12,7 @@ _zip_lookup: Optional[Callable[[float, float], Any]] = None
 _reports_source: Optional[Callable[[], Iterable[dict[str, Any]]]] = None
 _search_source: Optional[Callable[[str, int], Any]] = None
 _address_lookup: Optional[Callable[[str], Any]] = None
+_location_lookup: Optional[Callable[[float, float, float], Any]] = None
 
 
 def configure_core(
@@ -22,15 +23,17 @@ def configure_core(
     reports_source: Optional[Callable[[], Iterable[dict[str, Any]]]] = None,
     search_source: Optional[Callable[[str, int], Any]] = None,
     address_lookup: Optional[Callable[[str], Any]] = None,
+    location_lookup: Optional[Callable[[float, float, float], Any]] = None,
 ) -> None:
     """Connect UGAMAP Core to the application's existing data/services."""
-    global _address_source, _state_lookup, _zip_lookup, _reports_source, _search_source, _address_lookup
+    global _address_source, _state_lookup, _zip_lookup, _reports_source, _search_source, _address_lookup, _location_lookup
     _address_source = address_source
     _state_lookup = state_lookup
     _zip_lookup = zip_lookup
     _reports_source = reports_source
     _search_source = search_source
     _address_lookup = address_lookup
+    _location_lookup = location_lookup
 
 
 def _addresses() -> list[dict[str, Any]]:
@@ -60,9 +63,9 @@ def core_status() -> dict[str, Any]:
     return {
         "status": "ok",
         "service": "UGAMAP Core",
-        "version": "1.2",
+        "version": "1.3",
         "records": len(_addresses()),
-        "capabilities": ["address", "search", "location", "reports"],
+        "capabilities": ["address", "search", "location", "coordinate-resolution", "reports"],
     }
 
 
@@ -110,14 +113,31 @@ def core_search(q: str = Query(..., min_length=1), limit: int = Query(20, ge=1, 
 
 
 @router.get("/location")
-def core_location(lat: float = Query(...), lon: float = Query(...)) -> dict[str, Any]:
+def core_location(
+    lat: float = Query(...),
+    lon: float = Query(...),
+    tolerance_m: float = Query(default=15.0, ge=0.0, le=500.0),
+) -> dict[str, Any]:
+    if _location_lookup:
+        payload = _location_lookup(lat, lon, tolerance_m)
+        if payload is not None:
+            return dict(payload)
+
     state = _state_lookup(lat, lon) if _state_lookup else None
+    if not state:
+        raise HTTPException(status_code=400, detail="Coordinates are outside the validated Uganda state polygons")
+    if isinstance(state, dict) and state.get("ambiguous"):
+        raise HTTPException(status_code=409, detail="Coordinate lies on an ambiguous state boundary")
     postal = _zip_lookup(lat, lon) if _zip_lookup else None
     return {
         "latitude": lat,
         "longitude": lon,
+        "matched": False,
+        "created": False,
+        "tolerance_m": tolerance_m,
         "state": state,
         "postal": postal,
+        "assignment_required": True,
     }
 
 
