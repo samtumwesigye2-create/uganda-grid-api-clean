@@ -33,8 +33,28 @@ def _addresses():
     return list(_address_source() or [])
 
 
+def _clean_text(value):
+    if not isinstance(value, str):
+        return value
+    replacements = {
+        "â€”": "—", "â€“": "–", "â€˜": "‘", "â€™": "’",
+        "â€œ": "“", "â€": "”", "Â ": " ",
+    }
+    for broken, correct in replacements.items():
+        value = value.replace(broken, correct)
+    return value
+
+
+def _clean_payload(value):
+    if isinstance(value, dict):
+        return {k: _clean_payload(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_clean_payload(v) for v in value]
+    return _clean_text(value)
+
+
 def _normalized_address(record):
-    return {
+    normalized = {
         "grid_id": record.get("grid_id", ""),
         "address": record.get("address") or record.get("display_name") or record.get("grid_id", ""),
         "display_name": record.get("display_name") or record.get("address") or record.get("grid_id", ""),
@@ -43,6 +63,7 @@ def _normalized_address(record):
         "state_name": record.get("state_name"), "address_type": record.get("address_type"),
         **{k: v for k, v in record.items() if k not in {"grid_id","address","display_name","latitude","longitude","zip_code","state_code","state_name","address_type"}},
     }
+    return _clean_payload(normalized)
 
 
 def _haversine_m(lat1, lon1, lat2, lon2):
@@ -75,7 +96,7 @@ def _decode_shape(encoded):
 
 @router.get("/status")
 def core_status():
-    return {"status":"ok","service":"UGAMAP Core","version":"1.4","records":len(_addresses()),
+    return {"status":"ok","service":"UGAMAP Core","version":"1.4.1","records":len(_addresses()),
             "capabilities":["address","search","location","coordinate-resolution","routing","reports"]}
 
 
@@ -96,6 +117,7 @@ def core_search(q: str=Query(...,min_length=1), limit: int=Query(20,ge=1,le=50))
     if _search_source:
         payload = _search_source(q.strip(), limit)
         results = list(payload.get("results") or [])[:limit] if isinstance(payload,dict) else list(payload or [])[:limit]
+        results = _clean_payload(results)
         return {"count":len(results),"results":results}
     key=q.strip().lower(); matches=[]
     for record in _addresses():
@@ -110,12 +132,12 @@ def core_search(q: str=Query(...,min_length=1), limit: int=Query(20,ge=1,le=50))
 def core_location(lat: float=Query(...), lon: float=Query(...), tolerance_m: float=Query(15.0,ge=0.0,le=500.0)):
     if _location_lookup:
         payload=_location_lookup(lat,lon,tolerance_m)
-        if payload is not None: return dict(payload)
+        if payload is not None: return _clean_payload(dict(payload))
     state=_state_lookup(lat,lon) if _state_lookup else None
     if not state: raise HTTPException(status_code=400,detail="Coordinates are outside the validated Uganda state polygons")
     if isinstance(state,dict) and state.get("ambiguous"): raise HTTPException(status_code=409,detail="Coordinate lies on an ambiguous state boundary")
-    return {"latitude":lat,"longitude":lon,"matched":False,"created":False,"tolerance_m":tolerance_m,
-            "state":state,"postal":_zip_lookup(lat,lon) if _zip_lookup else None,"assignment_required":True}
+    return _clean_payload({"latitude":lat,"longitude":lon,"matched":False,"created":False,"tolerance_m":tolerance_m,
+            "state":state,"postal":_zip_lookup(lat,lon) if _zip_lookup else None,"assignment_required":True})
 
 
 @router.get("/route")
@@ -135,11 +157,11 @@ def core_route(start_lat: float, start_lon: float, dest_lat: float, dest_lon: fl
     leg=((data.get("trip") or {}).get("legs") or [None])[0]
     if not leg or not leg.get("shape"): raise HTTPException(status_code=404,detail="No route found")
     summary=leg.get("summary") or {}
-    return {"mode":mode,"points":_decode_shape(leg["shape"]),"distance_m":float(summary.get("length") or 0)*1000,
-            "duration_s":float(summary.get("time") or 0),"maneuvers":leg.get("maneuvers") or [],"provider":"valhalla"}
+    return _clean_payload({"mode":mode,"points":_decode_shape(leg["shape"]),"distance_m":float(summary.get("length") or 0)*1000,
+            "duration_s":float(summary.get("time") or 0),"maneuvers":leg.get("maneuvers") or [],"provider":"valhalla"})
 
 
 @router.get("/reports")
 def core_reports():
-    results=list(_reports_source() or []) if _reports_source else []
+    results=_clean_payload(list(_reports_source() or [])) if _reports_source else []
     return {"count":len(results),"results":results}
