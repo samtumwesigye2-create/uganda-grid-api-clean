@@ -15,8 +15,29 @@ window.addEventListener('load', () => {
   const map = L.map('map', { zoomControl: true }).setView([1.3733, 32.2903], 7);
   const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
+    keepBuffer: 6,
     attribution: '\u00A9 OpenStreetMap contributors'
   }).addTo(map);
+
+  // Fix: tiles were going fully blank on a signal drop with no retry.
+  // Retry failed tiles a few times with backoff instead of leaving them empty.
+  (function attachTileRetry(layer) {
+    const maxRetries = 4;
+    const retryCounts = new WeakMap();
+    layer.on('tileerror', (err) => {
+      const tile = err.tile;
+      if (!tile) return;
+      const attempts = retryCounts.get(tile) || 0;
+      if (attempts >= maxRetries) return;
+      retryCounts.set(tile, attempts + 1);
+      const delay = 800 * Math.pow(2, attempts); // 800ms, 1.6s, 3.2s, 6.4s
+      setTimeout(() => {
+        const src = tile.src;
+        tile.src = '';
+        tile.src = src;
+      }, delay);
+    });
+  })(streetLayer);
 
   let routeLine = null;
   let userMarker = null;
