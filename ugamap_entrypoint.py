@@ -8,7 +8,7 @@ from fastapi import Form, HTTPException, Query, UploadFile, File
 from fastapi.responses import Response
 
 from entrypoint import app, national_search
-from main import REPORTS, VALID_CATEGORIES, addresses, prune_reports, get_address as legacy_get_address, coordinate_lookup as legacy_coordinate_lookup
+from main import REPORTS, VALID_CATEGORIES, UPLOADS_DIR, addresses, prune_reports, get_address as legacy_get_address, coordinate_lookup as legacy_coordinate_lookup
 from postal_assignment import resolve_zip
 from state_geometry import state_for_coordinate
 from ugamap_core import configure_core, core_address, core_create_report, core_location, core_reports, core_search, router as ugamap_core_router
@@ -23,7 +23,7 @@ def _core_report_create(category: str, lat: float, lon: float, note: str):
     if category not in VALID_CATEGORIES:
         raise HTTPException(status_code=400, detail="Invalid category")
     prune_reports()
-    report={"id":str(uuid.uuid4()),"category":category,"lat":lat,"lon":lon,"note":str(note or "")[:200],"created_at":time.time()}
+    report={"id":str(uuid.uuid4()),"category":category,"lat":lat,"lon":lon,"note":str(note or "")[:200],"created_at":time.time(),"status":"new"}
     REPORTS.append(report)
     return report
 
@@ -57,7 +57,7 @@ def public_home_with_boundaries():
 @app.get("/admin",include_in_schema=False)
 def public_admin_with_report_notifications():
     source=Path("admin.html").read_text(encoding="utf-8")
-    scripts='<script src="/admin-zip-link.js"></script>\n<script src="/assets/admin-report-notifications.js?v=1"></script>'
+    scripts='<script src="/admin-zip-link.js"></script>\n<script src="/assets/admin-report-notifications.js?v=2"></script>'
     source=source.replace("</body>",scripts+"</body>") if "</body>" in source else source+scripts
     return Response(source,media_type="text/html",headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
 
@@ -76,7 +76,30 @@ def public_reports_via_core(): return core_reports()
 
 @app.post("/report",tags=["UGAMAP Core Compatibility"])
 async def public_report_via_core(category:str=Form(...),lat:float=Form(...),lon:float=Form(...),note:str=Form(""),file:UploadFile=File(None)):
-    return core_create_report(category=category,lat=lat,lon=lon,note=note)
+    media_url=None; media_type=None
+    if file and file.filename:
+        media_type=(file.content_type or "").lower()
+        if not (media_type.startswith("image/") or media_type.startswith("video/")):
+            raise HTTPException(status_code=400,detail="Report attachment must be an image or video")
+        data=await file.read()
+        if len(data)>15*1024*1024:
+            raise HTTPException(status_code=413,detail="Report attachment is too large (max 15MB)")
+        suffix=Path(file.filename).suffix.lower()
+        allowed={".jpg",".jpeg",".png",".gif",".webp",".heic",".heif",".mp4",".mov",".webm",".m4v"}
+        if suffix not in allowed:
+            suffix=".jpg" if media_type.startswith("image/") else ".mp4"
+        filename="report-"+uuid.uuid4().hex+suffix
+        Path(UPLOADS_DIR,filename).write_bytes(data)
+        media_url="/uploads/"+filename
+    report=core_create_report(category=category,lat=lat,lon=lon,note=note)
+    if media_url:
+        report["media_url"]=media_url; report["media_type"]=media_type
+        report_id=report.get("id")
+        for saved in REPORTS:
+            if saved.get("id")==report_id:
+                saved["media_url"]=media_url; saved["media_type"]=media_type
+                break
+    return report
 
 
 @app.get("/app.js",include_in_schema=False)
