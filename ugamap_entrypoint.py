@@ -42,7 +42,7 @@ app.include_router(ugamap_core_router)
 # Preserve public URLs while moving their implementation behind Core.
 for route in list(app.router.routes):
     path=getattr(route,"path",None); methods=getattr(route,"methods",set())
-    if path in {"/","/search","/address/{grid_id}","/coordinates/lookup","/reports","/app.js"} and "GET" in methods: app.router.routes.remove(route)
+    if path in {"/","/admin","/search","/address/{grid_id}","/coordinates/lookup","/reports","/app.js"} and "GET" in methods: app.router.routes.remove(route)
     if path=="/report" and "POST" in methods: app.router.routes.remove(route)
 
 
@@ -52,6 +52,14 @@ def public_home_with_boundaries():
     if "/boundaries.js" not in source:
         leaflet='<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>'; injected=leaflet+'\n<script src="/boundaries.js?v=3"></script>'; source=source.replace(leaflet,injected,1)
     return Response(source,media_type="text/html",headers={"Cache-Control":"no-cache"})
+
+
+@app.get("/admin",include_in_schema=False)
+def public_admin_with_report_notifications():
+    source=Path("admin.html").read_text(encoding="utf-8")
+    scripts='<script src="/admin-zip-link.js"></script>\n<script src="/assets/admin-report-notifications.js?v=1"></script>'
+    source=source.replace("</body>",scripts+"</body>") if "</body>" in source else source+scripts
+    return Response(source,media_type="text/html",headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
 
 
 @app.get("/search",tags=["UGAMAP Core Compatibility"])
