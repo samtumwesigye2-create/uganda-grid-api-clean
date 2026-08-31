@@ -4,32 +4,29 @@
   const originalMap = L.map;
   let initialized = false;
 
-  async function installRouteBranding() {
+  function installRouteBranding() {
     const logo = document.querySelector('.mapHeaderLogo');
     if (!logo) return;
     const originalSrc = logo.getAttribute('src') || '';
-    try {
-      const response = await fetch('/assets/ugamap-route-icon.txt', { cache: 'no-store' });
-      if (!response.ok) return;
-      const routeSrc = (await response.text()).trim();
-      if (!routeSrc.startsWith('data:image/png;base64,')) return;
-      if (!document.getElementById('ugamap-route-brand-style')) {
-        const style = document.createElement('style');
-        style.id = 'ugamap-route-brand-style';
-        style.textContent = 'body.navigating header .mapHeaderText{display:none!important}body.navigating header .titleWrap{justify-content:center!important}body.navigating header .mapHeaderLogo{width:42px!important;height:42px!important;object-fit:contain!important;background:transparent!important;border-radius:0!important}';
-        document.head.appendChild(style);
-      }
-      function syncRouteBranding() {
-        const navigating = document.body.classList.contains('navigating');
-        const wanted = navigating ? routeSrc : originalSrc;
-        if (logo.getAttribute('src') !== wanted) logo.setAttribute('src', wanted);
-        logo.alt = navigating ? 'UGAMAP' : 'Uganda National Grid';
-      }
-      new MutationObserver(syncRouteBranding).observe(document.body,{attributes:true,attributeFilter:['class']});
-      syncRouteBranding();
-    } catch (e) {
-      console.warn('UGAMAP route icon unavailable:', e);
+    // Fix: previously fetched a giant base64 .txt file at runtime, which kept
+    // arriving corrupted/truncated and produced a broken image during nav.
+    // Point straight at the PNG file instead - no fetch, no text parsing,
+    // browser caches it normally like any other image.
+    const routeSrc = '/assets/ugamap-nav-icon.png';
+    if (!document.getElementById('ugamap-route-brand-style')) {
+      const style = document.createElement('style');
+      style.id = 'ugamap-route-brand-style';
+      style.textContent = 'body.navigating header .mapHeaderText{display:none!important}body.navigating header .titleWrap{justify-content:center!important}body.navigating header .mapHeaderLogo{width:42px!important;height:42px!important;object-fit:contain!important;background:transparent!important;border-radius:0!important}';
+      document.head.appendChild(style);
     }
+    function syncRouteBranding() {
+      const navigating = document.body.classList.contains('navigating');
+      const wanted = navigating ? routeSrc : originalSrc;
+      if (logo.getAttribute('src') !== wanted) logo.setAttribute('src', wanted);
+      logo.alt = navigating ? 'UGAMAP' : 'Uganda National Grid';
+    }
+    new MutationObserver(syncRouteBranding).observe(document.body,{attributes:true,attributeFilter:['class']});
+    syncRouteBranding();
   }
   installRouteBranding();
 
