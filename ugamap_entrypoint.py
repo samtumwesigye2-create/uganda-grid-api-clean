@@ -4,11 +4,11 @@ from pathlib import Path
 import time
 import uuid
 
-from fastapi import Form, HTTPException, Query, UploadFile, File
+from fastapi import Form, Header, HTTPException, Query, UploadFile, File
 from fastapi.responses import Response
 
 from entrypoint import app, national_search
-from main import REPORTS, VALID_CATEGORIES, UPLOADS_DIR, addresses, prune_reports, get_address as legacy_get_address, coordinate_lookup as legacy_coordinate_lookup
+from main import REPORTS, VALID_CATEGORIES, UPLOADS_DIR, addresses, prune_reports, check_admin, get_address as legacy_get_address, coordinate_lookup as legacy_coordinate_lookup
 from postal_assignment import resolve_zip
 from state_geometry import state_for_coordinate
 from ugamap_core import configure_core, core_address, core_create_report, core_location, core_reports, core_search, router as ugamap_core_router
@@ -57,7 +57,7 @@ def public_home_with_boundaries():
 @app.get("/admin",include_in_schema=False)
 def public_admin_with_report_notifications():
     source=Path("admin.html").read_text(encoding="utf-8")
-    scripts='<script src="/admin-zip-link.js"></script>\n<script src="/assets/admin-report-notifications.js?v=2"></script>'
+    scripts='<script src="/admin-zip-link.js"></script>\n<script src="/assets/admin-report-notifications.js?v=3"></script>'
     source=source.replace("</body>",scripts+"</body>") if "</body>" in source else source+scripts
     return Response(source,media_type="text/html",headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
 
@@ -72,7 +72,9 @@ def public_address_via_core(grid_id:str): return core_address(grid_id)
 def public_coordinate_lookup_via_core(lat:float=Query(...),lon:float=Query(...),tolerance_m:float=Query(default=15.0,ge=0.0,le=500.0)): return core_location(lat=lat,lon=lon,tolerance_m=tolerance_m)
 
 @app.get("/reports",tags=["UGAMAP Core Compatibility"])
-def public_reports_via_core(): return core_reports()
+def public_reports_via_core():
+    payload=core_reports(); active=[r for r in payload.get("results",[]) if str(r.get("status","new")).lower()!="resolved"]
+    return {"count":len(active),"results":active}
 
 @app.post("/report",tags=["UGAMAP Core Compatibility"])
 async def public_report_via_core(category:str=Form(...),lat:float=Form(...),lon:float=Form(...),note:str=Form(""),file:UploadFile=File(None)):
@@ -84,22 +86,27 @@ async def public_report_via_core(category:str=Form(...),lat:float=Form(...),lon:
         data=await file.read()
         if len(data)>15*1024*1024:
             raise HTTPException(status_code=413,detail="Report attachment is too large (max 15MB)")
-        suffix=Path(file.filename).suffix.lower()
-        allowed={".jpg",".jpeg",".png",".gif",".webp",".heic",".heif",".mp4",".mov",".webm",".m4v"}
-        if suffix not in allowed:
-            suffix=".jpg" if media_type.startswith("image/") else ".mp4"
-        filename="report-"+uuid.uuid4().hex+suffix
-        Path(UPLOADS_DIR,filename).write_bytes(data)
-        media_url="/uploads/"+filename
+        suffix=Path(file.filename).suffix.lower(); allowed={".jpg",".jpeg",".png",".gif",".webp",".heic",".heif",".mp4",".mov",".webm",".m4v"}
+        if suffix not in allowed: suffix=".jpg" if media_type.startswith("image/") else ".mp4"
+        filename="report-"+uuid.uuid4().hex+suffix; Path(UPLOADS_DIR,filename).write_bytes(data); media_url="/uploads/"+filename
     report=core_create_report(category=category,lat=lat,lon=lon,note=note)
     if media_url:
         report["media_url"]=media_url; report["media_type"]=media_type
-        report_id=report.get("id")
         for saved in REPORTS:
-            if saved.get("id")==report_id:
-                saved["media_url"]=media_url; saved["media_type"]=media_type
-                break
+            if saved.get("id")==report.get("id"):
+                saved["media_url"]=media_url; saved["media_type"]=media_type; break
     return report
+
+
+@app.post("/admin/reports/{report_id}/status",tags=["UGAMAP Admin Reports"])
+def admin_report_status(report_id:str,status:str=Form(...),x_admin_passcode:str=Header(default="")):
+    check_admin(x_admin_passcode); value=status.strip().lower()
+    if value not in {"new","reviewed","resolved"}: raise HTTPException(status_code=400,detail="Status must be new, reviewed, or resolved")
+    prune_reports()
+    for report in REPORTS:
+        if report.get("id")==report_id:
+            report["status"]=value; report["status_updated_at"]=time.time(); return report
+    raise HTTPException(status_code=404,detail="Report not found")
 
 
 @app.get("/app.js",include_in_schema=False)
@@ -108,28 +115,11 @@ def public_app_js_via_core():
     old_start="  async function fetchValhalla(payload, attempt = 1) {"; old_end="  function decodeShape(str) {"; start=source.find(old_start); end=source.find(old_end,start)
     if start<0 or end<0:return Response(source,media_type="application/javascript")
     replacement=r'''  async function getRoute(a, b) {
-    const params = new URLSearchParams({
-      start_lat: String(a.lat), start_lon: String(a.lon),
-      dest_lat: String(b.lat), dest_lon: String(b.lon),
-      mode: mode.value
-    });
-    let lastError = null;
-    for (const base of apiCandidates()) {
-      try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000);
-        const r = await fetch(base + '/core/route?' + params.toString(), { signal: controller.signal });
-        clearTimeout(timeoutId);
-        const d = await r.json();
-        if (!r.ok) throw new Error((d && d.detail) || ('HTTP ' + r.status));
-        const pts = Array.isArray(d.points) ? d.points : [];
-        if (pts.length < 2) throw new Error('No route found');
-        const cumDist = computeCumDist(pts);
-        const maneuvers = parseManeuvers(d.maneuvers || [], pts, cumDist);
-        return {pts,distance:Number(d.distance_m||0),duration:Number(d.duration_s||0),maneuvers,cumDist};
-      } catch (e) { lastError = e; }
-    }
-    throw lastError || new Error('UGAMAP routing service unavailable');
+    const params = new URLSearchParams({start_lat:String(a.lat),start_lon:String(a.lon),dest_lat:String(b.lat),dest_lon:String(b.lon),mode:mode.value});
+    let lastError=null;
+    for(const base of apiCandidates()){
+      try{const controller=new AbortController();const timeoutId=setTimeout(()=>controller.abort(),12000);const r=await fetch(base+'/core/route?'+params.toString(),{signal:controller.signal});clearTimeout(timeoutId);const d=await r.json();if(!r.ok)throw new Error((d&&d.detail)||('HTTP '+r.status));const pts=Array.isArray(d.points)?d.points:[];if(pts.length<2)throw new Error('No route found');const cumDist=computeCumDist(pts);const maneuvers=parseManeuvers(d.maneuvers||[],pts,cumDist);return{pts,distance:Number(d.distance_m||0),duration:Number(d.duration_s||0),maneuvers,cumDist};}catch(e){lastError=e;}}
+    throw lastError||new Error('UGAMAP routing service unavailable');
   }
 
 '''
