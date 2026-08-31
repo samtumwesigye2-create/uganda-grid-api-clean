@@ -23,7 +23,11 @@ def _core_report_create(category: str, lat: float, lon: float, note: str):
     if category not in VALID_CATEGORIES:
         raise HTTPException(status_code=400, detail="Invalid category")
     prune_reports()
-    report={"id":str(uuid.uuid4()),"category":category,"lat":lat,"lon":lon,"note":str(note or "")[:200],"created_at":time.time(),"status":"new"}
+    report={
+        "id":str(uuid.uuid4()),"category":category,"lat":lat,"lon":lon,
+        "note":str(note or "")[:200],"created_at":time.time(),"status":"new",
+        "confirmed_count":0,"not_there_count":0,"community_status":"unverified"
+    }
     REPORTS.append(report)
     return report
 
@@ -98,6 +102,24 @@ async def public_report_via_core(category:str=Form(...),lat:float=Form(...),lon:
     return report
 
 
+@app.post("/reports/{report_id}/confirm",tags=["UGAMAP Reports"])
+def confirm_report(report_id:str,vote:str=Form(...)):
+    value=vote.strip().lower()
+    if value not in {"confirm","not_there"}: raise HTTPException(status_code=400,detail="Vote must be confirm or not_there")
+    prune_reports()
+    for report in REPORTS:
+        if report.get("id")==report_id:
+            if value=="confirm": report["confirmed_count"]=int(report.get("confirmed_count",0))+1
+            else: report["not_there_count"]=int(report.get("not_there_count",0))+1
+            yes=int(report.get("confirmed_count",0)); no=int(report.get("not_there_count",0))
+            if yes>=2 and yes>no: report["community_status"]="confirmed"
+            elif no>=2 and no>=yes: report["community_status"]="disputed"
+            else: report["community_status"]="unverified"
+            report["last_confirmation_at"]=time.time()
+            return report
+    raise HTTPException(status_code=404,detail="Report not found")
+
+
 @app.post("/admin/reports/{report_id}/status",tags=["UGAMAP Admin Reports"])
 def admin_report_status(report_id:str,status:str=Form(...),x_admin_passcode:str=Header(default="")):
     check_admin(x_admin_passcode); value=status.strip().lower()
@@ -124,4 +146,76 @@ def public_app_js_via_core():
 
 '''
     patched=source[:start]+replacement+source[end:]
+
+    # Replace the slow 30s incident refresh with a 5s refresh and add route-impact + nearby confirmation logic.
+    tail="""  fetchReports();\n  setInterval(fetchReports, 30000);"""
+    realtime=r'''  const ugIncidentSeen = new Set();
+  const ugConfirmationAsked = new Set(JSON.parse(localStorage.getItem('ugamap_confirm_asked') || '[]'));
+  const ugPenalty = { accident:480, road_closure:900, traffic:600, police:120, bridge:600, weather:300 };
+
+  function routePointsNow() {
+    if (liveNav && liveNav.route && Array.isArray(liveNav.route.pts)) return liveNav.route.pts;
+    if (navState && Array.isArray(navState.pts)) return navState.pts;
+    return [];
+  }
+
+  function incidentTouchesRoute(rep) {
+    const pts = routePointsNow();
+    if (!pts.length) return false;
+    const target = { lat:Number(rep.lat), lon:Number(rep.lon) };
+    if (!Number.isFinite(target.lat) || !Number.isFinite(target.lon)) return false;
+    const stride = Math.max(1, Math.floor(pts.length / 250));
+    for (let i=0;i<pts.length;i+=stride) {
+      const p = { lat:Number(pts[i][0]), lon:Number(pts[i][1]) };
+      if (haversine(p,target) <= 300) return true;
+    }
+    return false;
+  }
+
+  function applyIncidentEta(rep) {
+    if (!incidentTouchesRoute(rep)) return;
+    const sec = ugPenalty[rep.category] || 180;
+    const current = Number(window.__ugamapRemainingSeconds || (liveNav && liveNav.route && liveNav.route.duration) || (navState && navState.totalDurationSec) || 0);
+    if (current > 0) updateEta(current + sec);
+    setStatus('Incident ahead — ETA updated by about +' + Math.round(sec/60) + ' min', 'err');
+  }
+
+  function nearbyConfirmationPrompt(rep, distanceM) {
+    if (!rep.id || ugConfirmationAsked.has(rep.id)) return;
+    ugConfirmationAsked.add(rep.id);
+    localStorage.setItem('ugamap_confirm_asked', JSON.stringify(Array.from(ugConfirmationAsked).slice(-200)));
+    const box=document.createElement('div');
+    box.style.cssText='position:fixed;left:14px;right:14px;bottom:90px;z-index:99999;background:#101827;color:#fff;border:1px solid #334155;border-radius:14px;padding:14px;box-shadow:0 10px 30px #0008;font-family:system-ui';
+    const label=(REPORT_META[rep.category]&&REPORT_META[rep.category].label)||String(rep.category||'incident').replace(/_/g,' ');
+    box.innerHTML='<b>Is this '+escapeHtml(label)+' still here?</b><div style="font-size:12px;opacity:.75;margin-top:4px">Reported about '+Math.max(1,Math.round(distanceM))+' m from you.</div><div style="display:flex;gap:8px;margin-top:10px"><button data-v="confirm" style="flex:1;padding:10px;border:0;border-radius:9px;background:#16a34a;color:white">Yes, confirm</button><button data-v="not_there" style="flex:1;padding:10px;border:0;border-radius:9px;background:#475569;color:white">No longer there</button></div>';
+    box.querySelectorAll('button').forEach(btn=>btn.addEventListener('click',async()=>{
+      try{await fetch('/reports/'+encodeURIComponent(rep.id)+'/confirm',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({vote:btn.dataset.v})});}catch(e){}
+      box.remove(); fetchReports();
+    }));
+    document.body.appendChild(box);
+    setTimeout(()=>box.remove(),20000);
+  }
+
+  async function ugRealtimeIncidents() {
+    try {
+      const r=await fetch('/reports',{cache:'no-store'}); if(!r.ok)return;
+      const d=await r.json(); const rows=Array.isArray(d.results)?d.results:[];
+      rows.forEach(rep=>{ if(rep.id && !ugIncidentSeen.has(rep.id)){ ugIncidentSeen.add(rep.id); applyIncidentEta(rep); } });
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(pos=>{
+        const me={lat:pos.coords.latitude,lon:pos.coords.longitude};
+        rows.forEach(rep=>{
+          const p={lat:Number(rep.lat),lon:Number(rep.lon)}; if(!Number.isFinite(p.lat)||!Number.isFinite(p.lon))return;
+          const dist=haversine(me,p);
+          if(dist<=3000 && String(rep.status||'new').toLowerCase()!=='resolved') nearbyConfirmationPrompt(rep,dist);
+        });
+      },()=>{}, {enableHighAccuracy:false,maximumAge:30000,timeout:5000});
+    } catch(e) {}
+  }
+
+  fetchReports();
+  ugRealtimeIncidents();
+  setInterval(fetchReports, 5000);
+  setInterval(ugRealtimeIncidents, 5000);'''
+    if tail in patched: patched=patched.replace(tail,realtime,1)
     return Response(patched,media_type="application/javascript",headers={"Cache-Control":"no-cache"})
