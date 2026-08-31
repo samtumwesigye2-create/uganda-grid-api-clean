@@ -121,6 +121,19 @@ def available_reserves(region):
    if z not in used:values.append(z)
  return values
 
+def _repair_polygon(geometry):
+ try:
+  geom=shape(geometry)
+ except Exception:
+  raise ValueError("Valid polygon geometry required")
+ if geom.is_empty:raise ValueError("Valid polygon geometry required")
+ if not geom.is_valid:
+  try:geom=geom.buffer(0)
+  except Exception:pass
+ if geom.is_empty or not geom.is_valid or geom.geom_type not in {"Polygon","MultiPolygon"}:
+  raise ValueError("Draw a simple boundary without crossing lines")
+ return geom
+
 def create_assignment(zip_code,region,state_code,name,geometry):
  zip_code=str(zip_code or "").strip().zfill(5)
  meta=lookup_zip(zip_code)
@@ -131,8 +144,7 @@ def create_assignment(zip_code,region,state_code,name,geometry):
  requested_state=_state_key(region) or _state_key(state_code)
  if requested_state and requested_state!=owner:raise ValueError(f"ZIP {zip_code} belongs to {meta.get('state_name')} and cannot be assigned to another state")
  if zip_code in {str(x.get("zip_code","")).zfill(5) for x in _load()}:raise ValueError("ZIP already has a manual boundary")
- geom=shape(geometry)
- if geom.is_empty or not geom.is_valid or geom.geom_type not in {"Polygon","MultiPolygon"}:raise ValueError("Valid polygon geometry required")
+ geom=_repair_polygon(geometry)
  item={"zip_code":zip_code,"postal_region":owner,"state_code":owner,"state_name":meta.get("state_name"),"district":meta.get("district"),"name":name.strip() or zip_code,"geometry":mapping(geom),"manual":True,"state_forced_by_zip":True,"persistent":bool(DATABASE_URL)}
  if DATABASE_URL:_upsert_db(item,overwrite=False)
  else:
