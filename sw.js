@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ugamap-cache-v2';
+const CACHE_NAME = 'ugamap-cache-v3';
 const APP_SHELL = ['/', '/app.js', '/boundaries.js'];
 
 self.addEventListener('install', event => {
@@ -27,37 +27,11 @@ self.addEventListener('fetch', event => {
   const parsed = new URL(req.url);
   const url = req.url;
 
-  // Safely inject the boundary module before the existing map application.
-  // This avoids rewriting the large working index.html while preserving the
-  // required execution order: Leaflet -> boundaries.js -> app.js.
-  if (parsed.origin === self.location.origin && parsed.pathname === '/app.js') {
-    event.respondWith((async () => {
-      try {
-        const [boundaryRes, appRes] = await Promise.all([
-          fetch('/boundaries.js', { cache: 'no-store' }),
-          fetch(req, { cache: 'no-store' })
-        ]);
-        if (!appRes.ok) return appRes;
-        const appText = await appRes.text();
-        const boundaryText = boundaryRes.ok ? await boundaryRes.text() : '';
-        const combined = boundaryText + '\n\n' + appText;
-        const response = new Response(combined, {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/javascript; charset=utf-8',
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
-          }
-        });
-        const cache = await caches.open(CACHE_NAME);
-        cache.put(req, response.clone()).catch(() => {});
-        return response;
-      } catch (_) {
-        const cached = await caches.match(req);
-        return cached || fetch(req);
-      }
-    })());
-    return;
-  }
+  // Note: boundaries.js is now loaded directly via a <script> tag in
+  // index.html, so it no longer needs to be injected here. (Previously this
+  // combined boundaries.js + app.js on every /app.js request, which - once
+  // the direct script tag was added - caused boundaries.js to run twice and
+  // double-initialize the map layers.)
 
   // Map tiles + Leaflet library: cache-first so recently viewed areas and
   // the map library keep working with a weak/lost connection.
@@ -89,5 +63,5 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Everything else (API calls, search, routing): always go to the network.
+  // Everything else (API calls, search, routing, app.js, boundaries.js): always go to the network.
 });
