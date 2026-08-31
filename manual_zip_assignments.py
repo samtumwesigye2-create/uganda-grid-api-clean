@@ -5,7 +5,7 @@ validate against the finalized national ZIP registry instead of the retired
 20xxx/29xxx regional reserve lists.
 """
 import json, os
-from shapely.geometry import shape, mapping, Point
+from shapely.geometry import shape, mapping, Point, MultiPoint
 from national_zip_registry import STATE_BLOCKS, lookup_zip
 
 BASE_DIR=os.path.dirname(os.path.abspath(__file__))
@@ -110,7 +110,6 @@ def _delete_db(zip_code):
 
 def list_assignments():return _load()
 def available_reserves(region):
- """Compatibility endpoint: return currently unused active ZIPs in a finalized state block."""
  key=_state_key(region)
  if not key:return []
  used={str(x.get("zip_code","")).zfill(5) for x in _load()}
@@ -125,14 +124,24 @@ def _repair_polygon(geometry):
  try:
   geom=shape(geometry)
  except Exception:
-  raise ValueError("Valid polygon geometry required")
- if geom.is_empty:raise ValueError("Valid polygon geometry required")
- if not geom.is_valid:
-  try:geom=geom.buffer(0)
+  geom=None
+ if geom is not None and not geom.is_empty and geom.is_valid and geom.geom_type in {"Polygon","MultiPolygon"}:
+  return geom
+ if geom is not None and not geom.is_empty:
+  try:
+   fixed=geom.buffer(0)
+   if not fixed.is_empty and fixed.is_valid and fixed.geom_type in {"Polygon","MultiPolygon"}:return fixed
   except Exception:pass
- if geom.is_empty or not geom.is_valid or geom.geom_type not in {"Polygon","MultiPolygon"}:
-  raise ValueError("Draw a simple boundary without crossing lines")
- return geom
+ # Mobile map taps can arrive out of perimeter order and create a self-crossing ring.
+ # Build a safe boundary around the tapped points instead of rejecting the assignment.
+ try:
+  coords=((geometry or {}).get("coordinates") or [[]])[0]
+  points=[(float(x),float(y)) for x,y,*_ in coords]
+  if len(points)>1 and points[0]==points[-1]:points=points[:-1]
+  hull=MultiPoint(points).convex_hull
+  if not hull.is_empty and hull.is_valid and hull.geom_type=="Polygon":return hull
+ except Exception:pass
+ raise ValueError("Draw at least 3 distinct boundary points")
 
 def create_assignment(zip_code,region,state_code,name,geometry):
  zip_code=str(zip_code or "").strip().zfill(5)
