@@ -10,6 +10,7 @@ _address_source: Callable[[], Iterable[dict[str, Any]]] = lambda: []
 _state_lookup: Optional[Callable[[float, float], Any]] = None
 _zip_lookup: Optional[Callable[[float, float], Any]] = None
 _reports_source: Optional[Callable[[], Iterable[dict[str, Any]]]] = None
+_search_source: Optional[Callable[[str, int], Any]] = None
 
 
 def configure_core(
@@ -18,18 +19,15 @@ def configure_core(
     state_lookup: Optional[Callable[[float, float], Any]] = None,
     zip_lookup: Optional[Callable[[float, float], Any]] = None,
     reports_source: Optional[Callable[[], Iterable[dict[str, Any]]]] = None,
+    search_source: Optional[Callable[[str, int], Any]] = None,
 ) -> None:
-    """Connect UGAMAP Core to the application's existing data/services.
-
-    The core is intentionally adapter-based so the public app, admin tools,
-    routing, DCS and future services can share one location contract without
-    owning each other's storage.
-    """
-    global _address_source, _state_lookup, _zip_lookup, _reports_source
+    """Connect UGAMAP Core to the application's existing data/services."""
+    global _address_source, _state_lookup, _zip_lookup, _reports_source, _search_source
     _address_source = address_source
     _state_lookup = state_lookup
     _zip_lookup = zip_lookup
     _reports_source = reports_source
+    _search_source = search_source
 
 
 def _addresses() -> list[dict[str, Any]]:
@@ -52,13 +50,12 @@ def _normalized_address(record: dict[str, Any]) -> dict[str, Any]:
 
 @router.get("/status")
 def core_status() -> dict[str, Any]:
-    records = _addresses()
     return {
         "status": "ok",
         "service": "UGAMAP Core",
-        "version": "1.0",
-        "records": len(records),
-        "capabilities": ["address", "location", "reports"],
+        "version": "1.1",
+        "records": len(_addresses()),
+        "capabilities": ["address", "search", "location", "reports"],
     }
 
 
@@ -73,6 +70,14 @@ def core_address(grid_id: str) -> dict[str, Any]:
 
 @router.get("/search")
 def core_search(q: str = Query(..., min_length=1), limit: int = Query(20, ge=1, le=50)) -> dict[str, Any]:
+    if _search_source:
+        payload = _search_source(q.strip(), limit)
+        if isinstance(payload, dict):
+            results = list(payload.get("results") or [])[:limit]
+            return {"count": len(results), "results": results}
+        results = list(payload or [])[:limit]
+        return {"count": len(results), "results": results}
+
     key = q.strip().lower()
     matches: list[dict[str, Any]] = []
     for record in _addresses():
