@@ -8,10 +8,6 @@
     const logo = document.querySelector('.mapHeaderLogo');
     if (!logo) return;
     const originalSrc = logo.getAttribute('src') || '';
-    // Fix: previously fetched a giant base64 .txt file at runtime, which kept
-    // arriving corrupted/truncated and produced a broken image during nav.
-    // Point straight at the PNG file instead - no fetch, no text parsing,
-    // browser caches it normally like any other image.
     const routeSrc = '/assets/ugamap-nav-icon.png';
     if (!document.getElementById('ugamap-route-brand-style')) {
       const style = document.createElement('style');
@@ -30,10 +26,38 @@
   }
   installRouteBranding();
 
+  const API_BASES = (() => {
+    const out = [];
+    if (location.protocol && location.protocol.indexOf('http') === 0) out.push(location.origin);
+    out.push('https://uganda-grid-api-clean-production.up.railway.app');
+    return Array.from(new Set(out));
+  })();
+
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+
   async function getJson(path) {
-    const r = await fetch(path,{headers:{Accept:'application/json'},cache:'no-store'});
-    if (!r.ok) throw new Error(path+' returned HTTP '+r.status);
-    return r.json();
+    let lastError = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      for (const base of API_BASES) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 20000);
+          const r = await fetch(base + path, {
+            headers: {Accept:'application/json'},
+            cache:'no-store',
+            signal: controller.signal
+          });
+          clearTimeout(timer);
+          if (!r.ok) throw new Error(path+' returned HTTP '+r.status);
+          const data = await r.json();
+          return data;
+        } catch (e) {
+          lastError = e;
+        }
+      }
+      await wait(1200 * Math.pow(2, attempt));
+    }
+    throw lastError || new Error(path+' unavailable');
   }
 
   async function safeGeoJson(path) {
@@ -70,7 +94,7 @@
       });
 
       const palette=['#38bdf8','#22c55e','#facc15','#c084fc','#fb7185','#2dd4bf','#fb923c','#60a5fa','#a3e635','#f472b6'];
-      const zipLayer = L.geoJSON(zips, {
+      const zipOptions = {
         style:function(f){
           const zip=String((f.properties||{}).zip_code||'');
           const n=Number(zip.slice(-2))||1;
@@ -83,9 +107,10 @@
           layer.bindPopup('<b>Geographic ZIP '+zip+'</b><br>'+(p.state_name||'')+'<br>Region: '+(p.postal_region||'')+'<br><small>Special national facilities inside this area may have their own 00xxx ZIP.</small>');
           layer._ugamapZip=zip;
         }
-      });
+      };
+      const zipLayer = L.geoJSON(zips, zipOptions);
 
-      const specialLayer = L.geoJSON(specialZips, {
+      const specialOptions = {
         pointToLayer:function(f,latlng){return L.circleMarker(latlng,{radius:10,color:'#ffffff',weight:2,fillColor:'#7c3aed',fillOpacity:1});},
         onEachFeature:function(f,layer){
           const p=f.properties||{};
@@ -96,7 +121,8 @@
           layer._ugamapSpecialZip=zip;
           layer._ugamapSpecialName=name;
         }
-      });
+      };
+      const specialLayer = L.geoJSON(specialZips, specialOptions);
 
       if(!document.getElementById('ugamap-boundary-style')){
         const style=document.createElement('style');
@@ -127,6 +153,37 @@
         });
       }
 
+      async function recoverEmptyLayers() {
+        if (zipLayer.getLayers().length === 0) {
+          try {
+            const freshZips = await getJson('/geography/zips');
+            if (freshZips && Array.isArray(freshZips.features) && freshZips.features.length) {
+              zipLayer.clearLayers();
+              zipLayer.addData(freshZips);
+            }
+          } catch (e) { console.error('ZIP layer recovery failed:', e); }
+        }
+        if (stateLayer.getLayers().length === 0) {
+          try {
+            const freshStates = await getJson('/geography/states');
+            if (freshStates && Array.isArray(freshStates.features) && freshStates.features.length) {
+              stateLayer.clearLayers();
+              stateLayer.addData(freshStates);
+            }
+          } catch (e) { console.error('State layer recovery failed:', e); }
+        }
+        if (specialLayer.getLayers().length === 0) {
+          try {
+            const freshSpecial = await getJson('/geography/special-zips');
+            if (freshSpecial && Array.isArray(freshSpecial.features) && freshSpecial.features.length) {
+              specialLayer.clearLayers();
+              specialLayer.addData(freshSpecial);
+            }
+          } catch (e) { console.error('Special ZIP layer recovery failed:', e); }
+        }
+        ensureLabelsVisible();
+      }
+
       L.control.layers(null,{
         'State Boundaries':stateLayer,
         'ZIP Zones':zipLayer,
@@ -140,12 +197,16 @@
       map.on('zoomend moveend layeradd',ensureLabelsVisible);
       setTimeout(ensureLabelsVisible,250);
       setTimeout(ensureLabelsVisible,1000);
+      setTimeout(recoverEmptyLayers,3000);
+      setTimeout(recoverEmptyLayers,10000);
+      setTimeout(recoverEmptyLayers,30000);
 
       window.UGAMAP=window.UGAMAP||{};
-      window.UGAMAP.boundaries={states:stateLayer,zips:zipLayer,specialZips:specialLayer,updateLabels:ensureLabelsVisible};
+      window.UGAMAP.boundaries={states:stateLayer,zips:zipLayer,specialZips:specialLayer,updateLabels:ensureLabelsVisible,recover:recoverEmptyLayers};
     } catch(e){
       initialized=false;
       console.error('Boundary layers unavailable:',e);
+      setTimeout(function(){initializeBoundaries(map);},3000);
     }
   }
 
