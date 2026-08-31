@@ -1,9 +1,10 @@
-"""Readiness endpoint for the UGAMAP/UGASHIP backup connection."""
+"""Readiness and live-sync diagnostics for UGAMAP/UGASHIP backup."""
 import json
 import os
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime,timezone
 from fastapi import APIRouter
+from backup_sync import sync_client_status
 
 router=APIRouter()
 BACKUP_SERVICE_URL=os.environ.get("BACKUP_SERVICE_URL","https://uga-backup-service-production.up.railway.app").rstrip("/")
@@ -17,6 +18,7 @@ def backup_status():
             remote=json.loads(response.read().decode("utf-8"));reachable=200<=response.status<300
             database_connected=remote.get("database")=="connected"
     except Exception as exc:error=f"{type(exc).__name__}: {exc}"[:180]
+    client=sync_client_status()
     return {
         "backup_enabled":token_configured,
         "backup_service_reachable":reachable,
@@ -24,6 +26,9 @@ def backup_status():
         "sync_ready":token_configured and reachable and database_connected,
         "backup_service":BACKUP_SERVICE_URL,
         "checked_at":datetime.now(timezone.utc).isoformat(),
+        "last_sync_attempt":client.get("last_attempt"),
+        "last_sync_success":client.get("last_success"),
+        "last_sync_error":client.get("last_error"),
         "remote_health":remote,
         "error":error,
     }
