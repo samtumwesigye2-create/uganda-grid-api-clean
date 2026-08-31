@@ -23,8 +23,6 @@ def _account_user(authorization: str):
     return user
 
 
-# Replace the public home route with the same working UGAMAP page plus account UI,
-# and make incident writes account-attributed in production.
 for route in list(app.router.routes):
     path=getattr(route,"path",None); methods=getattr(route,"methods",set())
     if path == "/" and "GET" in methods:
@@ -41,9 +39,9 @@ def ugamap_home_with_accounts():
     if "/boundaries.js" not in source:
         leaflet = '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>'
         source = source.replace(leaflet, leaflet + '\n<script src="/boundaries.js?v=3"></script>', 1)
-    account_script = '<script src="/assets/ugamap-account-ui.js?v=2"></script>'
-    if account_script not in source:
-        source = source.replace("</body>", account_script + "\n</body>") if "</body>" in source else source + account_script
+    scripts = '<script src="/assets/ugamap-account-ui.js?v=2"></script>\n<script src="/assets/ugamap-account-incidents.js?v=1"></script>'
+    if "/assets/ugamap-account-incidents.js" not in source:
+        source = source.replace("</body>", scripts + "\n</body>") if "</body>" in source else source + scripts
     return Response(source, media_type="text/html", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
 
 
