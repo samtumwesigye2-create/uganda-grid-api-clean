@@ -13,6 +13,7 @@ Permission strings in use across the app:
   invoicing:read   invoicing:write   invoicing:delete
   commercial:read  commercial:write
   shipments:read   shipments:write
+  integration:read integration:write
 
 Only the master passcode can create, edit, or delete staff accounts —
 delegation itself is never delegatable.
