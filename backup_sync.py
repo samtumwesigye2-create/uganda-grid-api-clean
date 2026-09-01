@@ -14,7 +14,7 @@ _MAX_OUTSTANDING=100
 _executor=ThreadPoolExecutor(max_workers=_MAX_WORKERS,thread_name_prefix="uga-backup-sync")
 _slots=threading.BoundedSemaphore(_MAX_OUTSTANDING)
 _status_lock=threading.Lock()
-_status={"last_attempt":None,"last_success":None,"last_error":None,"queued":0,"active":0,"completed":0,"failed":0,"dropped":0,"max_workers":_MAX_WORKERS,"max_outstanding":_MAX_OUTSTANDING,"UGAMAP":{"completed":0,"failed":0,"dropped":0,"last_success":None,"last_error":None},"UGASHIP":{"completed":0,"failed":0,"dropped":0,"last_success":None,"last_error":None}}
+_status={"last_attempt":None,"last_success":None,"last_error":None,"queued":0,"active":0,"completed":0,"failed":0,"dropped":0,"max_workers":_MAX_WORKERS,"max_outstanding":_MAX_OUTSTANDING,"UGAMAP":{"completed":0,"failed":0,"dropped":0,"last_success":None,"last_error":None},"UGASHIP":{"completed":0,"failed":0,"dropped":0,"last_success":None,"last_error":None},"WAREHOUSE":{"completed":0,"failed":0,"dropped":0,"last_success":None,"last_error":None}}
 
 def sync_client_status():
     with _status_lock:return json.loads(json.dumps(_status))
@@ -23,7 +23,7 @@ def _set(**values):
 def _change(key,delta):
     with _status_lock:_status[key]=max(0,int(_status.get(key,0))+delta)
 def _source_change(source,key,delta=0,value=None):
-    if source not in ("UGAMAP","UGASHIP"):return
+    if source not in ("UGAMAP","UGASHIP","WAREHOUSE"):return
     with _status_lock:
         state=_status[source]
         if value is not None:state[key]=value
@@ -59,3 +59,4 @@ def backup_event(source,entity_type,entity_id,action,data=None):
         error=f"queue error: {type(exc).__name__}: {exc}"[:240];_change("queued",-1);_change("failed",1);_source_change(source,"failed",1);_source_change(source,"last_error",value=error);_slots.release();_set(last_error=error)
 def ugamap_backup(entity_type,entity_id,action,data=None):backup_event("UGAMAP",entity_type,entity_id,action,data)
 def ugaship_backup(entity_type,entity_id,action,data=None):backup_event("UGASHIP",entity_type,entity_id,action,data)
+def warehouse_backup(entity_type,entity_id,action,data=None):backup_event("WAREHOUSE",entity_type,entity_id,action,data)
