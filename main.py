@@ -13,7 +13,8 @@ from address_confidence import evaluate_address_application
 from submission_store import create_submission as store_create_submission, list_submissions as store_list_submissions, get_submission as store_get_submission, update_submission as store_update_submission
 
 app=FastAPI(title="Uganda National Grid API",version="2.0")
-app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_methods=["*"],allow_headers=["*"])
+ALLOWED_ORIGINS=[x.strip() for x in os.environ.get("ALLOWED_ORIGINS","https://uganda-grid-api-clean-production.up.railway.app").split(",") if x.strip()]
+app.add_middleware(CORSMiddleware,allow_origins=ALLOWED_ORIGINS,allow_credentials=True,allow_methods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"],allow_headers=["Authorization","Content-Type","X-Access-Code","X-Admin-Passcode","X-Driver-Passcode","X-MFA-Token","X-Idempotency-Key","X-UGA-Signature","X-UGA-Idempotency-Key","X-UGA-Event-Type"])
 BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 def F(n):return os.path.join(BASE_DIR,n)
 DATABASE=F("entebbe_database.json");INDEX_FILE=F("index.html");APP_JS_FILE=F("app.js");BOUNDARIES_JS_FILE=F("boundaries.js");SUBMIT_FILE=F("submit.html");REVIEW_FILE=F("review.html");ADMIN_FILE=F("admin.html");ADMIN_ZIP_LINK_FILE=F("admin-zip-link.js");ZIP_ADMIN_FILE=F("zip-admin.html");SPECIAL_ZIP_ADMIN_FILE=F("special-zip-admin.html");SHIP_FILE=F("ship.html");DRIVER_FILE=F("driver.html");TEST_TOOL_FILE=F("test-tool.html")
