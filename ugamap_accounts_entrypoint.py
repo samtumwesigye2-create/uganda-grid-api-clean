@@ -11,7 +11,7 @@ from incident_records.account_link import attach_reporter, vote_once, list_user_
 from incident_records.reputation import reputation_for, reputation_for_incident
 from backup_monitor import router as backup_monitor_router
 from warehouse_ops import router as warehouse_ops_router
-import backup_reconcile  # starts best-effort UGAMAP + UGASHIP backup worker
+import backup_reconcile
 
 app.include_router(ugamap_accounts_router)
 app.include_router(ugamap_admin_users_router)
@@ -41,21 +41,20 @@ def ugamap_home_with_accounts():
     return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 
 @app.get('/ship',include_in_schema=False)
-def ugaship_with_warehouse_operations():
+def ugaship_page():
     source=Path('ship.html').read_text(encoding='utf-8')
-    script='<script src="/assets/ugaship-warehouse-ops.js?v=1"></script>'
-    if '/assets/ugaship-warehouse-ops.js' not in source:
-        source=source.replace('</body>',script+'\n</body>') if '</body>' in source else source+script
+    link='<section style="max-width:1180px;margin:0 auto 14px;background:#fff;border:1px solid #ddd;border-radius:14px;padding:16px"><b>Warehouse Management</b><div style="font-size:13px;color:#666;margin:4px 0 10px">Receiving, picking, put away, packaging, dispatch, inventory control, safety, documentation, layout, optimization and equipment.</div><a href="/ship/warehouse" style="display:inline-block;background:#3b5bfd;color:#fff;text-decoration:none;padding:10px 14px;border-radius:8px;font-weight:700">Open Warehouse Management →</a></section>'
+    source=source.replace('</body>',link+'\n</body>') if '</body>' in source else source+link
     return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
+
+@app.get('/ship/warehouse',include_in_schema=False)
+def ugaship_warehouse_page():
+    return Response(Path('warehouse.html').read_text(encoding='utf-8'),media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 
 @app.get('/admin',include_in_schema=False)
 def ugamap_admin_with_users():
     source=Path('admin.html').read_text(encoding='utf-8')
-    scripts='\n'.join([
-        '<script src="/admin-zip-link.js"></script>',
-        '<script src="/assets/admin-report-notifications.js?v=3"></script>',
-        '<script src="/assets/admin-user-management.js?v=1"></script>'
-    ])
+    scripts='\n'.join(['<script src="/admin-zip-link.js"></script>','<script src="/assets/admin-report-notifications.js?v=3"></script>','<script src="/assets/admin-user-management.js?v=1"></script>'])
     source=source.replace('</body>',scripts+'\n</body>') if '</body>' in source else source+scripts
     return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 
