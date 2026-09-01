@@ -20,15 +20,16 @@ def _source_error(source,message):
   current=dict(_state.get(source) or {});current["last_error"]=message;_state[source]=current;_state["last_error"]=message
 def _hash(records):return hashlib.sha256(json.dumps(records,sort_keys=True,separators=(",",":"),default=str).encode()).hexdigest()
 def _load_state():
- global _previous_shipment_ids,_previous_address_ids
+ global _previous_shipment_ids,_previous_address_ids,_pending_deletions
  try:
   with open(STATE_FILE,encoding="utf-8") as f:s=json.load(f)
   _previous_shipment_ids=set(map(str,s.get("shipment_ids",[])));_previous_address_ids=set(map(str,s.get("address_ids",[])))
+  pending=s.get("pending_deletions",{});_pending_deletions={str(k):v for k,v in pending.items() if isinstance(v,dict) and v.get("signature") and isinstance(v.get("seen"),int)} if isinstance(pending,dict) else {}
  except Exception:pass
 def _save_state():
  try:
   tmp=STATE_FILE+".tmp"
-  with open(tmp,"w",encoding="utf-8") as f:json.dump({"shipment_ids":sorted(_previous_shipment_ids),"address_ids":sorted(_previous_address_ids)},f,separators=(",",":"))
+  with open(tmp,"w",encoding="utf-8") as f:json.dump({"shipment_ids":sorted(_previous_shipment_ids),"address_ids":sorted(_previous_address_ids),"pending_deletions":_pending_deletions},f,separators=(",",":"))
   os.replace(tmp,STATE_FILE)
  except Exception as exc:print(f"[backup-reconcile-state] {type(exc).__name__}: {exc}")
 def _request(path,payload,timeout=20):
@@ -40,15 +41,17 @@ def _bulk(source,entity_type,records):
 def _delete(source,entity_type,entity_id):_request("/sync",{"source":source,"entity_type":entity_type,"entity_id":str(entity_id),"action":"delete","data":{}})
 def _safe_deletions(source,entity_type,previous,current):
  key=f"{source}:{entity_type}";missing=previous-current
- if not missing:_pending_deletions.pop(key,None);return True
+ if not missing:
+  if _pending_deletions.pop(key,None) is not None:_save_state()
+  return True
  large=bool(previous) and (not current or len(missing)>max(25,int(len(previous)*0.25)))
  if large:
   signature=_hash(sorted(missing));pending=_pending_deletions.get(key)
   if not pending or pending.get("signature")!=signature:
-   _pending_deletions[key]={"signature":signature,"seen":1};_source_error(source,f"Deletion protection waiting for confirmation: {len(missing)} of {len(previous)} {entity_type} removals");return False
-  pending["seen"]+=1
+   _pending_deletions[key]={"signature":signature,"seen":1,"first_seen":_now(),"count":len(missing)};_save_state();_source_error(source,f"Deletion protection waiting for confirmation: {len(missing)} of {len(previous)} {entity_type} removals");return False
+  pending["seen"]+=1;pending["last_seen"]=_now();_save_state()
   if pending["seen"]<3:_source_error(source,f"Deletion protection confirmation {pending['seen']}/3: {len(missing)} of {len(previous)} {entity_type} removals");return False
- _pending_deletions.pop(key,None)
+ if _pending_deletions.pop(key,None) is not None:_save_state()
  for entity_id in missing:_delete(source,entity_type,entity_id)
  return True
 def _read_shipments():
