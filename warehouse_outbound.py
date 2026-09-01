@@ -1,6 +1,7 @@
 import os,sqlite3,time,uuid,json
 from fastapi import APIRouter,Form,Header,HTTPException,Query
 from auth import require_permission
+from warehouse_approvals import consume_approval
 BASE=os.path.dirname(os.path.abspath(__file__));DB=os.path.join(BASE,'data_hub.db');router=APIRouter()
 def conn():c=sqlite3.connect(DB,timeout=30,isolation_level=None);c.row_factory=sqlite3.Row;c.execute('PRAGMA busy_timeout=30000');c.execute('PRAGMA foreign_keys=ON');return c
 def init():
@@ -78,22 +79,23 @@ def pack(order_id:str,x_access_code:str=Header(default='')):
  for l in ls:c.execute("UPDATE warehouse_order_lines SET packed_qty=quantity,status='packed' WHERE id=?",(l['id'],))
  c.execute("UPDATE warehouse_customer_orders SET status='packed',updated_at=? WHERE id=?",(time.time(),order_id));c.execute('COMMIT');c.close();return {'order_id':order_id,'status':'packed'}
 @router.post('/warehouse/outbound/orders/{order_id}/dispatch')
-def dispatch_order(order_id:str,x_access_code:str=Header(default='')):
+def dispatch_order(order_id:str,approval_id:str=Form(''),x_access_code:str=Header(default='')):
  auth(x_access_code,'inventory:write');c=conn();c.execute('BEGIN IMMEDIATE');old=c.execute('SELECT * FROM warehouse_dispatch_ledger WHERE order_id=?',(order_id,)).fetchone()
  if old:c.execute('ROLLBACK');c.close();return {'order_no':old['order_no'],'status':'dispatched','gate_pass':old['gate_pass'],'idempotent':True}
  o=c.execute('SELECT * FROM warehouse_customer_orders WHERE id=?',(order_id,)).fetchone()
  if not o:c.execute('ROLLBACK');c.close();raise HTTPException(404,'Order not found')
  if o['status']!='packed':c.execute('ROLLBACK');c.close();raise HTTPException(400,'Order must be packed before dispatch')
+ consume_approval(c,approval_id,'dispatch_release',o['order_no'],o['warehouse_id'],'dispatch')
  ls=c.execute('SELECT * FROM warehouse_order_lines WHERE order_id=?',(order_id,)).fetchall()
  for l in ls:
   q=float(l['packed_qty']);s=c.execute('SELECT quantity_on_hand FROM stock WHERE product_sku=? AND warehouse_id=?',(l['sku'],o['warehouse_id'])).fetchone();on=float(s['quantity_on_hand']) if s else 0
   if on<q:c.execute('ROLLBACK');c.close();raise HTTPException(400,f'Insufficient stock for {l["sku"]}')
  reservations=c.execute("SELECT * FROM warehouse_lot_reservations WHERE order_id=? AND status='picked'",(order_id,)).fetchall()
  for r in reservations:
-  lot=c.execute('SELECT quantity_available FROM warehouse_lots WHERE id=?',(r['lot_id'],)).fetchone()
-  if not lot or float(lot['quantity_available'])<float(r['quantity']):c.execute('ROLLBACK');c.close();raise HTTPException(409,f'Lot inventory conflict for {r["sku"]}')
+  lot=c.execute('SELECT quantity_available,status FROM warehouse_lots WHERE id=?',(r['lot_id'],)).fetchone()
+  if not lot or lot['status']!='available' or float(lot['quantity_available'])<float(r['quantity']):c.execute('ROLLBACK');c.close();raise HTTPException(409,f'Lot unavailable, quarantined or recalled for {r["sku"]}')
  for l in ls:c.execute('UPDATE stock SET quantity_on_hand=quantity_on_hand-? WHERE product_sku=? AND warehouse_id=?',(float(l['packed_qty']),l['sku'],o['warehouse_id']));c.execute("UPDATE warehouse_order_lines SET dispatched_qty=packed_qty,status='dispatched' WHERE id=?",(l['id'],))
  for r in reservations:
-  q=float(r['quantity']);c.execute('UPDATE warehouse_lots SET quantity_available=quantity_available-?,updated_at=? WHERE id=?',(q,time.time(),r['lot_id']));c.execute("UPDATE warehouse_lot_reservations SET status='dispatched',updated_at=? WHERE id=?",(time.time(),r['id']))
+  q=float(r['quantity']);c.execute("UPDATE warehouse_lots SET quantity_available=quantity_available-?,status=CASE WHEN quantity_available-?<=0 THEN 'depleted' ELSE status END,updated_at=? WHERE id=?",(q,q,time.time(),r['lot_id']));c.execute("UPDATE warehouse_lot_reservations SET status='dispatched',updated_at=? WHERE id=?",(time.time(),r['id']))
   if r['location_code']:c.execute('UPDATE warehouse_locations SET used_capacity=MAX(0,used_capacity-?),updated_at=? WHERE warehouse_id=? AND location_code=?',(q,time.time(),o['warehouse_id'],r['location_code']))
- gate=no('GATE');c.execute('INSERT INTO warehouse_dispatch_ledger VALUES(?,?,?,?,?,?)',(str(uuid.uuid4()),order_id,o['order_no'],o['warehouse_id'],gate,time.time()));c.execute("UPDATE warehouse_customer_orders SET status='dispatched',updated_at=? WHERE id=?",(time.time(),order_id));c.execute('COMMIT');c.close();return {'order_no':o['order_no'],'status':'dispatched','gate_pass':gate,'idempotent':False}
+ gate=no('GATE');c.execute('INSERT INTO warehouse_dispatch_ledger VALUES(?,?,?,?,?,?)',(str(uuid.uuid4()),order_id,o['order_no'],o['warehouse_id'],gate,time.time()));c.execute("UPDATE warehouse_customer_orders SET status='dispatched',updated_at=? WHERE id=?",(time.time(),order_id));c.execute('COMMIT');c.close();return {'order_no':o['order_no'],'status':'dispatched','gate_pass':gate,'approval_id':approval_id,'idempotent':False}
