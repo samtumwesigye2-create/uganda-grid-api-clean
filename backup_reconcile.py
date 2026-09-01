@@ -15,6 +15,9 @@ def _set(**values):
 def _source_ok(source,count):
  now=_now()
  with _state_lock:_state[source]={"records":count,"last_success":now};_state["last_success"]=now;_state["last_error"]=None
+def _source_error(source,message):
+ with _state_lock:
+  current=dict(_state.get(source) or {});current["last_error"]=message;_state[source]=current;_state["last_error"]=message
 def _hash(records):return hashlib.sha256(json.dumps(records,sort_keys=True,separators=(",",":"),default=str).encode()).hexdigest()
 def _load_state():
  global _previous_shipment_ids,_previous_address_ids
@@ -35,6 +38,15 @@ def _request(path,payload,timeout=20):
 def _bulk(source,entity_type,records):
  for i in range(0,len(records),500):_request("/sync/bulk",{"source":source,"entity_type":entity_type,"records":records[i:i+500]},30)
 def _delete(source,entity_type,entity_id):_request("/sync",{"source":source,"entity_type":entity_type,"entity_id":str(entity_id),"action":"delete","data":{}})
+def _safe_deletions(source,entity_type,previous,current):
+ missing=previous-current
+ if not missing:return True
+ if previous and not current:
+  _source_error(source,f"Deletion protection blocked removal of all {len(previous)} {entity_type} records");return False
+ if previous and len(missing)>max(25,int(len(previous)*0.25)):
+  _source_error(source,f"Deletion protection blocked {len(missing)} of {len(previous)} {entity_type} removals");return False
+ for entity_id in missing:_delete(source,entity_type,entity_id)
+ return True
 def _read_shipments():
  if not os.path.exists(SHIP_DB):return []
  conn=sqlite3.connect(SHIP_DB);conn.row_factory=sqlite3.Row
@@ -48,7 +60,7 @@ def _sync_shipments():
  if digest!=_last_ship_hash:
   current={str(r.get("id") or r.get("shipment_number")) for r in rows if r.get("id") or r.get("shipment_number")}
   if rows:_bulk("UGASHIP","shipment",rows)
-  for entity_id in _previous_shipment_ids-current:_delete("UGASHIP","shipment",entity_id)
+  if not _safe_deletions("UGASHIP","shipment",_previous_shipment_ids,current):return
   _previous_shipment_ids=current;_last_ship_hash=digest;_save_state()
  _source_ok("UGASHIP",len(rows))
 def _read_addresses():
@@ -69,7 +81,7 @@ def _sync_addresses():
  if digest!=_last_address_hash:
   current={r["id"] for r in rows}
   if rows:_bulk("UGAMAP","address",rows)
-  for entity_id in _previous_address_ids-current:_delete("UGAMAP","address",entity_id)
+  if not _safe_deletions("UGAMAP","address",_previous_address_ids,current):return
   _previous_address_ids=current;_last_address_hash=digest;_save_state()
  _source_ok("UGAMAP",len(rows))
 def _worker():
