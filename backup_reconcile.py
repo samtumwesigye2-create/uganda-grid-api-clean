@@ -5,7 +5,7 @@ BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 BACKUP_SERVICE_URL=os.environ.get("BACKUP_SERVICE_URL","https://uga-backup-service-production.up.railway.app").rstrip("/")
 BACKUP_SYNC_TOKEN=os.environ.get("BACKUP_SYNC_TOKEN","").strip();POLL_SECONDS=max(15,int(os.environ.get("BACKUP_RECONCILE_SECONDS","30")))
 SHIP_DB=os.path.join(BASE_DIR,"data_hub.db");ADDRESS_FILE=os.path.join(BASE_DIR,"entebbe_database.json");STATE_FILE=os.path.join(BASE_DIR,".backup_reconcile_state.json")
-_started=False;_lock=threading.Lock();_state_lock=threading.Lock();_last_ship_hash=None;_last_address_hash=None;_previous_shipment_ids=set();_previous_address_ids=set()
+_started=False;_lock=threading.Lock();_state_lock=threading.Lock();_last_ship_hash=None;_last_address_hash=None;_previous_shipment_ids=set();_previous_address_ids=set();_pending_deletions={}
 _state={"running":False,"started_at":None,"last_attempt":None,"last_success":None,"last_error":None,"UGAMAP":{"records":None,"last_success":None},"UGASHIP":{"records":None,"last_success":None}}
 def _now():return datetime.now(timezone.utc).isoformat()
 def reconcile_status():
@@ -39,10 +39,16 @@ def _bulk(source,entity_type,records):
  for i in range(0,len(records),500):_request("/sync/bulk",{"source":source,"entity_type":entity_type,"records":records[i:i+500]},30)
 def _delete(source,entity_type,entity_id):_request("/sync",{"source":source,"entity_type":entity_type,"entity_id":str(entity_id),"action":"delete","data":{}})
 def _safe_deletions(source,entity_type,previous,current):
- missing=previous-current
- if not missing:return True
- if previous and not current:_source_error(source,f"Deletion protection blocked removal of all {len(previous)} {entity_type} records");return False
- if previous and len(missing)>max(25,int(len(previous)*0.25)):_source_error(source,f"Deletion protection blocked {len(missing)} of {len(previous)} {entity_type} removals");return False
+ key=f"{source}:{entity_type}";missing=previous-current
+ if not missing:_pending_deletions.pop(key,None);return True
+ large=bool(previous) and (not current or len(missing)>max(25,int(len(previous)*0.25)))
+ if large:
+  signature=_hash(sorted(missing));pending=_pending_deletions.get(key)
+  if not pending or pending.get("signature")!=signature:
+   _pending_deletions[key]={"signature":signature,"seen":1};_source_error(source,f"Deletion protection waiting for confirmation: {len(missing)} of {len(previous)} {entity_type} removals");return False
+  pending["seen"]+=1
+  if pending["seen"]<3:_source_error(source,f"Deletion protection confirmation {pending['seen']}/3: {len(missing)} of {len(previous)} {entity_type} removals");return False
+ _pending_deletions.pop(key,None)
  for entity_id in missing:_delete(source,entity_type,entity_id)
  return True
 def _read_shipments():
