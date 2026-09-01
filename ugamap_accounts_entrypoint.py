@@ -42,10 +42,7 @@ def ugamap_home_with_accounts():
 
 @app.get('/ship',include_in_schema=False)
 def ugaship_page():
-    source=Path('ship.html').read_text(encoding='utf-8')
-    link='<section style="max-width:1180px;margin:0 auto 14px;background:#fff;border:1px solid #ddd;border-radius:14px;padding:16px"><b>Warehouse Management</b><div style="font-size:13px;color:#666;margin:4px 0 10px">Receiving, picking, put away, packaging, dispatch, inventory control, safety, documentation, layout, optimization and equipment.</div><a href="/ship/warehouse" style="display:inline-block;background:#3b5bfd;color:#fff;text-decoration:none;padding:10px 14px;border-radius:8px;font-weight:700">Open Warehouse Management →</a></section>'
-    source=source.replace('</body>',link+'\n</body>') if '</body>' in source else source+link
-    return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
+    return Response(Path('ship.html').read_text(encoding='utf-8'),media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 
 @app.get('/ship/warehouse',include_in_schema=False)
 def ugaship_warehouse_page():
