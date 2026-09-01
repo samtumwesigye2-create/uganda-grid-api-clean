@@ -1,6 +1,7 @@
 import os,sqlite3,time,uuid
 from fastapi import APIRouter,Form,Header,HTTPException,Query
 from auth import require_permission
+from warehouse_approvals import consume_approval
 DB=os.path.join(os.path.dirname(os.path.abspath(__file__)),'data_hub.db');router=APIRouter()
 def db():c=sqlite3.connect(DB,timeout=30,isolation_level=None);c.row_factory=sqlite3.Row;c.execute('PRAGMA busy_timeout=30000');return c
 def init():
@@ -47,7 +48,7 @@ def holds(warehouse_id:str=Query('main'),status:str=Query(''),x_access_code:str=
  if status:q+=' AND status=?';a.append(status)
  q+=' ORDER BY created_at DESC';r=[dict(x) for x in c.execute(q,a).fetchall()];c.close();return {'results':r}
 @router.post('/warehouse/quality/holds/{hold_id}/resolve')
-def resolve(hold_id:str,decision:str=Form(...),inspection_result:str=Form(''),authorized_by:str=Form(...),x_access_code:str=Header(default='')):
+def resolve(hold_id:str,decision:str=Form(...),inspection_result:str=Form(''),authorized_by:str=Form(...),approval_id:str=Form(''),x_access_code:str=Header(default='')):
  auth(x_access_code,'inventory:write')
  if decision not in {'release','reject','destroy','return_supplier'}:raise HTTPException(400,'Invalid quality decision')
  c=db();c.execute('BEGIN IMMEDIATE')
@@ -55,17 +56,19 @@ def resolve(hold_id:str,decision:str=Form(...),inspection_result:str=Form(''),au
   h=c.execute('SELECT * FROM warehouse_quality_holds WHERE id=?',(hold_id,)).fetchone()
   if not h:raise HTTPException(404,'Quality hold not found')
   if h['status']!='quarantine':raise HTTPException(400,'Hold already resolved')
+  action={'release':'quality_release','destroy':'destroy_inventory','return_supplier':'return_supplier'}.get(decision)
+  if action:consume_approval(c,approval_id,action,h['hold_no'],h['warehouse_id'],authorized_by)
   parts=c.execute("SELECT q.*,l.location_code,l.quantity_available FROM warehouse_quality_hold_lots q JOIN warehouse_lots l ON l.id=q.lot_id WHERE q.hold_id=? AND q.status='held'",(hold_id,)).fetchall();qty=sum(float(p['quantity']) for p in parts)
   if decision in {'destroy','return_supplier'}:
-   if stock_change(c,h['sku'],h['warehouse_id'],-qty) is False:raise HTTPException(409,'Stock update failed')
+   stock_change(c,h['sku'],h['warehouse_id'],-qty)
    for p in parts:
     q=float(p['quantity'])
     if float(p['quantity_available'])<q:raise HTTPException(409,'Held lot quantity no longer exists')
-    c.execute('UPDATE warehouse_lots SET quantity_available=quantity_available-?,updated_at=? WHERE id=?',(q,time.time(),p['lot_id']))
+    c.execute("UPDATE warehouse_lots SET quantity_available=quantity_available-?,status=CASE WHEN quantity_available-?<=0 THEN 'depleted' ELSE status END,updated_at=? WHERE id=?",(q,q,time.time(),p['lot_id']))
     if p['location_code']:c.execute('UPDATE warehouse_locations SET used_capacity=MAX(0,used_capacity-?),updated_at=? WHERE warehouse_id=? AND location_code=?',(q,time.time(),h['warehouse_id'],p['location_code']))
   status={'release':'released','reject':'rejected','destroy':'destroyed','return_supplier':'return_supplier'}[decision];now=time.time();c.execute('UPDATE warehouse_quality_holds SET status=?,inspection_result=?,authorized_by=?,resolved_at=? WHERE id=?',(status,inspection_result,authorized_by,now,hold_id));c.execute("UPDATE warehouse_quality_hold_lots SET status=?,resolved_at=? WHERE hold_id=? AND status='held'",(status,now,hold_id))
   for p in parts:set_lot_status(c,p['lot_id'])
-  c.execute('COMMIT');return {'id':hold_id,'status':status,'quantity':qty,'stock_removed':decision in {'destroy','return_supplier'}}
+  c.execute('COMMIT');return {'id':hold_id,'status':status,'quantity':qty,'approval_id':approval_id if action else None,'stock_removed':decision in {'destroy','return_supplier'}}
  except Exception:c.execute('ROLLBACK');raise
  finally:c.close()
 @router.post('/warehouse/recalls')
@@ -79,8 +82,7 @@ def recall(title:str=Form(...),sku:str=Form(...),lot_no:str=Form(''),batch_no:st
   if lot_no:q+=' AND lot_no=?';a.append(lot_no)
   if batch_no:q+=' AND batch_no=?';a.append(batch_no)
   lots=c.execute(q,a).fetchall()
-  for l in lots:
-   c.execute("UPDATE warehouse_lots SET status='recall_hold',updated_at=? WHERE id=?",(now,l['id']));c.execute("UPDATE warehouse_lot_reservations SET status='recall_blocked',updated_at=? WHERE lot_id=? AND status IN ('allocated','picked')",(now,l['id']));c.execute("UPDATE warehouse_transfer_lots SET status='recall_blocked' WHERE source_lot_id=? AND status='reserved'",(l['id'],))
+  for l in lots:c.execute("UPDATE warehouse_lots SET status='recall_hold',updated_at=? WHERE id=?",(now,l['id']));c.execute("UPDATE warehouse_lot_reservations SET status='recall_blocked',updated_at=? WHERE lot_id=? AND status IN ('allocated','picked')",(now,l['id']));c.execute("UPDATE warehouse_transfer_lots SET status='recall_blocked' WHERE source_lot_id=? AND status='reserved'",(l['id'],))
   rows=c.execute('''SELECT DISTINCT o.order_no,o.customer_name,SUM(r.quantity) quantity FROM warehouse_lot_reservations r JOIN warehouse_customer_orders o ON o.id=r.order_id JOIN warehouse_lots l ON l.id=r.lot_id WHERE r.sku=? AND r.status IN ('dispatched','recall_blocked') AND (?='' OR l.lot_no=?) AND (?='' OR l.batch_no=?) GROUP BY o.order_no,o.customer_name''',(sku,lot_no,lot_no,batch_no,batch_no)).fetchall()
   for r in rows:c.execute('INSERT INTO warehouse_recall_actions VALUES(?,?,?,?,?,?,?,?,?,?)',(str(uuid.uuid4()),i,'customer_order',r['order_no'],r['customer_name'],r['quantity'],'identified','Affected lot-linked customer order',now,now))
   c.execute('COMMIT');return {'id':i,'recall_no':n,'affected_orders':len(rows),'affected_lots':len(lots),'status':'open','dispatch_blocked':True}
@@ -99,17 +101,18 @@ def action(recall_id:str,action_id:str,status:str=Form(...),note:str=Form(''),x_
  if not r:c.execute('ROLLBACK');c.close();raise HTTPException(404,'Recall action not found')
  c.execute('UPDATE warehouse_recall_actions SET status=?,note=?,updated_at=? WHERE id=?',(status,note,time.time(),action_id));c.execute('COMMIT');c.close();return {'id':action_id,'status':status}
 @router.post('/warehouse/recalls/{recall_id}/close')
-def close(recall_id:str,x_access_code:str=Header(default='')):
+def close(recall_id:str,approval_id:str=Form(''),authorized_by:str=Form('system'),x_access_code:str=Header(default='')):
  auth(x_access_code,'inventory:write');c=db();c.execute('BEGIN IMMEDIATE')
  try:
   r=c.execute('SELECT * FROM warehouse_recalls WHERE id=?',(recall_id,)).fetchone()
   if not r:raise HTTPException(404,'Recall not found')
   open_actions=c.execute("SELECT COUNT(*) n FROM warehouse_recall_actions WHERE recall_id=? AND status NOT IN ('returned','closed')",(recall_id,)).fetchone()['n']
   if open_actions:raise HTTPException(400,f'{open_actions} recall actions remain open')
+  consume_approval(c,approval_id,'recall_close',r['recall_no'],'main',authorized_by)
   now=time.time();c.execute("UPDATE warehouse_recalls SET status='closed',closed_at=? WHERE id=?",(now,recall_id));q="SELECT id FROM warehouse_lots WHERE sku=?";a=[r['sku']]
   if r['lot_no']:q+=' AND lot_no=?';a.append(r['lot_no'])
   if r['batch_no']:q+=' AND batch_no=?';a.append(r['batch_no'])
   for l in c.execute(q,a).fetchall():set_lot_status(c,l['id'])
-  c.execute('COMMIT');return {'id':recall_id,'status':'closed','lot_holds_recalculated':True}
+  c.execute('COMMIT');return {'id':recall_id,'status':'closed','approval_id':approval_id,'lot_holds_recalculated':True}
  except Exception:c.execute('ROLLBACK');raise
  finally:c.close()
