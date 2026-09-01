@@ -1,10 +1,20 @@
 """Automatic best-effort reconciliation into the independent backup service."""
 import hashlib,json,os,sqlite3,threading,time,urllib.request
+from datetime import datetime,timezone
 BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 BACKUP_SERVICE_URL=os.environ.get("BACKUP_SERVICE_URL","https://uga-backup-service-production.up.railway.app").rstrip("/")
 BACKUP_SYNC_TOKEN=os.environ.get("BACKUP_SYNC_TOKEN","").strip();POLL_SECONDS=max(15,int(os.environ.get("BACKUP_RECONCILE_SECONDS","30")))
 SHIP_DB=os.path.join(BASE_DIR,"data_hub.db");ADDRESS_FILE=os.path.join(BASE_DIR,"entebbe_database.json");STATE_FILE=os.path.join(BASE_DIR,".backup_reconcile_state.json")
-_started=False;_lock=threading.Lock();_last_ship_hash=None;_last_address_hash=None;_previous_shipment_ids=set();_previous_address_ids=set()
+_started=False;_lock=threading.Lock();_state_lock=threading.Lock();_last_ship_hash=None;_last_address_hash=None;_previous_shipment_ids=set();_previous_address_ids=set()
+_state={"running":False,"started_at":None,"last_attempt":None,"last_success":None,"last_error":None,"UGAMAP":{"records":None,"last_success":None},"UGASHIP":{"records":None,"last_success":None}}
+def _now():return datetime.now(timezone.utc).isoformat()
+def reconcile_status():
+ with _state_lock:return json.loads(json.dumps(_state))
+def _set(**values):
+ with _state_lock:_state.update(values)
+def _source_ok(source,count):
+ now=_now()
+ with _state_lock:_state[source]={"records":count,"last_success":now};_state["last_success"]=now;_state["last_error"]=None
 def _hash(records):return hashlib.sha256(json.dumps(records,sort_keys=True,separators=(",",":"),default=str).encode()).hexdigest()
 def _load_state():
  global _previous_shipment_ids,_previous_address_ids
@@ -35,11 +45,12 @@ def _read_shipments():
 def _sync_shipments():
  global _last_ship_hash,_previous_shipment_ids
  rows=_read_shipments();rows.sort(key=lambda r:str(r.get("id") or r.get("shipment_number") or ""));digest=_hash(rows)
- if digest==_last_ship_hash:return
- current={str(r.get("id") or r.get("shipment_number")) for r in rows if r.get("id") or r.get("shipment_number")}
- if rows:_bulk("UGASHIP","shipment",rows)
- for entity_id in _previous_shipment_ids-current:_delete("UGASHIP","shipment",entity_id)
- _previous_shipment_ids=current;_last_ship_hash=digest;_save_state()
+ if digest!=_last_ship_hash:
+  current={str(r.get("id") or r.get("shipment_number")) for r in rows if r.get("id") or r.get("shipment_number")}
+  if rows:_bulk("UGASHIP","shipment",rows)
+  for entity_id in _previous_shipment_ids-current:_delete("UGASHIP","shipment",entity_id)
+  _previous_shipment_ids=current;_last_ship_hash=digest;_save_state()
+ _source_ok("UGASHIP",len(rows))
 def _read_addresses():
  if not os.path.exists(ADDRESS_FILE):return []
  try:
@@ -55,16 +66,20 @@ def _read_addresses():
 def _sync_addresses():
  global _last_address_hash,_previous_address_ids
  rows=_read_addresses();digest=_hash(rows)
- if digest==_last_address_hash:return
- current={r["id"] for r in rows}
- if rows:_bulk("UGAMAP","address",rows)
- for entity_id in _previous_address_ids-current:_delete("UGAMAP","address",entity_id)
- _previous_address_ids=current;_last_address_hash=digest;_save_state()
+ if digest!=_last_address_hash:
+  current={r["id"] for r in rows}
+  if rows:_bulk("UGAMAP","address",rows)
+  for entity_id in _previous_address_ids-current:_delete("UGAMAP","address",entity_id)
+  _previous_address_ids=current;_last_address_hash=digest;_save_state()
+ _source_ok("UGAMAP",len(rows))
 def _worker():
+ _set(running=True,started_at=_now())
  while True:
+  _set(last_attempt=_now())
   try:
    if BACKUP_SYNC_TOKEN:_sync_shipments();_sync_addresses()
-  except Exception as exc:print(f"[backup-reconcile] {type(exc).__name__}: {exc}")
+   else:_set(last_error="BACKUP_SYNC_TOKEN not configured")
+  except Exception as exc:_set(last_error=f"{type(exc).__name__}: {exc}"[:240]);print(f"[backup-reconcile] {type(exc).__name__}: {exc}")
   time.sleep(POLL_SECONDS)
 def start_backup_reconciler():
  global _started
