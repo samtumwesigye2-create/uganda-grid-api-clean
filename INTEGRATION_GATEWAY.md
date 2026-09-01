@@ -29,4 +29,16 @@ Routes:
 - `GET /integration/events`
 - `POST /integration/events/{event_id}/retry`
 
+Carrier adapter:
+
+- `POST /integration/carriers/shipments`
+- `POST /integration/carriers/tracking/refresh`
+- `POST /integration/carriers/shipments/cancel`
+
+Payment adapter:
+
+- `POST /integration/payments/requests`
+- `POST /integration/payments/verify`
+- `POST /integration/payments/refunds`
+
 Outbound requests include `X-UGA-Signature`, `X-UGA-Event-ID`, and `X-UGA-Idempotency-Key`. Inbound systems sign the exact request body using HMAC-SHA256 and send `X-UGA-Signature: sha256=<hex digest>`.

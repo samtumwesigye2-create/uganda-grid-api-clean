@@ -12,11 +12,15 @@ from backup_monitor import router as backup_monitor_router
 import importlib, logging
 import backup_reconcile
 from integration_gateway import router as integration_gateway_router
+from integration_carrier import router as integration_carrier_router
+from integration_payments import router as integration_payments_router
 
 app.include_router(ugamap_accounts_router)
 app.include_router(ugamap_admin_users_router)
 app.include_router(backup_monitor_router)
 app.include_router(integration_gateway_router)
+app.include_router(integration_carrier_router)
+app.include_router(integration_payments_router)
 
 WAREHOUSE_MODULES=[
  'warehouse_ops','warehouse_inbound','warehouse_outbound','warehouse_delivery','warehouse_staff',
