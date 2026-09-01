@@ -85,8 +85,9 @@ def create_operation(operation_type:str=Form(...),shipment_id:str=Form(''),sku:s
  except Exception:c.rollback();raise
  finally:c.close()
 @router.get('/warehouse/operations')
-def list_operations(operation_type:str=Query(''),shipment_id:str=Query(''),limit:int=Query(100,ge=1,le=500),x_access_code:str=Header(default='')):
+def list_operations(operation_type:str=Query(''),shipment_id:str=Query(''),warehouse_id:str=Query(''),limit:int=Query(100,ge=1,le=500),x_access_code:str=Header(default='')):
  require_permission(x_access_code,'inventory:read');q='SELECT * FROM warehouse_operations WHERE 1=1';a=[]
  if operation_type:q+=' AND operation_type=?';a.append(operation_type)
  if shipment_id:q+=' AND shipment_id=?';a.append(shipment_id)
+ if warehouse_id:q+=' AND warehouse_id=?';a.append(warehouse_id)
  q+=' ORDER BY created_at DESC LIMIT ?';a.append(limit);c=conn();r=c.execute(q,a).fetchall();c.close();return {'count':len(r),'results':[dict(x) for x in r]}
