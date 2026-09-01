@@ -11,10 +11,12 @@ from incident_records.reputation import reputation_for, reputation_for_incident
 from backup_monitor import router as backup_monitor_router
 import importlib, logging
 import backup_reconcile
+from integration_gateway import router as integration_gateway_router
 
 app.include_router(ugamap_accounts_router)
 app.include_router(ugamap_admin_users_router)
 app.include_router(backup_monitor_router)
+app.include_router(integration_gateway_router)
 
 WAREHOUSE_MODULES=[
  'warehouse_ops','warehouse_inbound','warehouse_outbound','warehouse_delivery','warehouse_staff',
