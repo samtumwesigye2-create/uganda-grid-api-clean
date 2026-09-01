@@ -14,7 +14,7 @@ def _set(**values):
  with _state_lock:_state.update(values)
 def _source_ok(source,count):
  now=_now()
- with _state_lock:_state[source]={"records":count,"last_success":now};_state["last_success"]=now;_state["last_error"]=None
+ with _state_lock:_state[source]={"records":count,"last_success":now,"last_error":None};_state["last_success"]=now;_state["last_error"]=None
 def _source_error(source,message):
  with _state_lock:
   current=dict(_state.get(source) or {});current["last_error"]=message;_state[source]=current;_state["last_error"]=message
@@ -41,34 +41,32 @@ def _delete(source,entity_type,entity_id):_request("/sync",{"source":source,"ent
 def _safe_deletions(source,entity_type,previous,current):
  missing=previous-current
  if not missing:return True
- if previous and not current:
-  _source_error(source,f"Deletion protection blocked removal of all {len(previous)} {entity_type} records");return False
- if previous and len(missing)>max(25,int(len(previous)*0.25)):
-  _source_error(source,f"Deletion protection blocked {len(missing)} of {len(previous)} {entity_type} removals");return False
+ if previous and not current:_source_error(source,f"Deletion protection blocked removal of all {len(previous)} {entity_type} records");return False
+ if previous and len(missing)>max(25,int(len(previous)*0.25)):_source_error(source,f"Deletion protection blocked {len(missing)} of {len(previous)} {entity_type} removals");return False
  for entity_id in missing:_delete(source,entity_type,entity_id)
  return True
 def _read_shipments():
- if not os.path.exists(SHIP_DB):return []
+ if not os.path.exists(SHIP_DB):raise FileNotFoundError(f"Shipment database missing: {SHIP_DB}")
  conn=sqlite3.connect(SHIP_DB);conn.row_factory=sqlite3.Row
  try:
-  if not conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='shipments'").fetchone():return []
+  if not conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='shipments'").fetchone():raise RuntimeError("shipments table missing")
   return [dict(r) for r in conn.execute("SELECT * FROM shipments").fetchall()]
  finally:conn.close()
 def _sync_shipments():
  global _last_ship_hash,_previous_shipment_ids
- rows=_read_shipments();rows.sort(key=lambda r:str(r.get("id") or r.get("shipment_number") or ""));digest=_hash(rows)
+ try:rows=_read_shipments()
+ except Exception as exc:_source_error("UGASHIP",f"Source read failed: {type(exc).__name__}: {exc}"[:240]);return False
+ rows.sort(key=lambda r:str(r.get("id") or r.get("shipment_number") or ""));digest=_hash(rows)
  if digest!=_last_ship_hash:
   current={str(r.get("id") or r.get("shipment_number")) for r in rows if r.get("id") or r.get("shipment_number")}
   if rows:_bulk("UGASHIP","shipment",rows)
-  if not _safe_deletions("UGASHIP","shipment",_previous_shipment_ids,current):return
+  if not _safe_deletions("UGASHIP","shipment",_previous_shipment_ids,current):return False
   _previous_shipment_ids=current;_last_ship_hash=digest;_save_state()
- _source_ok("UGASHIP",len(rows))
+ _source_ok("UGASHIP",len(rows));return True
 def _read_addresses():
- if not os.path.exists(ADDRESS_FILE):return []
- try:
-  with open(ADDRESS_FILE,encoding="utf-8") as f:data=json.load(f)
- except (OSError,json.JSONDecodeError):return []
- if not isinstance(data,list):return []
+ if not os.path.exists(ADDRESS_FILE):raise FileNotFoundError(f"Address database missing: {ADDRESS_FILE}")
+ with open(ADDRESS_FILE,encoding="utf-8") as f:data=json.load(f)
+ if not isinstance(data,list):raise ValueError("Address database root must be a JSON list")
  out=[]
  for row in data:
   if isinstance(row,dict):
@@ -77,13 +75,15 @@ def _read_addresses():
  out.sort(key=lambda r:r["id"]);return out
 def _sync_addresses():
  global _last_address_hash,_previous_address_ids
- rows=_read_addresses();digest=_hash(rows)
+ try:rows=_read_addresses()
+ except Exception as exc:_source_error("UGAMAP",f"Source read failed: {type(exc).__name__}: {exc}"[:240]);return False
+ digest=_hash(rows)
  if digest!=_last_address_hash:
   current={r["id"] for r in rows}
   if rows:_bulk("UGAMAP","address",rows)
-  if not _safe_deletions("UGAMAP","address",_previous_address_ids,current):return
+  if not _safe_deletions("UGAMAP","address",_previous_address_ids,current):return False
   _previous_address_ids=current;_last_address_hash=digest;_save_state()
- _source_ok("UGAMAP",len(rows))
+ _source_ok("UGAMAP",len(rows));return True
 def _worker():
  _set(running=True,started_at=_now())
  while True:
