@@ -18,7 +18,8 @@ def stock_delta(c,sku,w,d,m,n):
  if r:c.execute('UPDATE stock SET quantity_on_hand=? WHERE product_sku=? AND warehouse_id=?',(new,sku,w))
  else:c.execute('INSERT INTO stock(product_sku,warehouse_id,quantity_on_hand) VALUES(?,?,?)',(sku,w,new))
  c.execute('INSERT INTO stock_movements(id,product_sku,warehouse_id,movement_type,quantity,note,created_at) VALUES(?,?,?,?,?,?,?)',(str(uuid.uuid4()),sku,w,m,abs(d),n,time.time()))
-def ref_for(op):return f"{{'receiving':'GRN','dispatch':'GATE','picking':'PICK','packaging':'PACK','putaway':'PUT','inventory_control':'COUNT','return':'RTN','damaged':'DMG'}.get(op,'WH')}-{time.strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+def ref_for(op):
+ p={'receiving':'GRN','dispatch':'GATE','picking':'PICK','packaging':'PACK','putaway':'PUT','inventory_control':'COUNT','return':'RTN','damaged':'DMG','safety_security':'SAFE','equipment_management':'EQP','documentation':'DOC'}.get(op,'WH');return f'{p}-{time.strftime("%Y%m%d")}-{uuid.uuid4().hex[:6].upper()}'
 def allocate_lots(c,sku,w,qty,strategy='fifo'):
  order="CASE WHEN expiry_date IS NULL OR expiry_date='' THEN 1 ELSE 0 END,expiry_date ASC,received_at ASC" if strategy.lower()=='fefo' else 'received_at ASC';rows=c.execute(f"SELECT * FROM warehouse_lots WHERE sku=? AND warehouse_id=? AND status='available' AND quantity_available>0 ORDER BY {order}",(sku,w)).fetchall();need=qty;out=[]
  for r in rows:
