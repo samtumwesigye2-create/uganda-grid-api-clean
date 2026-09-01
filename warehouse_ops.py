@@ -1,11 +1,11 @@
-import os, sqlite3, time, uuid
+import os, sqlite3, time, uuid, json
 from fastapi import APIRouter, Form, Header, HTTPException, Query
 from auth import require_permission
 
 BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 DB_PATH=os.path.join(BASE_DIR,'data_hub.db')
 router=APIRouter()
-VALID={'receiving','picking','putaway','packaging','dispatch','return','damaged','inventory_control','safety_security','documentation','layout','optimization','equipment_management'}
+VALID={'receiving','putaway','storage','picking','packaging','dispatch','inventory_control','return','damaged','safety_security','documentation','layout','optimization','equipment_management','accuracy'}
 
 def conn():
     c=sqlite3.connect(DB_PATH);c.row_factory=sqlite3.Row;return c
@@ -16,7 +16,11 @@ def init_db():
       warehouse_id TEXT NOT NULL DEFAULT 'main', operation_type TEXT NOT NULL,
       quantity REAL NOT NULL DEFAULT 0, location_code TEXT, condition_code TEXT,
       note TEXT, status TEXT NOT NULL DEFAULT 'completed', created_at REAL NOT NULL
-    )''');c.commit();c.close()
+    )''')
+    cols={r[1] for r in c.execute('PRAGMA table_info(warehouse_operations)').fetchall()}
+    for name,typ in [('reference_no','TEXT'),('action_code','TEXT'),('details_json','TEXT'),('updated_at','REAL')]:
+        if name not in cols:c.execute(f'ALTER TABLE warehouse_operations ADD COLUMN {name} {typ}')
+    c.commit();c.close()
 init_db()
 
 def stock_delta(c,sku,warehouse_id,delta,movement_type,note):
@@ -30,19 +34,26 @@ def stock_delta(c,sku,warehouse_id,delta,movement_type,note):
     else:c.execute('INSERT INTO stock(product_sku,warehouse_id,quantity_on_hand) VALUES(?,?,?)',(sku,warehouse_id,new))
     c.execute('INSERT INTO stock_movements(id,product_sku,warehouse_id,movement_type,quantity,note,created_at) VALUES(?,?,?,?,?,?,?)',(str(uuid.uuid4()),sku,warehouse_id,movement_type,abs(delta),note,time.time()))
 
+def ref_for(op):
+    prefix={'receiving':'GRN','dispatch':'GATE','picking':'PICK','packaging':'PACK','putaway':'PUT','inventory_control':'COUNT','return':'RTN','damaged':'DMG','safety_security':'SAFE','equipment_management':'EQP','documentation':'DOC'}.get(op,'WH')
+    return f'{prefix}-{time.strftime("%Y%m%d")}-{uuid.uuid4().hex[:6].upper()}'
+
 @router.post('/warehouse/operations')
-def create_operation(operation_type:str=Form(...),shipment_id:str=Form(''),sku:str=Form(''),warehouse_id:str=Form('main'),quantity:float=Form(0),location_code:str=Form(''),condition_code:str=Form('good'),note:str=Form(''),x_access_code:str=Header(default='')):
+def create_operation(operation_type:str=Form(...),shipment_id:str=Form(''),sku:str=Form(''),warehouse_id:str=Form('main'),quantity:float=Form(0),location_code:str=Form(''),condition_code:str=Form('good'),note:str=Form(''),action_code:str=Form(''),details_json:str=Form('{}'),status:str=Form('completed'),x_access_code:str=Header(default='')):
     require_permission(x_access_code,'inventory:write');op=operation_type.strip().lower()
     if op not in VALID:raise HTTPException(status_code=400,detail='Invalid warehouse operation')
     if quantity<0:raise HTTPException(status_code=400,detail='Quantity cannot be negative')
+    try:json.loads(details_json or '{}')
+    except Exception:raise HTTPException(status_code=400,detail='Invalid operation details')
     c=conn()
     try:
-        if op=='receiving':stock_delta(c,sku,warehouse_id,quantity,'receive',note or 'Warehouse receiving')
-        elif op=='picking':stock_delta(c,sku,warehouse_id,-quantity,'pick',note or 'Warehouse picking')
-        elif op=='dispatch':stock_delta(c,sku,warehouse_id,-quantity,'dispatch',note or 'Warehouse dispatch')
-        elif op=='return':stock_delta(c,sku,warehouse_id,quantity,'return',note or 'Returned stock')
-        elif op=='damaged':stock_delta(c,sku,warehouse_id,-quantity,'damaged',note or 'Damaged stock removed')
-        oid=str(uuid.uuid4());c.execute('''INSERT INTO warehouse_operations(id,shipment_id,sku,warehouse_id,operation_type,quantity,location_code,condition_code,note,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)''',(oid,shipment_id,sku,warehouse_id,op,quantity,location_code,condition_code,note,'completed',time.time()));c.commit();row=c.execute('SELECT * FROM warehouse_operations WHERE id=?',(oid,)).fetchone();return dict(row)
+        if op=='receiving' and action_code in {'receive','create_grn'}:stock_delta(c,sku,warehouse_id,quantity,'receive',note or 'Warehouse receiving')
+        elif op=='picking' and action_code in {'pick','scan_verify'}:stock_delta(c,sku,warehouse_id,-quantity,'pick',note or 'Warehouse picking')
+        elif op=='dispatch' and action_code in {'dispatch','gate_pass'}:stock_delta(c,sku,warehouse_id,-quantity,'dispatch',note or 'Warehouse dispatch')
+        elif op=='return' and action_code in {'return_good','restock'}:stock_delta(c,sku,warehouse_id,quantity,'return',note or 'Returned stock')
+        elif op=='damaged' and action_code in {'write_off','quarantine'}:stock_delta(c,sku,warehouse_id,-quantity,'damaged',note or 'Damaged stock removed')
+        oid=str(uuid.uuid4());now=time.time();reference=ref_for(op)
+        c.execute('''INSERT INTO warehouse_operations(id,shipment_id,sku,warehouse_id,operation_type,quantity,location_code,condition_code,note,status,created_at,reference_no,action_code,details_json,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',(oid,shipment_id,sku,warehouse_id,op,quantity,location_code,condition_code,note,status,now,reference,action_code,details_json,now));c.commit();row=c.execute('SELECT * FROM warehouse_operations WHERE id=?',(oid,)).fetchone();return dict(row)
     finally:c.close()
 
 @router.get('/warehouse/operations')
