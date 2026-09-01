@@ -10,8 +10,9 @@ from incident_records.account_link import attach_reporter, vote_once, list_user_
 from incident_records.reputation import reputation_for, reputation_for_incident
 from backup_monitor import router as backup_monitor_router
 from warehouse_ops import router as warehouse_ops_router
+from warehouse_inbound import router as warehouse_inbound_router
 import backup_reconcile
-app.include_router(ugamap_accounts_router);app.include_router(ugamap_admin_users_router);app.include_router(backup_monitor_router);app.include_router(warehouse_ops_router)
+app.include_router(ugamap_accounts_router);app.include_router(ugamap_admin_users_router);app.include_router(backup_monitor_router);app.include_router(warehouse_ops_router);app.include_router(warehouse_inbound_router)
 def _account_user(authorization:str):
  value=(authorization or '').strip()
  if not value.lower().startswith('bearer '):raise HTTPException(status_code=401,detail='Sign in to use community incident features')
@@ -35,9 +36,8 @@ def ugamap_home_with_accounts():
 def ugaship_page():return Response(Path('ship.html').read_text(encoding='utf-8'),media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 @app.get('/ship/warehouse',include_in_schema=False)
 def ugaship_warehouse_page():
- source=Path('warehouse.html').read_text(encoding='utf-8');scripts='\n'.join(['<script src="/assets/ugaship-location-manager.js?v=1"></script>','<script src="/assets/ugaship-lot-allocation.js?v=1"></script>'])
- if 'ugaship-location-manager.js' not in source:source=source.replace('</body>',scripts+'\n</body>') if '</body>' in source else source+scripts
- elif 'ugaship-lot-allocation.js' not in source:source=source.replace('</body>','<script src="/assets/ugaship-lot-allocation.js?v=1"></script>\n</body>') if '</body>' in source else source+'<script src="/assets/ugaship-lot-allocation.js?v=1"></script>'
+ source=Path('warehouse.html').read_text(encoding='utf-8');needed=['<script src="/assets/ugaship-location-manager.js?v=1"></script>','<script src="/assets/ugaship-lot-allocation.js?v=1"></script>','<script src="/assets/ugaship-inbound.js?v=1"></script>'];missing=[s for s in needed if s.split('?')[0].split('"')[1] not in source]
+ if missing:source=source.replace('</body>','\n'.join(missing)+'\n</body>') if '</body>' in source else source+'\n'+'\n'.join(missing)
  return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 @app.get('/admin',include_in_schema=False)
 def ugamap_admin_with_users():
