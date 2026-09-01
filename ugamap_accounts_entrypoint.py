@@ -14,8 +14,9 @@ from warehouse_inbound import router as warehouse_inbound_router
 from warehouse_outbound import router as warehouse_outbound_router
 from warehouse_delivery import router as warehouse_delivery_router
 from warehouse_staff import router as warehouse_staff_router
+from warehouse_control_tower import router as warehouse_control_tower_router
 import backup_reconcile
-app.include_router(ugamap_accounts_router);app.include_router(ugamap_admin_users_router);app.include_router(backup_monitor_router);app.include_router(warehouse_ops_router);app.include_router(warehouse_inbound_router);app.include_router(warehouse_outbound_router);app.include_router(warehouse_delivery_router);app.include_router(warehouse_staff_router)
+app.include_router(ugamap_accounts_router);app.include_router(ugamap_admin_users_router);app.include_router(backup_monitor_router);app.include_router(warehouse_ops_router);app.include_router(warehouse_inbound_router);app.include_router(warehouse_outbound_router);app.include_router(warehouse_delivery_router);app.include_router(warehouse_staff_router);app.include_router(warehouse_control_tower_router)
 def _account_user(authorization:str):
  value=(authorization or '').strip()
  if not value.lower().startswith('bearer '):raise HTTPException(status_code=401,detail='Sign in to use community incident features')
@@ -39,7 +40,7 @@ def ugamap_home_with_accounts():
 def ugaship_page():return Response(Path('ship.html').read_text(encoding='utf-8'),media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 @app.get('/ship/warehouse',include_in_schema=False)
 def ugaship_warehouse_page():
- source=Path('warehouse.html').read_text(encoding='utf-8');needed=['/assets/ugaship-location-manager.js?v=1','/assets/ugaship-lot-allocation.js?v=1','/assets/ugaship-inbound.js?v=1','/assets/ugaship-outbound.js?v=1','/assets/ugaship-delivery.js?v=1','/assets/ugaship-staff.js?v=1'];missing=[f'<script src="{s}"></script>' for s in needed if s.split('?')[0] not in source]
+ source=Path('warehouse.html').read_text(encoding='utf-8');needed=['/assets/ugaship-location-manager.js?v=1','/assets/ugaship-lot-allocation.js?v=1','/assets/ugaship-inbound.js?v=1','/assets/ugaship-outbound.js?v=1','/assets/ugaship-delivery.js?v=1','/assets/ugaship-staff.js?v=1','/assets/ugaship-control-tower.js?v=1'];missing=[f'<script src="{s}"></script>' for s in needed if s.split('?')[0] not in source]
  if missing:source=source.replace('</body>','\n'.join(missing)+'\n</body>') if '</body>' in source else source+'\n'+'\n'.join(missing)
  return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 @app.get('/admin',include_in_schema=False)
