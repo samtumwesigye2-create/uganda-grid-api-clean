@@ -1,6 +1,7 @@
 import os, sqlite3, time, uuid, json
 from fastapi import APIRouter, Form, Header, HTTPException, Query
 from auth import require_permission
+from warehouse_traceability import emit
 BASE_DIR=os.path.dirname(os.path.abspath(__file__));DB_PATH=os.path.join(BASE_DIR,'data_hub.db');router=APIRouter();VALID={'receiving','putaway','storage','picking','packaging','dispatch','inventory_control','return','damaged','safety_security','documentation','layout','optimization','equipment_management','accuracy'}
 def conn(): c=sqlite3.connect(DB_PATH,timeout=30);c.row_factory=sqlite3.Row;c.execute('PRAGMA busy_timeout=30000');return c
 def init_db():
@@ -42,11 +43,12 @@ def create_operation(operation_type:str=Form(...),shipment_id:str=Form(''),sku:s
  except:raise HTTPException(400,'Invalid operation details')
  c=conn();c.execute('BEGIN IMMEDIATE')
  try:
-  allocations=[];oid=str(uuid.uuid4());now=time.time();reference=ref_for(op)
-  if op=='receiving' and action_code=='receive':stock_delta(c,sku,warehouse_id,quantity,'receive',note or 'Warehouse receiving');c.execute('INSERT INTO warehouse_lots(id,sku,warehouse_id,lot_no,batch_no,manufacture_date,expiry_date,received_at,quantity_received,quantity_available,location_code,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(str(uuid.uuid4()),sku,warehouse_id,lot_no,batch_no,manufacture_date,expiry_date,now,quantity,quantity,location_code.upper(),'available',now,now))
+  allocations=[];oid=str(uuid.uuid4());now=time.time();reference=ref_for(op);trace=[]
+  if op=='receiving' and action_code=='receive':
+   stock_delta(c,sku,warehouse_id,quantity,'receive',note or 'Warehouse receiving');lot_id=str(uuid.uuid4());loc=location_code.upper();c.execute('INSERT INTO warehouse_lots(id,sku,warehouse_id,lot_no,batch_no,manufacture_date,expiry_date,received_at,quantity_received,quantity_available,location_code,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(lot_id,sku,warehouse_id,lot_no,batch_no,manufacture_date,expiry_date,now,quantity,quantity,loc,'available',now,now));trace.append(('receive:'+oid,sku,'received',warehouse_id,quantity,lot_no,batch_no,'',loc,'warehouse_operation',reference,note or 'Warehouse receiving'))
   elif op=='picking' and action_code=='pick':
    allocations=allocate_lots(c,sku,warehouse_id,quantity,allocation_strategy)
-   for a in allocations:c.execute('INSERT INTO warehouse_legacy_pick_reservations VALUES(?,?,?,?,?,?,?,?,?,?)',(str(uuid.uuid4()),oid,sku,warehouse_id,a['lot_id'],a['location_code'],a['quantity'],'picked',now,None))
+   for a in allocations:c.execute('INSERT INTO warehouse_legacy_pick_reservations VALUES(?,?,?,?,?,?,?,?,?,?)',(str(uuid.uuid4()),oid,sku,warehouse_id,a['lot_id'],a['location_code'],a['quantity'],'picked',now,None));trace.append(('legacy-pick:'+oid+':'+a['lot_id'],sku,'picked',warehouse_id,a['quantity'],a['lot_no'],a['batch_no'],a['location_code'],'','warehouse_operation',reference,'Legacy lot pick reservation'))
   elif op=='dispatch' and action_code=='dispatch':
    picks=c.execute("SELECT * FROM warehouse_legacy_pick_reservations WHERE sku=? AND warehouse_id=? AND status='picked' ORDER BY created_at",(sku,warehouse_id)).fetchall();need=quantity;used=[]
    for p in picks:
@@ -57,12 +59,13 @@ def create_operation(operation_type:str=Form(...),shipment_id:str=Form(''),sku:s
    if need>0:raise HTTPException(400,'Dispatch requires previously picked inventory')
    stock_delta(c,sku,warehouse_id,-quantity,'dispatch',note or 'Warehouse dispatch')
    for p in used:
-    q=float(p['quantity']);lot=c.execute('SELECT quantity_available FROM warehouse_lots WHERE id=?',(p['lot_id'],)).fetchone()
+    q=float(p['quantity']);lot=c.execute('SELECT quantity_available,lot_no,batch_no FROM warehouse_lots WHERE id=?',(p['lot_id'],)).fetchone()
     if not lot or float(lot['quantity_available'])<q:raise HTTPException(409,'Lot inventory conflict')
     c.execute("UPDATE warehouse_lots SET quantity_available=quantity_available-?,status=CASE WHEN quantity_available-?<=0 THEN 'depleted' ELSE status END,updated_at=? WHERE id=?",(q,q,time.time(),p['lot_id']));c.execute("UPDATE warehouse_legacy_pick_reservations SET status='dispatched',dispatched_at=? WHERE id=?",(time.time(),p['id']))
     if p['location_code']:c.execute('UPDATE warehouse_locations SET used_capacity=MAX(0,used_capacity-?),updated_at=? WHERE warehouse_id=? AND location_code=?',(q,time.time(),warehouse_id,p['location_code']))
-  elif op=='return' and action_code=='restock':stock_delta(c,sku,warehouse_id,quantity,'return',note or 'Returned stock')
-  elif op=='damaged' and action_code=='write_off':stock_delta(c,sku,warehouse_id,-quantity,'damaged',note or 'Damaged stock removed')
+    trace.append(('legacy-dispatch:'+oid+':'+p['id'],sku,'dispatch',warehouse_id,-q,lot['lot_no'],lot['batch_no'],p['location_code'],'','warehouse_operation',reference,note or 'Warehouse dispatch'))
+  elif op=='return' and action_code=='restock':stock_delta(c,sku,warehouse_id,quantity,'return',note or 'Returned stock');trace.append(('return:'+oid,sku,'return_restock',warehouse_id,quantity,lot_no,batch_no,'',location_code.upper(),'warehouse_operation',reference,note or 'Returned stock'))
+  elif op=='damaged' and action_code=='write_off':stock_delta(c,sku,warehouse_id,-quantity,'damaged',note or 'Damaged stock removed');trace.append(('damage:'+oid,sku,'damaged_writeoff',warehouse_id,-quantity,lot_no,batch_no,location_code.upper(),'','warehouse_operation',reference,note or 'Damaged stock removed'))
   if op=='putaway' and location_code and action_code=='confirm_bin':
    loc=c.execute('SELECT * FROM warehouse_locations WHERE location_code=? AND warehouse_id=?',(location_code.upper(),warehouse_id)).fetchone()
    if not loc:raise HTTPException(404,'Warehouse location not found')
@@ -74,8 +77,10 @@ def create_operation(operation_type:str=Form(...),shipment_id:str=Form(''),sku:s
    target=c.execute(q,a).fetchone()
    if not target:raise HTTPException(404,'Target lot/batch not found')
    if quantity>float(target['quantity_available']):raise HTTPException(400,'Put-away quantity exceeds lot quantity')
-   c.execute('UPDATE warehouse_locations SET used_capacity=used_capacity+?,updated_at=? WHERE id=?',(quantity,time.time(),loc['id']));c.execute('UPDATE warehouse_lots SET location_code=?,updated_at=? WHERE id=?',(location_code.upper(),time.time(),target['id']))
-  details['allocations']=allocations;c.execute('INSERT INTO warehouse_operations(id,shipment_id,sku,warehouse_id,operation_type,quantity,location_code,condition_code,note,status,created_at,reference_no,action_code,details_json,updated_at,lot_no,batch_no,manufacture_date,expiry_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(oid,shipment_id,sku,warehouse_id,op,quantity,location_code.upper(),condition_code,note,status,now,reference,action_code,json.dumps(details),now,lot_no,batch_no,manufacture_date,expiry_date));c.commit();return dict(c.execute('SELECT * FROM warehouse_operations WHERE id=?',(oid,)).fetchone())
+   oldloc=target['location_code'] or '';c.execute('UPDATE warehouse_locations SET used_capacity=used_capacity+?,updated_at=? WHERE id=?',(quantity,time.time(),loc['id']));c.execute('UPDATE warehouse_lots SET location_code=?,updated_at=? WHERE id=?',(location_code.upper(),time.time(),target['id']));trace.append(('putaway:'+oid,sku,'putaway',warehouse_id,quantity,target['lot_no'],target['batch_no'],oldloc,location_code.upper(),'warehouse_operation',reference,'Lot assigned to storage bin'))
+  details['allocations']=allocations;c.execute('INSERT INTO warehouse_operations(id,shipment_id,sku,warehouse_id,operation_type,quantity,location_code,condition_code,note,status,created_at,reference_no,action_code,details_json,updated_at,lot_no,batch_no,manufacture_date,expiry_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(oid,shipment_id,sku,warehouse_id,op,quantity,location_code.upper(),condition_code,note,status,now,reference,action_code,json.dumps(details),now,lot_no,batch_no,manufacture_date,expiry_date))
+  for z in trace:emit(c,z[0],z[1],z[2],z[3],z[4],z[5],z[6],'',z[7],z[8],z[9],z[10],'system',z[11],now)
+  c.commit();return dict(c.execute('SELECT * FROM warehouse_operations WHERE id=?',(oid,)).fetchone())
  except Exception:c.rollback();raise
  finally:c.close()
 @router.get('/warehouse/operations')
