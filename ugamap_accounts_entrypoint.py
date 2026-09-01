@@ -21,8 +21,9 @@ from warehouse_traceability import router as warehouse_traceability_router
 from warehouse_quality import router as warehouse_quality_router
 from warehouse_exceptions import router as warehouse_exceptions_router
 from warehouse_approvals import router as warehouse_approvals_router
+from warehouse_work_queue import router as warehouse_work_queue_router
 import backup_reconcile
-app.include_router(ugamap_accounts_router);app.include_router(ugamap_admin_users_router);app.include_router(backup_monitor_router);app.include_router(warehouse_ops_router);app.include_router(warehouse_inbound_router);app.include_router(warehouse_outbound_router);app.include_router(warehouse_delivery_router);app.include_router(warehouse_staff_router);app.include_router(warehouse_control_tower_router);app.include_router(warehouse_replenishment_router);app.include_router(warehouse_transfers_router);app.include_router(warehouse_traceability_router);app.include_router(warehouse_quality_router);app.include_router(warehouse_exceptions_router);app.include_router(warehouse_approvals_router)
+app.include_router(ugamap_accounts_router);app.include_router(ugamap_admin_users_router);app.include_router(backup_monitor_router);app.include_router(warehouse_ops_router);app.include_router(warehouse_inbound_router);app.include_router(warehouse_outbound_router);app.include_router(warehouse_delivery_router);app.include_router(warehouse_staff_router);app.include_router(warehouse_control_tower_router);app.include_router(warehouse_replenishment_router);app.include_router(warehouse_transfers_router);app.include_router(warehouse_traceability_router);app.include_router(warehouse_quality_router);app.include_router(warehouse_exceptions_router);app.include_router(warehouse_approvals_router);app.include_router(warehouse_work_queue_router)
 def _account_user(authorization:str):
  value=(authorization or '').strip()
  if not value.lower().startswith('bearer '):raise HTTPException(status_code=401,detail='Sign in to use community incident features')
