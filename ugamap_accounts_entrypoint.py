@@ -43,7 +43,7 @@ def _account_user(authorization:str):
  return user
 for route in list(app.router.routes):
  path=getattr(route,'path',None);methods=getattr(route,'methods',set())
- if path in {'/','/admin','/ship'} and 'GET' in methods:app.router.routes.remove(route)
+ if path in {'/','/admin','/ship','/warehouse','/ship/warehouse'} and 'GET' in methods:app.router.routes.remove(route)
  if path=='/report' and 'POST' in methods:app.router.routes.remove(route)
  if path=='/reports/{report_id}/confirm' and 'POST' in methods:app.router.routes.remove(route)
 @app.get('/',include_in_schema=False)
@@ -55,10 +55,14 @@ def ugamap_home_with_accounts():
  if '/assets/ugamap-account-incidents.js' not in source:source=source.replace('</body>',scripts+'\n</body>') if '</body>' in source else source+scripts
  return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 @app.get('/ship',include_in_schema=False)
-def ugaship_page():return Response(Path('ship.html').read_text(encoding='utf-8'),media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
-@app.get('/ship/warehouse',include_in_schema=False)
-def ugaship_warehouse_page():
- source=Path('warehouse.html').read_text(encoding='utf-8');needed=['/assets/ugaship-location-manager.js?v=1','/assets/ugaship-lot-allocation.js?v=1','/assets/ugaship-inbound.js?v=1','/assets/ugaship-outbound.js?v=1','/assets/ugaship-delivery.js?v=1','/assets/ugaship-staff.js?v=1','/assets/ugaship-control-tower.js?v=1','/assets/ugaship-replenishment.js?v=1','/assets/ugaship-transfers.js?v=1','/assets/ugaship-traceability.js?v=1','/assets/ugaship-quality.js?v=1','/assets/ugaship-exceptions.js?v=1','/assets/ugaship-approvals.js?v=1','/assets/ugaship-dashboard-fix.js?v=1'];missing=[f'<script src="{s}"></script>' for s in needed if s.split('?')[0] not in source]
+def ugaship_page():
+ return Response(Path('ship.html').read_text(encoding='utf-8'),media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
+@app.get('/warehouse',include_in_schema=False)
+def warehouse_page():
+ source=Path('warehouse.html').read_text(encoding='utf-8')
+ source=source.replace('<header class="top"><a href="/ship">← UGASHIP</a><b>Warehouse Management</b></header>','<header class="top"><a href="/">← Uganda National Grid</a><b>Warehouse Management</b></header>',1)
+ needed=['/assets/ugaship-location-manager.js?v=1','/assets/ugaship-lot-allocation.js?v=1','/assets/ugaship-inbound.js?v=1','/assets/ugaship-outbound.js?v=1','/assets/ugaship-delivery.js?v=1','/assets/ugaship-staff.js?v=1','/assets/ugaship-control-tower.js?v=1','/assets/ugaship-replenishment.js?v=1','/assets/ugaship-transfers.js?v=1','/assets/ugaship-traceability.js?v=1','/assets/ugaship-quality.js?v=1','/assets/ugaship-exceptions.js?v=1','/assets/ugaship-approvals.js?v=1','/assets/ugaship-dashboard-fix.js?v=1']
+ missing=[f'<script src="{s}"></script>' for s in needed if s.split('?')[0] not in source]
  if missing:source=source.replace('</body>','\n'.join(missing)+'\n</body>') if '</body>' in source else source+'\n'+'\n'.join(missing)
  return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 @app.get('/admin',include_in_schema=False)
