@@ -10,11 +10,13 @@ from user_profile_store import user_for_token
 from incident_records.account_link import attach_reporter, vote_once, list_user_reports
 from incident_records.reputation import reputation_for, reputation_for_incident
 from backup_monitor import router as backup_monitor_router
+from warehouse_ops import router as warehouse_ops_router
 import backup_reconcile  # starts best-effort UGAMAP + UGASHIP backup worker
 
 app.include_router(ugamap_accounts_router)
 app.include_router(ugamap_admin_users_router)
 app.include_router(backup_monitor_router)
+app.include_router(warehouse_ops_router)
 
 def _account_user(authorization: str):
     value=(authorization or '').strip()
@@ -25,7 +27,7 @@ def _account_user(authorization: str):
 
 for route in list(app.router.routes):
     path=getattr(route,'path',None); methods=getattr(route,'methods',set())
-    if path in {'/','/admin'} and 'GET' in methods: app.router.routes.remove(route)
+    if path in {'/','/admin','/ship'} and 'GET' in methods: app.router.routes.remove(route)
     if path=='/report' and 'POST' in methods: app.router.routes.remove(route)
     if path=='/reports/{report_id}/confirm' and 'POST' in methods: app.router.routes.remove(route)
 
@@ -36,6 +38,14 @@ def ugamap_home_with_accounts():
         leaflet='<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>'; source=source.replace(leaflet,leaflet+'\n<script src="/boundaries.js?v=3"></script>',1)
     scripts='<script src="/assets/ugamap-account-ui.js?v=2"></script>\n<script src="/assets/ugamap-account-incidents.js?v=1"></script>'
     if '/assets/ugamap-account-incidents.js' not in source: source=source.replace('</body>',scripts+'\n</body>') if '</body>' in source else source+scripts
+    return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
+
+@app.get('/ship',include_in_schema=False)
+def ugaship_with_warehouse_operations():
+    source=Path('ship.html').read_text(encoding='utf-8')
+    script='<script src="/assets/ugaship-warehouse-ops.js?v=1"></script>'
+    if '/assets/ugaship-warehouse-ops.js' not in source:
+        source=source.replace('</body>',script+'\n</body>') if '</body>' in source else source+script
     return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 
 @app.get('/admin',include_in_schema=False)
