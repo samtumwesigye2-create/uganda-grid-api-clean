@@ -57,7 +57,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
  async def dispatch(self,request,call_next):
   path=request.url.path;ip=(request.headers.get("x-forwarded-for","").split(",")[0].strip() or (request.client.host if request.client else "unknown"))
   if request.headers.get("content-length","").isdigit() and int(request.headers["content-length"])>MAX_BODY:audit("request_blocked_size","warning",ip,path);return JSONResponse({"detail":"Request body too large"},413)
-  inspected=(path+"?"+str(request.query_params)).lower()
+  inspected=(path+"?"+"&".join(f"{key}={value}" for key,value in request.query_params.multi_items())).lower()
   if any(x in inspected for x in BAD):audit("request_blocked_payload","critical",ip,path);return JSONResponse({"detail":"Request rejected"},400)
   if not allowed(ip,path):audit("rate_limit","warning",ip,path);return JSONResponse({"detail":"Too many requests"},429,headers={"Retry-After":"60"})
   if ENFORCE_MFA and request.method not in ("GET","HEAD","OPTIONS") and path.startswith(SENSITIVE_PREFIXES) and path not in ("/security/mfa/enroll","/security/mfa/verify"):
