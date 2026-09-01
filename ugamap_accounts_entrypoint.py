@@ -35,8 +35,9 @@ def ugamap_home_with_accounts():
 def ugaship_page():return Response(Path('ship.html').read_text(encoding='utf-8'),media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 @app.get('/ship/warehouse',include_in_schema=False)
 def ugaship_warehouse_page():
- source=Path('warehouse.html').read_text(encoding='utf-8');script='<script src="/assets/ugaship-location-manager.js?v=1"></script>'
- if 'ugaship-location-manager.js' not in source:source=source.replace('</body>',script+'\n</body>') if '</body>' in source else source+script
+ source=Path('warehouse.html').read_text(encoding='utf-8');scripts='\n'.join(['<script src="/assets/ugaship-location-manager.js?v=1"></script>','<script src="/assets/ugaship-lot-allocation.js?v=1"></script>'])
+ if 'ugaship-location-manager.js' not in source:source=source.replace('</body>',scripts+'\n</body>') if '</body>' in source else source+scripts
+ elif 'ugaship-lot-allocation.js' not in source:source=source.replace('</body>','<script src="/assets/ugaship-lot-allocation.js?v=1"></script>\n</body>') if '</body>' in source else source+'<script src="/assets/ugaship-lot-allocation.js?v=1"></script>'
  return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
 @app.get('/admin',include_in_schema=False)
 def ugamap_admin_with_users():
