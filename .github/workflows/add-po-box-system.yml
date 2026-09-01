@@ -10,7 +10,7 @@ jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Patch customer and admin pages
         run: python scripts/add_po_box_system.py
       - name: Commit generated page changes
