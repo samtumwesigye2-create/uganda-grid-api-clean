@@ -31,6 +31,7 @@ except BaseException as exc:
                 source = path.read_text(encoding="utf-8")
                 if name == "warehouse.html":
                     source = source.replace('<header class="top"><a href="/ship">← UGASHIP</a><b>Warehouse Management</b></header>','<header class="top"><a href="/">← Uganda National Grid</a><b>Warehouse Management</b></header>',1)
+                    source = source.replace('<title>UGASHIP Warehouse Management</title>','<title>Warehouse Command Dashboard</title>',1).replace('<h1>UGASHIP Warehouse Management</h1>','<h1>Warehouse Command Dashboard</h1>',1)
                 return Response(source, media_type="text/html", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
             except Exception:
                 pass

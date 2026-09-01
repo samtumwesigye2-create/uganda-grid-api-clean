@@ -61,7 +61,8 @@ def ugaship_page():
 def warehouse_page():
  source=Path('warehouse.html').read_text(encoding='utf-8')
  source=source.replace('<header class="top"><a href="/ship">← UGASHIP</a><b>Warehouse Management</b></header>','<header class="top"><a href="/">← Uganda National Grid</a><b>Warehouse Management</b></header>',1)
- needed=['/assets/ugaship-location-manager.js?v=1','/assets/ugaship-lot-allocation.js?v=1','/assets/ugaship-inbound.js?v=1','/assets/ugaship-outbound.js?v=1','/assets/ugaship-delivery.js?v=1','/assets/ugaship-staff.js?v=1','/assets/ugaship-control-tower.js?v=1','/assets/ugaship-replenishment.js?v=1','/assets/ugaship-transfers.js?v=1','/assets/ugaship-traceability.js?v=1','/assets/ugaship-quality.js?v=1','/assets/ugaship-exceptions.js?v=1','/assets/ugaship-approvals.js?v=1','/assets/ugaship-dashboard-fix.js?v=1']
+ source=source.replace('<title>UGASHIP Warehouse Management</title>','<title>Warehouse Command Dashboard</title>',1).replace('<h1>UGASHIP Warehouse Management</h1>','<h1>Warehouse Command Dashboard</h1>',1)
+ needed=['/assets/ugaship-location-manager.js?v=1','/assets/ugaship-lot-allocation.js?v=1','/assets/ugaship-inbound.js?v=1','/assets/ugaship-outbound.js?v=1','/assets/ugaship-delivery.js?v=1','/assets/ugaship-staff.js?v=1','/assets/ugaship-control-tower.js?v=1','/assets/ugaship-replenishment.js?v=1','/assets/ugaship-transfers.js?v=1','/assets/ugaship-traceability.js?v=1','/assets/ugaship-quality.js?v=1','/assets/ugaship-exceptions.js?v=1','/assets/ugaship-approvals.js?v=1','/assets/ugaship-dashboard-fix.js?v=1','/assets/warehouse-command-dashboard.js?v=1']
  missing=[f'<script src="{s}"></script>' for s in needed if s.split('?')[0] not in source]
  if missing:source=source.replace('</body>','\n'.join(missing)+'\n</body>') if '</body>' in source else source+'\n'+'\n'.join(missing)
  return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
