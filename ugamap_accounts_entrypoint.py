@@ -9,21 +9,32 @@ from user_profile_store import user_for_token
 from incident_records.account_link import attach_reporter, vote_once, list_user_reports
 from incident_records.reputation import reputation_for, reputation_for_incident
 from backup_monitor import router as backup_monitor_router
-from warehouse_ops import router as warehouse_ops_router
-from warehouse_inbound import router as warehouse_inbound_router
-from warehouse_outbound import router as warehouse_outbound_router
-from warehouse_delivery import router as warehouse_delivery_router
-from warehouse_staff import router as warehouse_staff_router
-from warehouse_control_tower import router as warehouse_control_tower_router
-from warehouse_replenishment import router as warehouse_replenishment_router
-from warehouse_transfers import router as warehouse_transfers_router
-from warehouse_traceability import router as warehouse_traceability_router
-from warehouse_quality import router as warehouse_quality_router
-from warehouse_exceptions import router as warehouse_exceptions_router
-from warehouse_approvals import router as warehouse_approvals_router
-from warehouse_work_queue import router as warehouse_work_queue_router
+import importlib, logging
 import backup_reconcile
-app.include_router(ugamap_accounts_router);app.include_router(ugamap_admin_users_router);app.include_router(backup_monitor_router);app.include_router(warehouse_ops_router);app.include_router(warehouse_inbound_router);app.include_router(warehouse_outbound_router);app.include_router(warehouse_delivery_router);app.include_router(warehouse_staff_router);app.include_router(warehouse_control_tower_router);app.include_router(warehouse_replenishment_router);app.include_router(warehouse_transfers_router);app.include_router(warehouse_traceability_router);app.include_router(warehouse_quality_router);app.include_router(warehouse_exceptions_router);app.include_router(warehouse_approvals_router);app.include_router(warehouse_work_queue_router)
+
+app.include_router(ugamap_accounts_router)
+app.include_router(ugamap_admin_users_router)
+app.include_router(backup_monitor_router)
+
+WAREHOUSE_MODULES=[
+ 'warehouse_ops','warehouse_inbound','warehouse_outbound','warehouse_delivery','warehouse_staff',
+ 'warehouse_control_tower','warehouse_replenishment','warehouse_transfers','warehouse_traceability',
+ 'warehouse_quality','warehouse_exceptions','warehouse_approvals','warehouse_work_queue'
+]
+WAREHOUSE_LOAD_ERRORS={}
+for name in WAREHOUSE_MODULES:
+ try:
+  mod=importlib.import_module(name)
+  router=getattr(mod,'router',None)
+  if router is not None:app.include_router(router)
+ except Exception as exc:
+  WAREHOUSE_LOAD_ERRORS[name]=f'{type(exc).__name__}: {exc}'
+  logging.exception('Warehouse module failed to load: %s',name)
+
+@app.get('/system/warehouse-module-status',include_in_schema=False)
+def warehouse_module_status():
+ return {'loaded':[x for x in WAREHOUSE_MODULES if x not in WAREHOUSE_LOAD_ERRORS],'failed':WAREHOUSE_LOAD_ERRORS}
+
 def _account_user(authorization:str):
  value=(authorization or '').strip()
  if not value.lower().startswith('bearer '):raise HTTPException(status_code=401,detail='Sign in to use community incident features')
