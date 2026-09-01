@@ -18,7 +18,7 @@ BOOT_TRACE = None
 try:
     production = importlib.import_module("ugamap_accounts_entrypoint")
     app = production.app
-except BaseException as exc:  # bootstrap boundary must also catch syntax/import/system-exit failures
+except BaseException as exc:
     BOOT_ERROR = f"{type(exc).__name__}: {exc}"
     BOOT_TRACE = traceback.format_exc()
     logging.exception("Full UGAMAP production application failed to boot")
@@ -28,7 +28,10 @@ except BaseException as exc:  # bootstrap boundary must also catch syntax/import
         path = Path(name)
         if path.exists():
             try:
-                return Response(path.read_text(encoding="utf-8"), media_type="text/html", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
+                source = path.read_text(encoding="utf-8")
+                if name == "warehouse.html":
+                    source = source.replace('<header class="top"><a href="/ship">← UGASHIP</a><b>Warehouse Management</b></header>','<header class="top"><a href="/">← Uganda National Grid</a><b>Warehouse Management</b></header>',1)
+                return Response(source, media_type="text/html", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
             except Exception:
                 pass
         return HTMLResponse(f"<h1>{title}</h1><p>Core services are recovering. The web process is online.</p>", status_code=503)
@@ -41,9 +44,9 @@ except BaseException as exc:  # bootstrap boundary must also catch syntax/import
     def emergency_ship():
         return _html_file("ship.html", "UGASHIP")
 
-    @app.get("/ship/warehouse", include_in_schema=False)
+    @app.get("/warehouse", include_in_schema=False)
     def emergency_warehouse():
-        return _html_file("warehouse.html", "UGASHIP Warehouse")
+        return _html_file("warehouse.html", "Warehouse Management")
 
     @app.get("/admin", include_in_schema=False)
     def emergency_admin():
