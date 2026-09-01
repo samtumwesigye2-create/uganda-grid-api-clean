@@ -10,9 +10,11 @@ from datetime import datetime, timezone
 BACKUP_SERVICE_URL=os.environ.get("BACKUP_SERVICE_URL","https://uga-backup-service-production.up.railway.app").rstrip("/")
 BACKUP_SYNC_TOKEN=os.environ.get("BACKUP_SYNC_TOKEN","").strip()
 _MAX_WORKERS=4
+_MAX_OUTSTANDING=100
 _executor=ThreadPoolExecutor(max_workers=_MAX_WORKERS,thread_name_prefix="uga-backup-sync")
+_slots=threading.BoundedSemaphore(_MAX_OUTSTANDING)
 _status_lock=threading.Lock()
-_status={"last_attempt":None,"last_success":None,"last_error":None,"queued":0,"active":0,"completed":0,"failed":0,"max_workers":_MAX_WORKERS}
+_status={"last_attempt":None,"last_success":None,"last_error":None,"queued":0,"active":0,"completed":0,"failed":0,"dropped":0,"max_workers":_MAX_WORKERS,"max_outstanding":_MAX_OUTSTANDING}
 
 def sync_client_status():
     with _status_lock:return dict(_status)
@@ -40,10 +42,13 @@ def _send(payload):
     finally:
         _change("active",-1);_change("completed",1)
         if not success:_change("failed",1)
+        _slots.release()
 def backup_event(source,entity_type,entity_id,action,data=None):
     payload={"source":source,"entity_type":entity_type,"entity_id":str(entity_id),"action":action,"data":data or {},"source_updated_at":datetime.now(timezone.utc).isoformat()}
+    if not _slots.acquire(blocking=False):
+        _change("dropped",1);_change("failed",1);_set(last_error="backup sync backlog full; event left for reconciliation");return
     _change("queued",1)
     try:_executor.submit(_send,payload)
-    except Exception as exc:_change("queued",-1);_change("failed",1);_set(last_error=f"queue error: {type(exc).__name__}: {exc}"[:240])
+    except Exception as exc:_change("queued",-1);_change("failed",1);_slots.release();_set(last_error=f"queue error: {type(exc).__name__}: {exc}"[:240])
 def ugamap_backup(entity_type,entity_id,action,data=None):backup_event("UGAMAP",entity_type,entity_id,action,data)
 def ugaship_backup(entity_type,entity_id,action,data=None):backup_event("UGASHIP",entity_type,entity_id,action,data)
