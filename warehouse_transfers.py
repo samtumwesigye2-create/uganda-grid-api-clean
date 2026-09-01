@@ -1,6 +1,7 @@
 import os,sqlite3,time,uuid,json
 from fastapi import APIRouter,Form,Header,HTTPException,Query
 from auth import require_permission
+from warehouse_approvals import consume_approval
 DB=os.path.join(os.path.dirname(os.path.abspath(__file__)),'data_hub.db');router=APIRouter()
 def db():c=sqlite3.connect(DB,timeout=30,isolation_level=None);c.row_factory=sqlite3.Row;c.execute('PRAGMA busy_timeout=30000');return c
 def init():
@@ -25,8 +26,7 @@ def reserve_line(c,t,line):
   if take<=0:continue
   c.execute('INSERT INTO warehouse_transfer_lots(id,transfer_id,transfer_line_id,source_lot_id,sku,lot_no,batch_no,manufacture_date,expiry_date,source_location,quantity,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(str(uuid.uuid4()),t['id'],line['id'],lot['id'],line['sku'],lot['lot_no'],lot['batch_no'],lot['manufacture_date'],lot['expiry_date'],lot['location_code'],take,'reserved',time.time()));need-=take
  if need>0:raise HTTPException(409,f'Insufficient unreserved lot stock for {line["sku"]}')
-def destination(c,w,qty):
- r=c.execute("SELECT * FROM warehouse_locations WHERE warehouse_id=? AND status='available' AND capacity-used_capacity>=? ORDER BY priority,used_capacity LIMIT 1",(w,qty)).fetchone();return r
+def destination(c,w,qty):return c.execute("SELECT * FROM warehouse_locations WHERE warehouse_id=? AND status='available' AND capacity-used_capacity>=? ORDER BY priority,used_capacity LIMIT 1",(w,qty)).fetchone()
 @router.post('/warehouse/transfers')
 def create(from_warehouse:str=Form(...),to_warehouse:str=Form(...),lines_json:str=Form('[]'),notes:str=Form(''),x_access_code:str=Header(default='')):
  auth(x_access_code,'inventory:write')
@@ -45,12 +45,13 @@ def create(from_warehouse:str=Form(...),to_warehouse:str=Form(...),lines_json:st
  except Exception:c.execute('ROLLBACK');raise
  finally:c.close()
 @router.post('/warehouse/transfers/{transfer_id}/ship')
-def ship(transfer_id:str,x_access_code:str=Header(default='')):
+def ship(transfer_id:str,approval_id:str=Form(''),x_access_code:str=Header(default='')):
  auth(x_access_code,'inventory:write');c=db();c.execute('BEGIN IMMEDIATE')
  try:
   t=c.execute('SELECT * FROM warehouse_transfer_orders WHERE id=?',(transfer_id,)).fetchone()
   if not t:raise HTTPException(404,'Transfer not found')
   if t['status']!='draft':raise HTTPException(400,'Only draft transfers can ship')
+  consume_approval(c,approval_id,'transfer_ship',t['transfer_no'],t['from_warehouse'],'transfer_ship')
   lines=c.execute('SELECT * FROM warehouse_transfer_lines WHERE transfer_id=?',(transfer_id,)).fetchall();now=time.time()
   for l in lines:
    lots=c.execute("SELECT * FROM warehouse_transfer_lots WHERE transfer_line_id=? AND status='reserved'",(l['id'],)).fetchall()
@@ -63,7 +64,7 @@ def ship(transfer_id:str,x_access_code:str=Header(default='')):
     q=float(z['quantity']);c.execute("UPDATE warehouse_lots SET quantity_available=quantity_available-?,status=CASE WHEN quantity_available-?<=0 THEN 'depleted' ELSE status END,updated_at=? WHERE id=?",(q,q,now,z['source_lot_id']));c.execute("UPDATE warehouse_transfer_lots SET status='in_transit',shipped_at=? WHERE id=?",(now,z['id']))
     if z['source_location']:c.execute('UPDATE warehouse_locations SET used_capacity=MAX(0,used_capacity-?),updated_at=? WHERE warehouse_id=? AND location_code=?',(q,now,t['from_warehouse'],z['source_location']))
    c.execute('UPDATE warehouse_transfer_lines SET shipped_qty=requested_qty WHERE id=?',(l['id'],))
-  c.execute("UPDATE warehouse_transfer_orders SET status='in_transit',shipped_at=? WHERE id=?",(now,transfer_id));c.execute('COMMIT');return {'transfer_id':transfer_id,'status':'in_transit','lot_controlled':True}
+  c.execute("UPDATE warehouse_transfer_orders SET status='in_transit',shipped_at=? WHERE id=?",(now,transfer_id));c.execute('COMMIT');return {'transfer_id':transfer_id,'status':'in_transit','approval_id':approval_id,'lot_controlled':True}
  except Exception:c.execute('ROLLBACK');raise
  finally:c.close()
 @router.post('/warehouse/transfers/{transfer_id}/receive')
@@ -73,16 +74,12 @@ def receive(transfer_id:str,x_access_code:str=Header(default='')):
   t=c.execute('SELECT * FROM warehouse_transfer_orders WHERE id=?',(transfer_id,)).fetchone()
   if not t:raise HTTPException(404,'Transfer not found')
   if t['status']!='in_transit':raise HTTPException(400,'Transfer is not in transit')
-  lines=c.execute('SELECT * FROM warehouse_transfer_lines WHERE transfer_id=?',(transfer_id,)).fetchall();now=time.time()
-  # Capacity is validated before any stock is posted.
-  assignments={}
+  lines=c.execute('SELECT * FROM warehouse_transfer_lines WHERE transfer_id=?',(transfer_id,)).fetchall();now=time.time();assignments={}
   for z in c.execute("SELECT * FROM warehouse_transfer_lots WHERE transfer_id=? AND status='in_transit'",(transfer_id,)).fetchall():
    loc=destination(c,t['to_warehouse'],float(z['quantity']))
    if not loc:raise HTTPException(409,f'No destination bin capacity for {z["sku"]} lot {z["lot_no"] or "-"}')
-   assignments[z['id']]=loc
-   c.execute('UPDATE warehouse_locations SET used_capacity=used_capacity+?,updated_at=? WHERE id=?',(float(z['quantity']),now,loc['id']))
-  for l in lines:
-   change(c,l['sku'],t['to_warehouse'],float(l['shipped_qty']));c.execute('UPDATE warehouse_transfer_lines SET received_qty=shipped_qty WHERE id=?',(l['id'],))
+   assignments[z['id']]=loc;c.execute('UPDATE warehouse_locations SET used_capacity=used_capacity+?,updated_at=? WHERE id=?',(float(z['quantity']),now,loc['id']))
+  for l in lines:change(c,l['sku'],t['to_warehouse'],float(l['shipped_qty']));c.execute('UPDATE warehouse_transfer_lines SET received_qty=shipped_qty WHERE id=?',(l['id'],))
   for z in c.execute("SELECT * FROM warehouse_transfer_lots WHERE transfer_id=? AND status='in_transit'",(transfer_id,)).fetchall():
    loc=assignments[z['id']];lid=str(uuid.uuid4());q=float(z['quantity']);c.execute('INSERT INTO warehouse_lots(id,sku,warehouse_id,lot_no,batch_no,manufacture_date,expiry_date,received_at,quantity_received,quantity_available,location_code,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(lid,z['sku'],t['to_warehouse'],z['lot_no'],z['batch_no'],z['manufacture_date'],z['expiry_date'],now,q,q,loc['location_code'],'available',now,now));c.execute("UPDATE warehouse_transfer_lots SET status='received',destination_lot_id=?,destination_location=?,received_at=? WHERE id=?",(lid,loc['location_code'],now,z['id']))
   c.execute("UPDATE warehouse_transfer_orders SET status='received',received_at=? WHERE id=?",(now,transfer_id));c.execute('COMMIT');return {'transfer_id':transfer_id,'status':'received','lots_recreated':True,'capacity_updated':True}
