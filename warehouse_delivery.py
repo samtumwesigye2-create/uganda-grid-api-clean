@@ -2,6 +2,7 @@ import os,sqlite3,time,uuid
 from fastapi import APIRouter,Form,Header,HTTPException,Query
 from auth import require_permission
 from warehouse_outbound import dispatch_order
+from warehouse_traceability import emit
 BASE=os.path.dirname(os.path.abspath(__file__));DB=os.path.join(BASE,'data_hub.db');router=APIRouter()
 def c():x=sqlite3.connect(DB,timeout=30);x.row_factory=sqlite3.Row;x.execute('PRAGMA busy_timeout=30000');return x
 def init():
@@ -48,26 +49,25 @@ def plan(order_id:str=Form(...),carrier_id:str=Form(''),vehicle_id:str=Form(''),
   if rid:
    r=x.execute(f'SELECT status FROM {table} WHERE id=?',(rid,)).fetchone()
    if not r or r['status']!='available':x.close();raise HTTPException(409,f'{label} is not available')
- i=str(uuid.uuid4());now=time.time();dn=num('DEL');track=tracking_no or num('TRK');x.execute('INSERT INTO warehouse_deliveries(id,delivery_no,order_id,carrier_id,vehicle_id,driver_id,warehouse_id,dock_id,destination,tracking_no,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(i,dn,order_id,carrier_id,vehicle_id,driver_id,warehouse_id,dock_id,destination or o['delivery_address'],track,'planned',now,now));x.execute('INSERT INTO warehouse_delivery_events VALUES(?,?,?,?,?)',(str(uuid.uuid4()),i,'planned','Delivery planned',now));x.commit();r=dict(x.execute('SELECT * FROM warehouse_deliveries WHERE id=?',(i,)).fetchone());x.close();return r
+ i=str(uuid.uuid4());now=time.time();dn=num('DEL');track=tracking_no or num('TRK');x.execute('BEGIN IMMEDIATE');x.execute('INSERT INTO warehouse_deliveries(id,delivery_no,order_id,carrier_id,vehicle_id,driver_id,warehouse_id,dock_id,destination,tracking_no,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(i,dn,order_id,carrier_id,vehicle_id,driver_id,warehouse_id,dock_id,destination or o['delivery_address'],track,'planned',now,now));x.execute('INSERT INTO warehouse_delivery_events VALUES(?,?,?,?,?)',(str(uuid.uuid4()),i,'planned','Delivery planned',now));emit(x,'delivery-plan:'+i,'N/A','delivery_planned',warehouse_id,0,'','','','','','delivery',dn,'system','Order '+o['order_no']+' | Tracking '+track,now);x.commit();r=dict(x.execute('SELECT * FROM warehouse_deliveries WHERE id=?',(i,)).fetchone());x.close();return r
 @router.post('/warehouse/deliveries/{delivery_id}/status')
-def status(delivery_id:str,status:str=Form(...),note:str=Form(''),recipient_name:str=Form(''),x_access_code:str=Header(default='')):
+def status(delivery_id:str,status:str=Form(...),note:str=Form(''),recipient_name:str=Form(''),approval_id:str=Form(''),x_access_code:str=Header(default='')):
  auth(x_access_code,'inventory:write');allowed={'loading','loaded','departed','in_transit','delivered','failed','returned'}
  if status not in allowed:raise HTTPException(400,'Invalid delivery status')
  x=c();d=x.execute('SELECT * FROM warehouse_deliveries WHERE id=?',(delivery_id,)).fetchone()
  if not d:x.close();raise HTTPException(404,'Delivery not found')
  transitions={'planned':{'loading','failed'},'loading':{'loaded','failed'},'loaded':{'departed','failed'},'departed':{'in_transit','delivered','failed','returned'},'in_transit':{'delivered','failed','returned'},'failed':set(),'returned':set(),'delivered':set()}
  if status not in transitions.get(d['status'],set()):x.close();raise HTTPException(409,f'Invalid delivery transition {d["status"]} → {status}')
- # Departure is the physical release point. It cannot happen until authoritative outbound dispatch succeeds.
  dispatch=None
  if status=='departed':
-  x.close();dispatch=dispatch_order(d['order_id'],x_access_code);x=c();d=x.execute('SELECT * FROM warehouse_deliveries WHERE id=?',(delivery_id,)).fetchone()
- now=time.time();sets=['status=?','updated_at=?'];vals=[status,now]
+  x.close();dispatch=dispatch_order(d['order_id'],approval_id=approval_id,x_access_code=x_access_code);x=c();d=x.execute('SELECT * FROM warehouse_deliveries WHERE id=?',(delivery_id,)).fetchone()
+ now=time.time();x.execute('BEGIN IMMEDIATE');sets=['status=?','updated_at=?'];vals=[status,now]
  if status=='loaded':sets+=['loaded_at=?'];vals += [now]
  if status=='departed':sets+=['departed_at=?','gate_pass=?'];vals += [now,(dispatch or {}).get('gate_pass') or d['gate_pass'] or num('GATE')]
  if status=='delivered':sets+=['delivered_at=?','recipient_name=?','proof_note=?'];vals += [now,recipient_name,note]
  vals.append(delivery_id);x.execute('UPDATE warehouse_deliveries SET '+','.join(sets)+' WHERE id=?',vals);resource_status(x,d,status);event_note=note
  if dispatch:event_note=(note+' | ' if note else '')+'Authoritative inventory dispatch '+dispatch['gate_pass']
- x.execute('INSERT INTO warehouse_delivery_events VALUES(?,?,?,?,?)',(str(uuid.uuid4()),delivery_id,status,event_note,now));x.commit();r=dict(x.execute('SELECT * FROM warehouse_deliveries WHERE id=?',(delivery_id,)).fetchone());x.close();return r
+ x.execute('INSERT INTO warehouse_delivery_events VALUES(?,?,?,?,?)',(str(uuid.uuid4()),delivery_id,status,event_note,now));gate=(dispatch or {}).get('gate_pass') or d['gate_pass'] or '';emit(x,'delivery-status:'+delivery_id+':'+status,'N/A','delivery_'+status,d['warehouse_id'],0,'','','','dock:'+str(d['dock_id'] or ''),'customer' if status=='delivered' else 'vehicle:'+str(d['vehicle_id'] or ''),'delivery',d['delivery_no'],'system',(event_note+' | ' if event_note else '')+('Gate pass '+gate if gate else '')+(' | Recipient '+recipient_name if recipient_name else ''),now);x.commit();r=dict(x.execute('SELECT * FROM warehouse_deliveries WHERE id=?',(delivery_id,)).fetchone());x.close();return r
 @router.get('/warehouse/deliveries')
 def deliveries(status:str=Query(''),warehouse_id:str=Query('main'),x_access_code:str=Header(default='')):
  auth(x_access_code,'inventory:read');x=c();q='''SELECT d.*,o.order_no,o.customer_name,v.registration_no,dr.name driver_name,ca.name carrier_name,dk.dock_code FROM warehouse_deliveries d LEFT JOIN warehouse_customer_orders o ON o.id=d.order_id LEFT JOIN warehouse_vehicles v ON v.id=d.vehicle_id LEFT JOIN warehouse_drivers dr ON dr.id=d.driver_id LEFT JOIN warehouse_carriers ca ON ca.id=d.carrier_id LEFT JOIN warehouse_docks dk ON dk.id=d.dock_id WHERE d.warehouse_id=?''';a=[warehouse_id]
