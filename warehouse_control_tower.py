@@ -2,9 +2,30 @@ import os,sqlite3,time
 from fastapi import APIRouter,Header,Query
 from auth import require_permission
 DB=os.path.join(os.path.dirname(os.path.abspath(__file__)),'data_hub.db');router=APIRouter()
-def db():c=sqlite3.connect(DB);c.row_factory=sqlite3.Row;return c
+def db():c=sqlite3.connect(DB,timeout=30);c.row_factory=sqlite3.Row;c.execute('PRAGMA busy_timeout=30000');return c
 def one(c,q,a=()):return c.execute(q,a).fetchone()
 def pct(a,b):return round((float(a or 0)/float(b or 1))*100,1) if b else 0
+def exists(c,n):return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",(n,)).fetchone() is not None
+@router.get('/warehouse/dashboard')
+def dashboard(warehouse_id:str=Query('main'),x_access_code:str=Header(default='')):
+ require_permission(x_access_code,'inventory:read');c=db();today=time.time()-86400
+ def op(name):
+  if not exists(c,'warehouse_operations'):return 0
+  r=one(c,'SELECT COUNT(*) n FROM warehouse_operations WHERE warehouse_id=? AND operation_type=? AND created_at>=?',(warehouse_id,name,today));return r['n'] or 0
+ low=[]
+ if exists(c,'stock'):low=[dict(r) for r in c.execute('SELECT product_sku,warehouse_id,quantity_on_hand FROM stock WHERE warehouse_id=? AND quantity_on_hand<=5 ORDER BY quantity_on_hand,product_sku LIMIT 100',(warehouse_id,)).fetchall()]
+ alerts=[]
+ if low:alerts.append({'level':'warning','type':'low_stock','message':f'{len(low)} SKUs are at or below low-stock threshold','reference':warehouse_id})
+ if exists(c,'warehouse_tasks'):
+  r=one(c,"SELECT COUNT(*) n FROM warehouse_tasks WHERE warehouse_id=? AND status='blocked'",(warehouse_id,))
+  if r and r['n']:alerts.append({'level':'critical','type':'blocked_tasks','message':f"{r['n']} warehouse tasks are blocked",'reference':warehouse_id})
+ if exists(c,'warehouse_quality_holds'):
+  r=one(c,"SELECT COUNT(*) n FROM warehouse_quality_holds WHERE warehouse_id=? AND status IN ('quarantine','held','open')",(warehouse_id,))
+  if r and r['n']:alerts.append({'level':'warning','type':'quality_hold','message':f"{r['n']} quality holds require attention",'reference':warehouse_id})
+ if exists(c,'warehouse_deliveries'):
+  r=one(c,"SELECT COUNT(*) n FROM warehouse_deliveries WHERE warehouse_id=? AND status='failed' AND updated_at>=?",(warehouse_id,today))
+  if r and r['n']:alerts.append({'level':'critical','type':'delivery_failure','message':f"{r['n']} deliveries failed in the last 24 hours",'reference':warehouse_id})
+ out={'warehouse_id':warehouse_id,'today':{'receiving':op('receiving'),'picking':op('picking'),'dispatch':op('dispatch'),'putaway':op('putaway')},'low_stock':low,'alerts':alerts,'generated_at':time.time()};c.close();return out
 @router.get('/warehouse/control-tower')
 def tower(warehouse_id:str=Query('main'),days:int=Query(7,ge=1,le=90),x_access_code:str=Header(default='')):
  require_permission(x_access_code,'inventory:read');c=db();now=time.time();since=now-days*86400;today=now-86400
