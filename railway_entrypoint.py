@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi.responses import Response
 from production_safe_entrypoint import app as production_app
 
-RELEASE = "20260902-5digit-r1"
+RELEASE = "20260902-5digit-r3"
 
 
 def _public_index():
@@ -22,22 +22,14 @@ async def app(scope, receive, send):
     if scope.get("type") == "http" and scope.get("method") == "GET":
         path = scope.get("path")
         if path == "/":
-            response = Response(
-                _public_index(),
-                media_type="text/html",
-                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-            )
+            response = Response(_public_index(), media_type="text/html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
             await response(scope, receive, send)
             return
-        if path in {"/app.js", "/boundaries.js", "/legacy-grid-killer.js", "/performance-layer.js", "/app-core.js"}:
+        if path in {"/app.js", "/boundaries.js", "/performance-layer.js", "/app-core.js"}:
             filename = path.lstrip("/")
             file_path = Path(filename)
             if file_path.exists():
-                response = Response(
-                    file_path.read_text(encoding="utf-8"),
-                    media_type="application/javascript",
-                    headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-                )
+                response = Response(file_path.read_text(encoding="utf-8"), media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
                 await response(scope, receive, send)
                 return
     await production_app(scope, receive, send)
