@@ -2,7 +2,7 @@
 from __future__ import annotations
 import json,os
 from functools import lru_cache
-from fastapi import APIRouter,HTTPException
+from fastapi import APIRouter,HTTPException,Query
 from zipper_numbering import numbering_status
 from zipper_live_geometry import live_zipper_feature_collection,live_zipper_status
 from orders import router as orders_router
@@ -31,10 +31,52 @@ def _load_artifact():
  return data
 def zipper_feature_collection():return _load_artifact() if os.path.exists(ZIPPER_GEOJSON_FILE) else live_zipper_feature_collection()
 def clear_zipper_cache():_load_artifact.cache_clear();live_zipper_feature_collection.cache_clear()
+
+def _geometry_bbox(geometry):
+ coords=(geometry or {}).get('coordinates')
+ if not coords:return None
+ min_lon=min_lat=float('inf');max_lon=max_lat=float('-inf')
+ def walk(v):
+  nonlocal min_lon,min_lat,max_lon,max_lat
+  if isinstance(v,(list,tuple)):
+   if len(v)>=2 and isinstance(v[0],(int,float)) and isinstance(v[1],(int,float)):
+    lon,lat=float(v[0]),float(v[1]);min_lon=min(min_lon,lon);max_lon=max(max_lon,lon);min_lat=min(min_lat,lat);max_lat=max(max_lat,lat)
+   else:
+    for x in v:walk(x)
+ walk(coords)
+ if min_lon==float('inf'):return None
+ return min_lon,min_lat,max_lon,max_lat
+
+@lru_cache(maxsize=1)
+def _indexed_zipper_features():
+ data=zipper_feature_collection();out=[]
+ for f in data.get('features',[]):out.append((f,_geometry_bbox(f.get('geometry'))))
+ return out
+
 @router.get('/geography/zipper')
 def geography_zipper():
  try:return zipper_feature_collection()
  except Exception as exc:raise HTTPException(status_code=500,detail=f'ZIPPER geography unavailable: {exc}')
+
+@router.get('/geography/zipper/viewport')
+def geography_zipper_viewport(
+ min_lon:float=Query(...,ge=-180,le=180),min_lat:float=Query(...,ge=-90,le=90),
+ max_lon:float=Query(...,ge=-180,le=180),max_lat:float=Query(...,ge=-90,le=90),
+ limit:int=Query(240,ge=1,le=500)
+):
+ """Return only ZIPPER polygons intersecting the current map viewport."""
+ if min_lon>=max_lon or min_lat>=max_lat:raise HTTPException(status_code=400,detail='Invalid viewport bounds')
+ try:
+  features=[]
+  for feature,bbox in _indexed_zipper_features():
+   if not bbox:continue
+   a,b,c,d=bbox
+   if c<min_lon or a>max_lon or d<min_lat or b>max_lat:continue
+   features.append(feature)
+   if len(features)>=limit:break
+  return {'type':'FeatureCollection','features':features,'viewport':{'min_lon':min_lon,'min_lat':min_lat,'max_lon':max_lon,'max_lat':max_lat},'limited':len(features)>=limit}
+ except Exception as exc:raise HTTPException(status_code=500,detail=f'ZIPPER viewport unavailable: {exc}')
+
 @router.get('/geography/zipper/status')
 def geography_zipper_status():
  status=numbering_status();ready=os.path.exists(ZIPPER_GEOJSON_FILE);status.update({'layer':'ZIPPER','active_replacement':True,'artifact':os.path.basename(ZIPPER_GEOJSON_FILE),'artifact_ready':ready,'source':'generated_artifact' if ready else 'district_population_live_fallback'})
