@@ -1,14 +1,16 @@
-"""Railway production wrapper: serve current UGAMAP frontend and routing proxy."""
+"""Railway production wrapper: serve current UGAMAP frontend and resilient routing proxy."""
 from pathlib import Path
 import asyncio
+import json
 import time
 import requests
 from fastapi.responses import Response
 from production_safe_entrypoint import app as production_app
 from data_relay_client import emit as relay_emit
 
-RELEASE = "20260902-5digit-r5"
+RELEASE = "20260902-5digit-r6"
 VALHALLA_URL = "https://valhalla1.openstreetmap.de/route"
+OSRM_BASE = "https://router.project-osrm.org/route/v1/driving"
 
 
 def _public_index():
@@ -28,47 +30,124 @@ def _public_index():
 
 async def _read_body(receive):
     chunks = []
-    more = True
-    while more:
+    while True:
         message = await receive()
         if message.get("type") != "http.request":
             continue
         chunks.append(message.get("body", b""))
-        more = bool(message.get("more_body", False))
+        if not message.get("more_body", False):
+            break
     return b"".join(chunks)
 
 
-async def _routing_proxy(receive, send, relay_send):
-    body = await _read_body(receive)
+def _valhalla_request(body: bytes):
+    return requests.post(
+        VALHALLA_URL,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "UGAMAP/1.0",
+        },
+        timeout=12,
+    )
+
+
+def _osrm_fallback(body: bytes):
+    payload = json.loads(body.decode("utf-8"))
+    locations = payload.get("locations") or []
+    if len(locations) < 2:
+        raise ValueError("route needs at least two locations")
+
+    a, b = locations[0], locations[-1]
+    coords = f"{float(a['lon'])},{float(a['lat'])};{float(b['lon'])},{float(b['lat'])}"
+    url = f"{OSRM_BASE}/{coords}"
+    r = requests.get(
+        url,
+        params={"overview": "full", "geometries": "polyline6", "steps": "false"},
+        headers={"Accept": "application/json", "User-Agent": "UGAMAP/1.0"},
+        timeout=12,
+    )
+    r.raise_for_status()
+    data = r.json()
+    routes = data.get("routes") or []
+    if data.get("code") != "Ok" or not routes:
+        raise ValueError(data.get("message") or data.get("code") or "OSRM route unavailable")
+
+    route = routes[0]
+    geometry = route.get("geometry")
+    if not geometry:
+        raise ValueError("OSRM route geometry missing")
+
+    # Present the fallback using the small Valhalla response subset already
+    # consumed by app-core.js. OSRM polyline6 uses the same 1e-6 precision
+    # expected by UGAMAP's existing shape decoder.
+    converted = {
+        "trip": {
+            "status": 0,
+            "status_message": "Found route via fallback",
+            "legs": [
+                {
+                    "shape": geometry,
+                    "summary": {
+                        "length": float(route.get("distance", 0)) / 1000.0,
+                        "time": float(route.get("duration", 0)),
+                    },
+                    "maneuvers": [],
+                }
+            ],
+            "summary": {
+                "length": float(route.get("distance", 0)) / 1000.0,
+                "time": float(route.get("duration", 0)),
+            },
+        }
+    }
+    return json.dumps(converted).encode("utf-8")
+
+
+async def _route_response(body: bytes):
     if not body:
-        response = Response('{"error":"missing route payload"}', status_code=400, media_type="application/json")
-        await response({}, receive, relay_send)
-        return
-
-    def call_valhalla():
-        return requests.post(
-            VALHALLA_URL,
-            data=body,
-            headers={"Content-Type": "application/json", "Accept": "application/json", "User-Agent": "UGAMAP/1.0"},
-            timeout=15,
-        )
-
-    try:
-        upstream = await asyncio.to_thread(call_valhalla)
-        response = Response(
-            upstream.content,
-            status_code=upstream.status_code,
+        return Response(
+            '{"error":"missing route payload"}',
+            status_code=400,
             media_type="application/json",
             headers={"Cache-Control": "no-store"},
         )
+
+    # Primary engine: Valhalla. If its public service is down, slow, or returns
+    # an upstream error, automatically fall back to OSRM for road routing.
+    try:
+        upstream = await asyncio.to_thread(_valhalla_request, body)
+        if 200 <= upstream.status_code < 300:
+            try:
+                data = upstream.json()
+                if data.get("trip") and (data.get("trip", {}).get("legs") or []):
+                    return Response(
+                        upstream.content,
+                        status_code=200,
+                        media_type="application/json",
+                        headers={"Cache-Control": "no-store", "X-UGAMAP-Router": "valhalla"},
+                    )
+            except Exception:
+                pass
     except Exception:
-        response = Response(
-            '{"error":"routing upstream unavailable"}',
+        pass
+
+    try:
+        fallback = await asyncio.to_thread(_osrm_fallback, body)
+        return Response(
+            fallback,
+            status_code=200,
+            media_type="application/json",
+            headers={"Cache-Control": "no-store", "X-UGAMAP-Router": "osrm-fallback"},
+        )
+    except Exception:
+        return Response(
+            '{"error":"all routing engines unavailable"}',
             status_code=502,
             media_type="application/json",
             headers={"Cache-Control": "no-store"},
         )
-    await response({}, receive, relay_send)
 
 
 async def app(scope, receive, send):
@@ -88,43 +167,38 @@ async def app(scope, receive, send):
 
             if method == "POST" and path == "/routing/route":
                 body = await _read_body(receive)
-
-                def call_valhalla():
-                    return requests.post(
-                        VALHALLA_URL,
-                        data=body,
-                        headers={"Content-Type": "application/json", "Accept": "application/json", "User-Agent": "UGAMAP/1.0"},
-                        timeout=15,
-                    )
-
-                try:
-                    upstream = await asyncio.to_thread(call_valhalla)
-                    response = Response(
-                        upstream.content,
-                        status_code=upstream.status_code,
-                        media_type="application/json",
-                        headers={"Cache-Control": "no-store"},
-                    )
-                except Exception:
-                    response = Response(
-                        '{"error":"routing upstream unavailable"}',
-                        status_code=502,
-                        media_type="application/json",
-                        headers={"Cache-Control": "no-store"},
-                    )
+                response = await _route_response(body)
                 await response(scope, receive, relay_send)
                 return
 
             if method == "GET":
                 if path == "/":
-                    response = Response(_public_index(), media_type="text/html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+                    response = Response(
+                        _public_index(),
+                        media_type="text/html",
+                        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+                    )
                     await response(scope, receive, relay_send)
                     return
+
+                if path == "/system/release":
+                    response = Response(
+                        json.dumps({"release": RELEASE, "routing_proxy": True, "routing_fallback": "osrm"}),
+                        media_type="application/json",
+                        headers={"Cache-Control": "no-store"},
+                    )
+                    await response(scope, receive, relay_send)
+                    return
+
                 if path in {"/app.js", "/boundaries.js", "/performance-layer.js", "/app-core.js"}:
                     filename = path.lstrip("/")
                     file_path = Path(filename)
                     if file_path.exists():
-                        response = Response(file_path.read_text(encoding="utf-8"), media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+                        response = Response(
+                            file_path.read_text(encoding="utf-8"),
+                            media_type="application/javascript",
+                            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+                        )
                         await response(scope, receive, relay_send)
                         return
 
