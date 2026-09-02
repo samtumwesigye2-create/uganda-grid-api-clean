@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ugamap-cache-v3';
+const CACHE_NAME = 'ugamap-cache-v4';
 const APP_SHELL = ['/', '/app.js', '/boundaries.js'];
 
 self.addEventListener('install', event => {
@@ -27,10 +27,9 @@ self.addEventListener('fetch', event => {
   const parsed = new URL(req.url);
   const url = req.url;
 
-  // Serve app.js without waiting on a second network request for boundaries.js.
-  // The boundary module is already pre-cached during service-worker install.
-  // This prevents the whole map application from being stuck on "Loading..."
-  // when the boundary request is slow or temporarily unavailable.
+  // Load the proven UGAMAP application first, then attach ZIPPER boundaries.
+  // This guarantees the core map load handler is registered even if the
+  // optional boundary overlay has a runtime problem.
   if (parsed.origin === self.location.origin && parsed.pathname === '/app.js') {
     event.respondWith((async () => {
       try {
@@ -38,42 +37,40 @@ self.addEventListener('fetch', event => {
         if (!appRes.ok) throw new Error('app.js HTTP ' + appRes.status);
         const appText = await appRes.text();
 
-        const boundaryReq = new Request('/boundaries.js');
-        let boundaryRes = await caches.match(boundaryReq);
-        if (!boundaryRes) {
+        let boundaryText = '';
+        try {
+          const boundaryReq = new Request('/boundaries.js');
+          const freshBoundary = await fetch(boundaryReq, { cache: 'no-store' });
+          if (freshBoundary.ok) {
+            boundaryText = await freshBoundary.text();
+            const cache = await caches.open(CACHE_NAME);
+            cache.put(boundaryReq, new Response(boundaryText, {
+              headers: {'Content-Type':'application/javascript; charset=utf-8'}
+            })).catch(() => {});
+          }
+        } catch (_) {
           try {
-            const freshBoundary = await fetch(boundaryReq, { cache: 'no-store' });
-            if (freshBoundary.ok) {
-              boundaryRes = freshBoundary.clone();
-              const cache = await caches.open(CACHE_NAME);
-              cache.put(boundaryReq, freshBoundary.clone()).catch(() => {});
-            }
+            const cachedBoundary = await caches.match('/boundaries.js');
+            if (cachedBoundary) boundaryText = await cachedBoundary.text();
           } catch (_) {}
         }
 
-        const boundaryText = boundaryRes ? await boundaryRes.text() : '';
-        const combined = boundaryText + '\n\n' + appText;
-        const response = new Response(combined, {
+        // Core first. Overlay second.
+        const combined = appText + '\n\n' + boundaryText;
+        return new Response(combined, {
           status: 200,
           headers: {
             'Content-Type': 'application/javascript; charset=utf-8',
             'Cache-Control': 'no-cache, no-store, must-revalidate'
           }
         });
-
-        const cache = await caches.open(CACHE_NAME);
-        cache.put(req, response.clone()).catch(() => {});
-        return response;
       } catch (_) {
-        const cached = await caches.match(req);
-        return cached || fetch(req);
+        return fetch(req);
       }
     })());
     return;
   }
 
-  // Map tiles + Leaflet library: cache-first so recently viewed areas and
-  // the map library keep working with a weak/lost connection.
   if (isTileRequest(url)) {
     event.respondWith(
       caches.open(CACHE_NAME).then(cache =>
@@ -89,18 +86,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Home shell: network-first so updates are picked up, fall back to cache.
   if (parsed.pathname === '/') {
     event.respondWith(
       fetch(req).then(res => {
-        if (res && res.ok) {
-          caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
-        }
+        if (res && res.ok) caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
         return res;
       }).catch(() => caches.match(req))
     );
-    return;
   }
-
-  // Everything else (API calls, search, routing): always go to the network.
 });
