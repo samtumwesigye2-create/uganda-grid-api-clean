@@ -16,10 +16,12 @@ from zipper_numbering import numbering_status
 from zipper_live_geometry import live_zipper_feature_collection, live_zipper_status
 from orders import router as orders_router
 from yard import router as yard_router
+from analytics import router as analytics_router
 
 router = APIRouter(tags=["ZIPPER"])
 router.include_router(orders_router)
 router.include_router(yard_router)
+router.include_router(analytics_router)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ZIPPER_GEOJSON_FILE = os.environ.get(
     "ZIPPER_GEOJSON_FILE",
