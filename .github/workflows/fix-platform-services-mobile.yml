@@ -1,0 +1,38 @@
+name: Fix Platform Services Mobile
+
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-platform-services-mobile.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Platform Services mobile interaction
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('assets/platform-services.html')
+          s=p.read_text(encoding='utf-8')
+          s=s.replace('<section class="panel workspace">','<section class="panel workspace" id="platformWorkspace">',1)
+          old="function selectModule(i){cur=i;tab=0;render();$('title').textContent=mods[i][0];[uam,wf,notify,docs,auditUI,mdmUI,apiUI,monitorUI,featureUI][i]()}"
+          new="function selectModule(i){cur=i;tab=0;render();$('title').textContent=mods[i][0];[uam,wf,notify,docs,auditUI,mdmUI,apiUI,monitorUI,featureUI][i]();if(window.innerWidth<=800){setTimeout(()=>{let w=$('platformWorkspace');if(w)w.scrollIntoView({behavior:'smooth',block:'start'})},40)}}"
+          if old in s:
+              s=s.replace(old,new,1)
+          s=s.replace('<span class="badge">ACTIVE WORKSPACE</span>','<span class="badge">OPEN WORKSPACE ›</span>')
+          s=s.replace("await call('/health')","await call('/system/startup-status')")
+          p.write_text(s,encoding='utf-8')
+          PY
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/platform-services.html
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "Make Platform Services workspaces open on mobile"
+          git push
