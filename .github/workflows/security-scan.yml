@@ -35,10 +35,14 @@ jobs:
           pip-audit -r requirements.txt
 
       - name: Repository malware scan
+        shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends clamav
-          sudo freshclam || true
+          sudo apt-get install -y --no-install-recommends clamav clamav-freshclam
+          sudo systemctl stop clamav-freshclam.service || true
+          sudo freshclam
+          test -n "$(find /var/lib/clamav -maxdepth 1 -type f \( -name '*.cvd' -o -name '*.cld' \) -print -quit)"
           clamscan --recursive --infected --exclude-dir='\.git' .
 
       - name: Reject dangerous executable artifacts
