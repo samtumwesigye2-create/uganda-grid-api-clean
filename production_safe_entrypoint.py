@@ -15,18 +15,16 @@ from fastapi.staticfiles import StaticFiles
 
 BOOT_ERROR = None
 BOOT_TRACE = None
-RELEASE = "20260902-5digit-r2"
+RELEASE = "20260902-5digit-r3"
 CURRENT_MAP_SCRIPTS = {
     "/app.js": "app.js",
     "/app-core.js": "app-core.js",
     "/boundaries.js": "boundaries.js",
-    "/legacy-grid-killer.js": "legacy-grid-killer.js",
     "/performance-layer.js": "performance-layer.js",
 }
 
 
 def _public_index_source():
-    """Return the public navigation UI with embedded admin markup removed."""
     path = Path("index.html")
     if not path.exists():
         return None
@@ -38,7 +36,7 @@ def _public_index_source():
     if start >= 0 and end > start:
         source = source[:start] + source[end:]
     source = source.replace('/app.js?v=8', '/app.js?v=' + RELEASE)
-    bridge = '<script src="/assets/zipper-search-bridge.js?v=2"></script>'
+    bridge = '<script src="/assets/zipper-search-bridge.js?v=3"></script>'
     if "/assets/zipper-search-bridge.js" not in source:
         source = source.replace("</body>", bridge + "</body>", 1) if "</body>" in source else source + bridge
     return source
@@ -51,11 +49,7 @@ def _current_script_response(path):
     file_path = Path(filename)
     if not file_path.exists():
         return Response("", status_code=404)
-    return Response(
-        file_path.read_text(encoding="utf-8"),
-        media_type="application/javascript",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-    )
+    return Response(file_path.read_text(encoding="utf-8"), media_type="application/javascript", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 try:
@@ -68,7 +62,6 @@ except BaseException as exc:
     BOOT_TRACE = traceback.format_exc()
     logging.exception("Full UGAMAP production application failed to boot")
     app = FastAPI(title="UGAMAP Emergency Runtime", docs_url=None, redoc_url=None)
-
     assets = Path("assets")
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=str(assets)), name="assets")
