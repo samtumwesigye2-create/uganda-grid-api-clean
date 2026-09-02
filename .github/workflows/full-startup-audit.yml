@@ -1,0 +1,44 @@
+name: Full startup audit
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compile every Python file
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import py_compile, sys
+          failures=[]
+          for p in Path('.').rglob('*.py'):
+              try:
+                  py_compile.compile(str(p), doraise=True)
+              except Exception as e:
+                  failures.append((str(p), repr(e)))
+          if failures:
+              for p,e in failures:
+                  print(f'PYTHON_SYNTAX_ERROR {p}: {e}')
+              sys.exit(1)
+          print('PYTHON_SYNTAX_OK')
+          PY
+      - name: Import production startup chain
+        run: |
+          python - <<'PY'
+          import production_safe_entrypoint as p
+          print('BOOT_ERROR=', p.BOOT_ERROR)
+          if p.BOOT_ERROR:
+              print(p.BOOT_TRACE)
+              raise SystemExit(1)
+          print('FULL_APP_IMPORT_OK')
+          PY

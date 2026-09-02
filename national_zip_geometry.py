@@ -8,9 +8,56 @@ layer alive.
 """
 from __future__ import annotations
 
+from functools import lru_cache
+import requests
 from shapely.geometry import Point, shape
 
+from state_geometry import DISTRICT_GEOJSON_URL
 from zipper_api import geography_zipper, geography_zipper_status
+
+
+def _district_name(feature):
+    props = feature.get("properties") or {}
+    for key in ("name", "NAME", "district", "DISTRICT", "District"):
+        value = props.get(key)
+        if value:
+            return str(value).strip()
+    return ""
+
+
+@lru_cache(maxsize=1)
+def _district_geometries():
+    """Compatibility district geometry index used by coordinate validation.
+
+    The old fixed-ZIP geometry module exposed this private helper.  The active
+    ZIPPER system still needs district polygons for coordinate-to-district
+    validation, so rebuild the same lightweight tuple interface from the shared
+    district GeoJSON source instead of reviving the retired ZIP layer.
+    """
+    response = requests.get(DISTRICT_GEOJSON_URL, timeout=45)
+    response.raise_for_status()
+    out = []
+    for feature in response.json().get("features", []):
+        name = _district_name(feature)
+        geometry = feature.get("geometry")
+        if not name or not geometry:
+            continue
+        try:
+            geom = shape(geometry)
+        except Exception:
+            continue
+        if geom.is_empty:
+            continue
+        props = feature.get("properties") or {}
+        state_code = str(
+            props.get("state_code")
+            or props.get("STATE_CODE")
+            or props.get("region")
+            or props.get("REGION")
+            or ""
+        ).strip()
+        out.append((name, state_code, geom))
+    return tuple(out)
 
 
 def zip_feature_collection():
