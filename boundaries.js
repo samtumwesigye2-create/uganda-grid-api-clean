@@ -101,6 +101,68 @@
     } catch(_) { return null; }
   }
 
+  function sqSegDist(p,a,b){
+    let x=a[0],y=a[1],dx=b[0]-x,dy=b[1]-y;
+    if(dx!==0||dy!==0){
+      const t=((p[0]-x)*dx+(p[1]-y)*dy)/(dx*dx+dy*dy);
+      if(t>1){x=b[0];y=b[1];}
+      else if(t>0){x+=dx*t;y+=dy*t;}
+    }
+    dx=p[0]-x;dy=p[1]-y;
+    return dx*dx+dy*dy;
+  }
+
+  function simplifyLine(points,tolerance){
+    if(!Array.isArray(points)||points.length<=4) return points;
+    const sqTolerance=tolerance*tolerance;
+    const closed=points.length>2 && points[0][0]===points[points.length-1][0] && points[0][1]===points[points.length-1][1];
+    const src=closed?points.slice(0,-1):points.slice();
+    if(src.length<=3) return points;
+    const keep=new Uint8Array(src.length);
+    keep[0]=1;keep[src.length-1]=1;
+    const stack=[[0,src.length-1]];
+    while(stack.length){
+      const pair=stack.pop(), first=pair[0], last=pair[1];
+      let maxSq=sqTolerance,index=-1;
+      for(let i=first+1;i<last;i++){
+        const sq=sqSegDist(src[i],src[first],src[last]);
+        if(sq>maxSq){index=i;maxSq=sq;}
+      }
+      if(index>0){keep[index]=1;stack.push([first,index],[index,last]);}
+    }
+    const out=[];
+    for(let i=0;i<src.length;i++) if(keep[i]) out.push(src[i]);
+    if(out.length<3) return points;
+    if(closed) out.push(out[0]);
+    return out;
+  }
+
+  function simplifyGeometry(geometry,tolerance){
+    if(!geometry||!geometry.coordinates||!tolerance) return geometry;
+    const type=geometry.type;
+    let coords;
+    if(type==='Polygon') coords=geometry.coordinates.map(r=>simplifyLine(r,tolerance));
+    else if(type==='MultiPolygon') coords=geometry.coordinates.map(poly=>poly.map(r=>simplifyLine(r,tolerance)));
+    else return geometry;
+    return {type:type,coordinates:coords};
+  }
+
+  function displayFeature(feature,zoom){
+    if(!feature||!feature.geometry) return feature;
+    if(zoom>=15) return feature;
+    const tier=zoom<=12?'low':'medium';
+    const cacheKey=tier==='low'?'__ugamapLowFeature':'__ugamapMediumFeature';
+    if(feature[cacheKey]) return feature[cacheKey];
+    const tolerance=tier==='low'?0.0012:0.00045;
+    const simplified={
+      type:'Feature',
+      properties:feature.properties||{},
+      geometry:simplifyGeometry(feature.geometry,tolerance)
+    };
+    feature[cacheKey]=simplified;
+    return simplified;
+  }
+
   async function initializeBoundaries(map) {
     if (initialized || !map) return;
     initialized = true;
@@ -182,7 +244,7 @@
           const p=f.properties||{};
           const zip=fiveDigitId(p,i);
           const color=palette[i%palette.length];
-          const one=L.geoJSON(f,{
+          const one=L.geoJSON(displayFeature(f,zoom),{
             renderer:zipCanvas,
             style:{color:color,weight:.65,opacity:.75,fillColor:color,fillOpacity:.035},
             onEachFeature:function(_,layer){
@@ -223,7 +285,7 @@
       else setTimeout(warm,1200);
 
       window.UGAMAP=window.UGAMAP||{};
-      window.UGAMAP.boundaries={states:stateLayer,zips:zipLayer,updateLabels:scheduleRender,minZoom:ZIPPER_MIN_ZOOM,labelZoom:ZIPPER_LABEL_ZOOM,maxVisible:MAX_VISIBLE_ZIPS,control:control};
+      window.UGAMAP.boundaries={states:stateLayer,zips:zipLayer,updateLabels:scheduleRender,minZoom:ZIPPER_MIN_ZOOM,labelZoom:ZIPPER_LABEL_ZOOM,maxVisible:MAX_VISIBLE_ZIPS,control:control,geometryTiers:true};
     } catch(e) {
       initialized=false;
       console.error('ZIPPER layer unavailable:',e);
