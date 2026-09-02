@@ -12,8 +12,9 @@ from optimization import router as optimization_router
 from digital_twin import router as digital_twin_router
 from robotics import router as robotics_router
 from visibility import router as visibility_router
+from platform_services import router as platform_services_router
 router=APIRouter(tags=['ZIPPER'])
-for r in (orders_router,yard_router,analytics_router,optimization_router,digital_twin_router,robotics_router,visibility_router):router.include_router(r)
+for r in (orders_router,yard_router,analytics_router,optimization_router,digital_twin_router,robotics_router,visibility_router,platform_services_router):router.include_router(r)
 BASE_DIR=os.path.dirname(os.path.abspath(__file__));ZIPPER_GEOJSON_FILE=os.environ.get('ZIPPER_GEOJSON_FILE',os.path.join(BASE_DIR,'zipper_zones.geojson'))
 @lru_cache(maxsize=1)
 def _load_artifact():
