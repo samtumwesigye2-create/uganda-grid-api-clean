@@ -14,8 +14,10 @@ from fastapi import APIRouter, HTTPException
 
 from zipper_numbering import numbering_status
 from zipper_live_geometry import live_zipper_feature_collection, live_zipper_status
+from orders import router as orders_router
 
 router = APIRouter(tags=["ZIPPER"])
+router.include_router(orders_router)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ZIPPER_GEOJSON_FILE = os.environ.get(
     "ZIPPER_GEOJSON_FILE",
