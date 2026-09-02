@@ -1,8 +1,8 @@
 """FastAPI router for the active population-balanced ZIPPER layer.
 
-The production map should serve a pre-generated GeoJSON file rather than
-recomputing thousands of polygons on every request. This router deliberately
-fails clearly when the generated artifact is not present yet.
+A committed/generated GeoJSON artifact is preferred. Until that finer artifact
+exists, UGAMAP serves the live district-population fallback so the map has an
+active ZIPPER layer instead of no ZIPPER at all.
 """
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from functools import lru_cache
 from fastapi import APIRouter, HTTPException
 
 from zipper_numbering import numbering_status
+from zipper_live_geometry import live_zipper_feature_collection, live_zipper_status
 
 router = APIRouter(tags=["ZIPPER"])
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -23,7 +24,7 @@ ZIPPER_GEOJSON_FILE = os.environ.get(
 
 
 @lru_cache(maxsize=1)
-def _load_zipper_geojson():
+def _load_artifact():
     if not os.path.exists(ZIPPER_GEOJSON_FILE):
         raise FileNotFoundError(ZIPPER_GEOJSON_FILE)
     with open(ZIPPER_GEOJSON_FILE, "r", encoding="utf-8") as f:
@@ -33,40 +34,44 @@ def _load_zipper_geojson():
     return data
 
 
+def zipper_feature_collection():
+    if os.path.exists(ZIPPER_GEOJSON_FILE):
+        return _load_artifact()
+    return live_zipper_feature_collection()
+
+
 def clear_zipper_cache():
-    _load_zipper_geojson.cache_clear()
+    _load_artifact.cache_clear()
+    live_zipper_feature_collection.cache_clear()
 
 
 @router.get("/geography/zipper")
 def geography_zipper():
-    """Return the active replacement ZIPPER layer."""
     try:
-        return _load_zipper_geojson()
-    except FileNotFoundError:
-        raise HTTPException(
-            status_code=503,
-            detail="ZIPPER geography has not been generated yet",
-        )
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
-        raise HTTPException(status_code=500, detail=f"Invalid ZIPPER geography: {exc}")
+        return zipper_feature_collection()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"ZIPPER geography unavailable: {exc}")
 
 
 @router.get("/geography/zipper/status")
 def geography_zipper_status():
     status = numbering_status()
+    artifact_ready = os.path.exists(ZIPPER_GEOJSON_FILE)
     status.update({
         "layer": "ZIPPER",
         "active_replacement": True,
         "artifact": os.path.basename(ZIPPER_GEOJSON_FILE),
-        "artifact_ready": os.path.exists(ZIPPER_GEOJSON_FILE),
+        "artifact_ready": artifact_ready,
+        "source": "generated_artifact" if artifact_ready else "district_population_live_fallback",
     })
-    if status["artifact_ready"]:
-        try:
-            fc = _load_zipper_geojson()
+    try:
+        if artifact_ready:
+            fc = _load_artifact()
             status["zones"] = len(fc.get("features", []))
-        except Exception as exc:
-            status["artifact_valid"] = False
-            status["error"] = str(exc)
+            status["ready"] = True
         else:
-            status["artifact_valid"] = True
+            status.update(live_zipper_status())
+    except Exception as exc:
+        status["ready"] = False
+        status["error"] = str(exc)
     return status
