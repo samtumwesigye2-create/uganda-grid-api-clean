@@ -10,7 +10,7 @@ jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Patch ship page
         run: python scripts/patch_ship_home.py
       - name: Commit ship page

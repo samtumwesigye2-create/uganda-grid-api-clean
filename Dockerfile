@@ -8,4 +8,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8080
 
-CMD ["sh", "-c", "uvicorn ugamap_entrypoint:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "uvicorn production_safe_entrypoint:app --host 0.0.0.0 --port ${PORT}"]

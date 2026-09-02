@@ -13,7 +13,7 @@ jobs:
   patch-admin:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Patch admin
         run: python scripts/patch_admin_docs.py
       - name: Commit changes
