@@ -15,6 +15,7 @@ from integration_gateway import router as integration_gateway_router
 from integration_carrier import router as integration_carrier_router
 from integration_payments import router as integration_payments_router
 from security_layer import SecurityMiddleware,router as security_router
+from security_integrity import router as security_integrity_router
 
 app.include_router(ugamap_accounts_router)
 app.include_router(ugamap_admin_users_router)
@@ -23,6 +24,7 @@ app.include_router(integration_gateway_router)
 app.include_router(integration_carrier_router)
 app.include_router(integration_payments_router)
 app.include_router(security_router)
+app.include_router(security_integrity_router)
 app.add_middleware(SecurityMiddleware)
 
 WAREHOUSE_MODULES=[
