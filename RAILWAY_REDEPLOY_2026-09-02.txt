@@ -1,0 +1,4 @@
+UGAMAP production redeploy trigger after ZIPPER replacement merge.
+Expected runtime: production_safe_entrypoint:app
+Expected public root: index.html
+Expected ZIPPER API: /geography/zipper
