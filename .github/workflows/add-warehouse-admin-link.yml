@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.github/workflows/add-warehouse-admin-link.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,8 +13,9 @@ jobs:
   patch-index:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
       - name: Add Warehouse launcher to Admin
+        shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -37,6 +39,7 @@ jobs:
           path.write_text(text.replace(needle, replacement, 1), encoding='utf-8')
           PY
       - name: Commit changes
+        shell: bash
         run: |
           if git diff --quiet -- index.html; then
             echo "No index changes needed"
