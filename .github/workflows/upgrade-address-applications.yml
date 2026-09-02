@@ -10,7 +10,7 @@ jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: python scripts/upgrade_address_applications.py
       - name: Commit changes
         run: |

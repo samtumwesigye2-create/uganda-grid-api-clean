@@ -10,7 +10,7 @@ jobs:
   patch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: python scripts/apply_one_page_business_docs.py
       - name: Commit one-page document links
         run: |
