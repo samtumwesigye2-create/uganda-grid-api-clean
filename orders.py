@@ -4,6 +4,7 @@ from pydantic import BaseModel,Field
 from auth import require_permission
 BASE_DIR=os.path.dirname(os.path.abspath(__file__));DB_PATH=os.path.join(BASE_DIR,'data_hub.db');router=APIRouter(prefix='/orders',tags=['orders'])
 ORDER_STATUSES={'draft','submitted','confirmed','allocated','picking','packed','ready_to_ship','shipped','delivered','cancelled','returned'};TERMINAL_STATUSES={'delivered','cancelled','returned'}
+ALLOWED_TRANSITIONS={'draft':{'submitted','cancelled'},'submitted':{'confirmed','cancelled'},'confirmed':{'allocated','cancelled'},'allocated':{'picking','cancelled'},'picking':{'packed','cancelled'},'packed':{'ready_to_ship','cancelled'},'ready_to_ship':{'shipped','cancelled'},'shipped':{'delivered','returned'},'delivered':{'returned'},'cancelled':set(),'returned':set()}
 class OrderLineIn(BaseModel):sku:str;name:str='';quantity:float=Field(gt=0);unit_price:float=Field(default=0,ge=0)
 class OrderCreate(BaseModel):customer_name:str;customer_email:str='';customer_phone:str='';delivery_address:str='';delivery_grid_id:str='';warehouse_id:str='main';currency:str='UGX';notes:str='';items:list[OrderLineIn]
 class OrderUpdate(BaseModel):customer_name:str|None=None;customer_email:str|None=None;customer_phone:str|None=None;delivery_address:str|None=None;delivery_grid_id:str|None=None;warehouse_id:str|None=None;notes:str|None=None
@@ -26,6 +27,13 @@ def nextnum(c):
   try:n=int(r['order_number'].split('-')[-1])+1
   except:n=1
  return f'{prefix}{n:04d}'
+def restore_allocated_inventory(c,r):
+ if r['status'] not in {'allocated','picking','packed','ready_to_ship'}:return False
+ wid=r['warehouse_id'] or 'main';now=time.time();items=c.execute('SELECT sku,quantity FROM order_items WHERE order_id=?',(r['id'],)).fetchall()
+ for i in items:
+  c.execute('UPDATE stock SET quantity_on_hand=quantity_on_hand+? WHERE product_sku=? AND warehouse_id=?',(i['quantity'],i['sku'],wid))
+  c.execute('INSERT INTO stock_movements VALUES (?,?,?,?,?,?,?)',(str(uuid.uuid4()),i['sku'],wid,'receive',i['quantity'],f"Cancelled allocation restored from {r['order_number']}",now))
+ return True
 @router.post('')
 def create(payload:OrderCreate,x_access_code:str=Header(default='')):
  access(x_access_code,'shipments:write')
@@ -59,14 +67,15 @@ def update(order_id:str,payload:OrderUpdate,x_access_code:str=Header(default='')
 def allocate(order_id:str,x_access_code:str=Header(default='')):
  access(x_access_code,'shipments:write');access(x_access_code,'inventory:write');c=conn();r=find(c,order_id)
  if not r:c.close();raise HTTPException(404,'Order not found')
- if r['status'] in TERMINAL_STATUSES or r['status'] in {'allocated','picking','packed','ready_to_ship','shipped'}:c.close();raise HTTPException(409,'Order cannot be allocated from its current status')
+ if r['status']!='confirmed':c.close();raise HTTPException(409,'Order must be confirmed before allocation')
  items=c.execute('SELECT sku,quantity FROM order_items WHERE order_id=?',(r['id'],)).fetchall();wid=r['warehouse_id'] or 'main';short=[]
  for i in items:
   s=c.execute('SELECT quantity_on_hand FROM stock WHERE product_sku=? AND warehouse_id=?',(i['sku'],wid)).fetchone();av=float(s['quantity_on_hand']) if s else 0
   if av<float(i['quantity']):short.append({'sku':i['sku'],'required':i['quantity'],'available':av})
  if short:c.close();raise HTTPException(409,detail={'message':'Insufficient inventory','shortages':short})
  now=time.time()
- for i in items:c.execute('UPDATE stock SET quantity_on_hand=quantity_on_hand-? WHERE product_sku=? AND warehouse_id=?',(i['quantity'],i['sku'],wid));c.execute('INSERT INTO stock_movements VALUES (?,?,?,?,?,?,?)',(str(uuid.uuid4()),i['sku'],wid,'dispatch',i['quantity'],f"Allocated to {r['order_number']}",now))
+ for i in items:
+  c.execute('UPDATE stock SET quantity_on_hand=quantity_on_hand-? WHERE product_sku=? AND warehouse_id=?',(i['quantity'],i['sku'],wid));c.execute('INSERT INTO stock_movements VALUES (?,?,?,?,?,?,?)',(str(uuid.uuid4()),i['sku'],wid,'dispatch',i['quantity'],f"Allocated to {r['order_number']}",now))
  c.execute("UPDATE orders SET status='allocated',updated_at=? WHERE id=?",(now,r['id']));hist(c,r['id'],'allocated','Inventory allocated from warehouse');c.commit();z=out(c,find(c,r['id']));c.close();return z
 def transition(order_id,target,allowed,code,note):
  access(code,'shipments:write');c=conn();r=find(c,order_id)
@@ -92,14 +101,26 @@ def yard_handoff(order_id:str,payload:YardHandoff,x_access_code:str=Header(defau
 def status(order_id:str,payload:StatusUpdate,x_access_code:str=Header(default='')):
  target=payload.status.strip().lower()
  if target not in ORDER_STATUSES:raise HTTPException(400,'Invalid order status')
+ access(x_access_code,'shipments:write');c=conn();r=find(c,order_id)
+ if not r:c.close();raise HTTPException(404,'Order not found')
+ current=r['status']
+ if target not in ALLOWED_TRANSITIONS.get(current,set()):c.close();raise HTTPException(409,f'Invalid order transition: {current} -> {target}')
+ c.close()
  if target=='allocated':return allocate(order_id,x_access_code)
- return transition(order_id,target,ORDER_STATUSES-{target},x_access_code,payload.note or f'Status changed to {target}')
+ if target=='cancelled':return cancel(order_id,x_access_code,payload.note or 'Order cancelled')
+ return transition(order_id,target,{current},x_access_code,payload.note or f'Status changed to {target}')
 @router.post('/{order_id}/cancel')
-def cancel(order_id:str,x_access_code:str=Header(default='')):return status(order_id,StatusUpdate(status='cancelled',note='Order cancelled'),x_access_code)
+def cancel_route(order_id:str,x_access_code:str=Header(default='')):return cancel(order_id,x_access_code,'Order cancelled')
+def cancel(order_id:str,code:str,note:str):
+ access(code,'shipments:write');c=conn();r=find(c,order_id)
+ if not r:c.close();raise HTTPException(404,'Order not found')
+ if 'cancelled' not in ALLOWED_TRANSITIONS.get(r['status'],set()):c.close();raise HTTPException(409,f"Order cannot be cancelled from {r['status']}")
+ restored=restore_allocated_inventory(c,r);now=time.time();c.execute("UPDATE orders SET status='cancelled',updated_at=? WHERE id=?",(now,r['id']));hist(c,r['id'],'cancelled',note+(' (inventory restored)' if restored else ''));c.commit();z=out(c,find(c,r['id']));c.close();return z
 @router.post('/{order_id}/shipment')
 def shipment(order_id:str,payload:ShipmentLink,x_access_code:str=Header(default='')):
  access(x_access_code,'shipments:write');c=conn();r=find(c,order_id)
  if not r:c.close();raise HTTPException(404,'Order not found')
+ if r['status']!='ready_to_ship':c.close();raise HTTPException(409,'Order must be ready_to_ship before shipment dispatch')
  ship=payload.shipment_number.strip().upper()
  if not c.execute('SELECT 1 FROM shipments WHERE shipment_number=?',(ship,)).fetchone():c.close();raise HTTPException(404,'Shipment not found')
  c.execute("UPDATE orders SET shipment_number=?,status='shipped',updated_at=? WHERE id=?",(ship,time.time(),r['id']));hist(c,r['id'],'shipment_linked',ship);c.commit();z=out(c,find(c,r['id']));c.close();return z
