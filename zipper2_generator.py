@@ -1,14 +1,13 @@
-"""ZIPPER-2 population-balanced zone generator.
+"""Population-balanced national ZIPPER generator.
 
-Second independent ZIP layer for UGAMAP. It does NOT replace the existing ZIP
-layer. Population targets are intentionally larger to reduce polygon/label load:
+This is the active replacement ZIPPER system for UGAMAP; the old system is retired.
+Population targets:
   - major-city districts: 3,000-6,000 people per ZIPPER (target 4,500)
   - rural/other districts: 2,000-4,500 people per ZIPPER (target 3,250)
 
 The generator consumes parish GeoJSON plus a parish population lookup. Splits
 are area-based estimates whenever population is not available below parish
-level. ZIPPER-2 IDs use the Z2-xxxxx namespace so they cannot collide with the
-existing five-digit ZIP system.
+level. ZIPPER IDs are plain five-digit numeric codes: 00001-99999.
 """
 from __future__ import annotations
 
@@ -27,8 +26,6 @@ RURAL_MIN = 2000
 RURAL_MAX = 4500
 RURAL_TARGET = 3250
 
-# Districts containing the country's largest urban concentrations. This is a
-# conservative proxy until city/municipal boundary polygons are wired in.
 MAJOR_CITY_DISTRICTS = {
     "Kampala", "Wakiso", "Mukono", "Jinja", "Mbarara", "Mbale",
     "Gulu", "Arua", "Masaka", "Soroti", "Hoima", "Lira"
@@ -97,7 +94,7 @@ def _zone(parish: Parish, geom, population: int, status: str):
         "population_target": target,
         "density_class": density,
         "geometry_status": status,
-        "layer": "ZIPPER-2",
+        "layer": "ZIPPER",
         "geometry": geom,
     }
 
@@ -107,7 +104,6 @@ def split_parish(parish: Parish):
     if parish.population <= hi:
         return [_zone(parish, parish.geometry, parish.population, "verified_boundary")]
     n = max(1, round(parish.population / target))
-    # Keep estimated pieces inside the requested band whenever mathematically possible.
     n_min = max(1, math.ceil(parish.population / hi))
     n_max = max(1, math.floor(parish.population / lo))
     n = min(max(n, n_min), n_max) if n_max >= n_min else n_min
@@ -118,7 +114,6 @@ def split_parish(parish: Parish):
 
 
 def merge_small(zones: list[dict]):
-    """Merge undersized neighboring/nearest zones within the same district."""
     work = list(zones)
     changed = True
     while changed:
@@ -132,7 +127,6 @@ def merge_small(zones: list[dict]):
                 if i == j or other["district"] != z["district"]:
                     continue
                 combined = z["population"] + other["population"]
-                # Prefer a legal combined population, then touching geometry, then distance.
                 legal = lo <= combined <= hi
                 touching = z["geometry"].touches(other["geometry"]) or z["geometry"].intersects(other["geometry"])
                 candidates.append(((0 if legal else 1, 0 if touching else 1,
@@ -159,15 +153,21 @@ def generate_zones(parishes: list[Parish]):
     return merge_small(zones)
 
 
-def assign_zipper2_ids(zones: list[dict], start: int = 1):
-    """Stable separate namespace: Z2-00001, Z2-00002, ..."""
+def assign_zipper_ids(zones: list[dict], start: int = 1):
+    """Assign plain five-digit ZIPPER codes: 00001, 00002, ... 99999."""
     ordered = sorted(zones, key=lambda z: (
         z["district"], -z["geometry"].representative_point().y,
         z["geometry"].representative_point().x
     ))
+    if start < 0 or start + len(ordered) - 1 > 99999:
+        raise ValueError("Five-digit ZIPPER namespace exhausted")
     for n, zone in enumerate(ordered, start=start):
-        zone["zipper_id"] = f"Z2-{n:05d}"
+        zone["zipper_id"] = f"{n:05d}"
     return ordered
+
+# Backward-compatible function name for callers created during development.
+def assign_zipper2_ids(zones: list[dict], start: int = 1):
+    return assign_zipper_ids(zones, start)
 
 
 def feature_collection(zones: list[dict]):
@@ -181,7 +181,7 @@ def feature_collection(zones: list[dict]):
 
 def export_geojson(zones: list[dict], out_path: str):
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(feature_collection(assign_zipper2_ids(zones)), f,
+        json.dump(feature_collection(assign_zipper_ids(zones)), f,
                   ensure_ascii=False, separators=(",", ":"))
 
 
@@ -189,10 +189,11 @@ def summary(zones: list[dict]):
     urban = [z for z in zones if z["density_class"] == "urban"]
     rural = [z for z in zones if z["density_class"] == "rural"]
     return {
-        "layer": "ZIPPER-2",
+        "layer": "ZIPPER",
         "zones": len(zones),
         "urban_zones": len(urban),
         "rural_zones": len(rural),
         "urban_range": [URBAN_MIN, URBAN_MAX],
         "rural_range": [RURAL_MIN, RURAL_MAX],
+        "id_format": "00001-99999",
     }
