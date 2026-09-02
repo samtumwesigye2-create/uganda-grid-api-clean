@@ -6,6 +6,24 @@
   const MAX_CACHE = 80;
   const SEARCH_TTL = 30000;
 
+  function addPreconnect(href) {
+    try {
+      if (document.querySelector('link[rel="preconnect"][href="' + href + '"]')) return;
+      const link = document.createElement('link');
+      link.rel = 'preconnect';
+      link.href = href;
+      link.crossOrigin = 'anonymous';
+      document.head.appendChild(link);
+    } catch (_) {}
+  }
+
+  // Open the expensive third-party connections early, without prefetching tiles.
+  addPreconnect('https://a.tile.openstreetmap.org');
+  addPreconnect('https://b.tile.openstreetmap.org');
+  addPreconnect('https://c.tile.openstreetmap.org');
+  addPreconnect('https://photon.komoot.io');
+  addPreconnect('https://server.arcgisonline.com');
+
   function isSearchGet(url, options) {
     const method = String((options && options.method) || 'GET').toUpperCase();
     if (method !== 'GET') return false;
@@ -61,7 +79,24 @@
     return promise.then(r => r.clone());
   };
 
-  // Warm only UGAMAP's own API connection. Do not prefetch third-party map tiles.
+  // Tune only the standard street tile layer. This keeps the same provider and appearance,
+  // but asks Leaflet to refresh visible tiles sooner on mobile and retain fewer hidden tiles.
+  if (window.L && typeof L.tileLayer === 'function') {
+    const originalTileLayer = L.tileLayer;
+    L.tileLayer = function ugamapFastTileLayer(url, options) {
+      const opts = Object.assign({}, options || {});
+      if (String(url || '').includes('tile.openstreetmap.org')) {
+        if (opts.updateWhenIdle == null) opts.updateWhenIdle = false;
+        if (opts.updateWhenZooming == null) opts.updateWhenZooming = true;
+        if (opts.updateInterval == null) opts.updateInterval = 100;
+        if (opts.keepBuffer == null || opts.keepBuffer > 4) opts.keepBuffer = 4;
+      }
+      return originalTileLayer.call(this, url, opts);
+    };
+    Object.keys(originalTileLayer).forEach(k => { try { L.tileLayer[k] = originalTileLayer[k]; } catch (_) {} });
+  }
+
+  // Warm only UGAMAP's own API connection. Do not bulk-prefetch third-party map tiles.
   const warm = () => {
     try {
       if (location.protocol.indexOf('http') === 0) nativeFetch(location.origin + '/system/startup-status', {cache:'no-store'}).catch(() => {});
