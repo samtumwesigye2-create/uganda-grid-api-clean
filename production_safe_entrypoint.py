@@ -29,12 +29,17 @@ def _public_index_source():
     end = source.find(end_marker, start if start >= 0 else 0)
     if start >= 0 and end > start:
         source = source[:start] + source[end:]
+    bridge = '<script src="/assets/zipper-search-bridge.js?v=1"></script>'
+    if "/assets/zipper-search-bridge.js" not in source:
+        source = source.replace("</body>", bridge + "</body>", 1) if "</body>" in source else source + bridge
     return source
 
 
 try:
     production = importlib.import_module("ugamap_accounts_entrypoint")
     app = production.app
+    from zipper_search_runtime import router as zipper_search_router
+    app.include_router(zipper_search_router)
 except BaseException as exc:
     BOOT_ERROR = f"{type(exc).__name__}: {exc}"
     BOOT_TRACE = traceback.format_exc()
