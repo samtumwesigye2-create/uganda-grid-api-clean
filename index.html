@@ -32,10 +32,6 @@ header .icon-btn{background:none;border:0;color:var(--text-primary);font-size:18
 header .titleWrap{text-align:center;flex:1}
 header h1{margin:0;font-size:15px;font-weight:700}
 header p{margin:1px 0 0;font-size:10px;color:var(--text-secondary)}
-header .titleWrap{display:flex;align-items:center;justify-content:center;gap:8px;text-align:left;min-width:0}
-.mapHeaderLogo{width:34px;height:34px;object-fit:contain;display:block;flex:0 0 auto;border-radius:4px;background:#fff}
-.mapHeaderText{min-width:0;text-align:left}
-@media(max-width:420px){.mapHeaderLogo{width:30px;height:30px}header h1{font-size:14px}header p{font-size:9px}}
 .contentScroll{flex:1 1 auto;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 .panel{flex:0 0 auto;max-width:900px;width:100%;margin:0 auto;padding:8px 10px;transition:opacity .15s ease}
 .field{position:relative;margin-bottom:8px}
@@ -193,11 +189,8 @@ input:disabled{opacity:.6}
 <header>
 <button class="icon-btn" id="menuBtn" aria-label="Menu">&#9776;</button>
 <div class="titleWrap">
-<img class="mapHeaderLogo" src="/assets/uganda-national-grid-logo.png?v=map-logo-1" alt="Uganda National Grid">
-<div class="mapHeaderText">
 <h1>Uganda National Grid</h1>
 <p>Search, route and navigate across Uganda</p>
-</div>
 </div>
 <button class="icon-btn" id="bellBtn" aria-label="Notifications">&#128276;</button>
 </header>
@@ -508,6 +501,9 @@ Start
 <button class="navTab" id="tabAddress"><span class="tabIcon">&#128205;</span>Address</button>
 <button class="navTab" id="tabSaved"><span class="tabIcon">&#128278;</span>Saved</button>
 <button class="navTab" id="reportBtn"><span class="tabIcon">&#9888;</span>Report</button>
+<button class="navTab" id="tabShip"><span class="tabIcon">&#128230;</span>Ship</button>
+<button class="navTab" id="tabCommercial"><span class="tabIcon">&#127970;</span>Commercial</button>
+<button class="navTab" id="tabAdmin"><span class="tabIcon">&#128272;</span>Admin</button>
 <button class="navTab" id="tabMore"><span class="tabIcon">&#8943;</span>More</button>
 </nav>
 </div>
@@ -521,7 +517,7 @@ document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) +
 setVH();
 window.addEventListener('resize', setVH);
 
-var tabs = ['tabHome','tabAddress','tabSaved','reportBtn','tabMore'];
+var tabs = ['tabHome','tabAddress','tabSaved','reportBtn','tabShip','tabCommercial','tabAdmin','tabMore'];
 function setActiveTab(id) {
 tabs.forEach(function (t) {
 var el = document.getElementById(t);
@@ -545,6 +541,15 @@ if (window.UGAMAP && window.UGAMAP.openTrips) window.UGAMAP.openTrips();
 
 var moreBtn = document.getElementById('tabMore');
 if (moreBtn) moreBtn.addEventListener('click', function () { setActiveTab('tabMore'); });
+
+var shipBtn = document.getElementById('tabShip');
+if (shipBtn) shipBtn.addEventListener('click', function () { setActiveTab('tabShip'); });
+
+var commercialBtn = document.getElementById('tabCommercial');
+if (commercialBtn) commercialBtn.addEventListener('click', function () { setActiveTab('tabCommercial'); });
+
+var adminBtn = document.getElementById('tabAdmin');
+if (adminBtn) adminBtn.addEventListener('click', function () { setActiveTab('tabAdmin'); });
 
 var reportBtn = document.getElementById('reportBtn');
 var reportMenu = document.getElementById('reportMenu');
@@ -581,43 +586,5 @@ navigator.serviceWorker.register('/sw.js').catch(function () {});
 }
 })();
 </script>
-
-<script id="ugandaNewsFallbackV1">
-(function(){
-  let loading=false, loaded=false;
-  const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  function findFailedNewsNode(){
-    const all=[...document.querySelectorAll('div,p,span')];
-    return all.find(el=>el.children.length===0 && /unable to load news/i.test((el.textContent||'').trim()));
-  }
-  async function repair(){
-    if(loading||loaded)return;
-    const node=findFailedNewsNode();
-    if(!node)return;
-    loading=true;
-    try{
-      const r=await fetch('/news/uganda',{cache:'no-store'});
-      if(!r.ok)throw new Error('HTTP '+r.status);
-      const d=await r.json();
-      const items=Array.isArray(d.results)?d.results:[];
-      if(!items.length)throw new Error('No headlines');
-      node.innerHTML=items.slice(0,6).map(x=>
-        '<a class="newsItem" href="'+esc(x.url)+'" target="_blank" rel="noopener" style="display:block;margin:0 0 7px">'+
-        '<div class="newsTitle">'+esc(x.title)+'</div>'+
-        '<div class="newsSource">'+esc(x.source||'News')+'</div></a>'
-      ).join('');
-      node.style.color='inherit';
-      loaded=true;
-    }catch(e){
-      node.textContent='News temporarily unavailable — tap More again to retry.';
-    }finally{loading=false;}
-  }
-  const observer=new MutationObserver(()=>setTimeout(repair,0));
-  observer.observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class','style']});
-  document.addEventListener('click',()=>setTimeout(repair,120));
-  window.addEventListener('load',()=>setTimeout(repair,500));
-})();
-</script>
-
 </body>
 </html>

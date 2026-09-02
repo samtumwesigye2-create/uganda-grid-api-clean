@@ -10,7 +10,7 @@ jobs:
   upgrade:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Upgrade live customer tracking
         run: python scripts/upgrade_customer_tracking.py
       - name: Commit customer page
