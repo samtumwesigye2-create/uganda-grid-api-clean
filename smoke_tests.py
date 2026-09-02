@@ -19,14 +19,13 @@ async def req(method,path,headers=None,payload=None):
  try:data=json.loads(raw or b'{}')
  except:data=raw.decode(errors='replace')
  return start['status'],data
-def routes():return {getattr(r,'path','') for r in app.routes}
 async def main():
- failures=[];checks=0;h={'x-access-code':PASSCODE,'x-admin-passcode':PASSCODE};paths=routes()
+ failures=[];checks=0;h={'x-access-code':PASSCODE,'x-admin-passcode':PASSCODE}
  required=['/health','/orders/summary','/inventory/products','/fleet/vehicles','/yard/summary','/analytics/summary','/optimization/summary','/digital-twin/snapshot','/robotics/summary','/visibility/summary','/geography/zipper/status','/platform/mdm-runtime/quality','/platform/api-runtime/usage','/platform/monitoring-runtime/dashboard','/platform/feature-runtime/summary']
  for p in required:
-  checks+=1
-  if p not in paths:failures.append('missing '+p);print('FAIL route',p)
-  else:print('PASS route',p)
+  checks+=1;s,d=await req('GET',p,h)
+  if s>=400:failures.append(f'required {p} {s} {d}');print('FAIL route',p,s)
+  else:print('PASS route',p,s)
  pages=['extended-applications','platform-services','transport-management','order-management','warehouse-control','yard-management','ai-ml-analytics','optimization-engine','digital-twin','robotics-orchestration','supply-chain-visibility']
  for name in pages:
   checks+=1;s,_=await req('GET',f'/assets/{name}.html')
@@ -38,7 +37,6 @@ async def main():
   if s>=400:failures.append(f'{p} {s} {d}');print('FAIL API',p,s)
   else:print('PASS API',p)
  suffix=uuid.uuid4().hex[:7].upper();sku='CI-'+suffix;bot='CI Robot '+suffix
- # Inventory endpoints are form-based, so the integration audit deliberately avoids pretending JSON writes validate them.
  flow=[('register robot','POST','/robotics/robots',{'name':bot,'robot_type':'mobile','warehouse_id':'main'})]
  created={}
  for label,m,p,b in flow:
@@ -50,7 +48,6 @@ async def main():
   checks+=1;s,d=await req('POST','/robotics/missions',h,{'robot_id':rid,'mission_type':'move','reference':sku,'source_location':'RECEIVING','destination_location':'STORAGE','priority':'normal'})
   if s>=400:failures.append(f'robot mission {s} {d}');print('FAIL robot mission',s,d)
   else:print('PASS robot mission')
- # Exercise the four newest Platform Services runtimes with isolated CI records.
  mdm={'entity_type':'ci_test','record_key':suffix,'data':{'name':'Integration '+suffix,'code':suffix},'source':'ci','source_id':suffix,'priority':1,'changed_by':'ci'}
  checks+=1;s,d=await req('POST','/platform/mdm-runtime/records',h,mdm);print(('PASS' if s<400 else 'FAIL'),'MDM record',s)
  if s>=400:failures.append(f'MDM write {s} {d}')
