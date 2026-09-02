@@ -32,7 +32,8 @@
 
   async function networkJson(url, path) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 9000);
+    const timeoutMs = path.indexOf('/geography/zipper') === 0 ? 30000 : 9000;
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const r = await fetch(url, {headers:{Accept:'application/json'},cache:'no-cache',signal:controller.signal});
       if (!r.ok) throw new Error(path + ' HTTP ' + r.status);
@@ -82,7 +83,7 @@
   function featureBounds(feature){
     try {
       const coords = feature && feature.geometry && feature.geometry.coordinates;
-      if (!coords) return null;
+      if (!coords)return null;
       let minLat=Infinity,minLon=Infinity,maxLat=-Infinity,maxLon=-Infinity;
       (function walk(v){
         if (!Array.isArray(v)) return;
