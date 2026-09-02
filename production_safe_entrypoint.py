@@ -25,10 +25,6 @@ except BaseException as exc:
     logging.exception("Full UGAMAP production application failed to boot")
     app = FastAPI(title="UGAMAP Emergency Runtime", docs_url=None, redoc_url=None)
 
-    # Keep the actual frontend and operator pages reachable even when a backend
-    # module fails to import. Previously the emergency runtime exposed only /,
-    # which made /assets/* return Detail Not Found and left index.html stuck on
-    # Loading because /app.js was unavailable.
     assets = Path("assets")
     if assets.is_dir():
         app.mount("/assets", StaticFiles(directory=str(assets)), name="assets")
@@ -92,6 +88,20 @@ except BaseException as exc:
         return JSONResponse({"mode":"emergency","process_alive":True,"full_app_loaded":False,"error":BOOT_ERROR,"traceback":BOOT_TRACE})
 
 if BOOT_ERROR is None:
+    # Production account modules remain loaded, but the public root must stay on
+    # the proven navigation UI that owns the ZIPPER/grid experience. Remove any
+    # later account-specific GET / override and serve index.html exactly.
+    for route in list(app.router.routes):
+        if getattr(route, "path", None) == "/" and "GET" in getattr(route, "methods", set()):
+            app.router.routes.remove(route)
+
+    @app.get("/", include_in_schema=False)
+    def proven_navigation_home():
+        path = Path("index.html")
+        if not path.exists():
+            return HTMLResponse("<h1>UGAMAP</h1><p>Navigation frontend missing.</p>", status_code=503)
+        return Response(path.read_text(encoding="utf-8"), media_type="text/html", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
+
     @app.get("/system/startup-status", include_in_schema=False)
     def startup_status_ok():
-        return {"mode":"normal","process_alive":True,"full_app_loaded":True,"error":None}
+        return {"mode":"normal","process_alive":True,"full_app_loaded":True,"navigation_home":"proven-index","error":None}
