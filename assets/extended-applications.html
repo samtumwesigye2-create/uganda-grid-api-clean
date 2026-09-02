@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>UGAMAP Extended Applications</title>
+<style>
+:root{--bg:#07131d;--panel:#0d2e2b;--card:#0b2530;--line:#2c6f67;--text:#f5f7fb;--muted:#9eb6bb;--green:#1fd49a;--amber:#f7b955;--red:#ef5b5b;--blue:#4cb7ff}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#08131f,#07131d);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;min-height:100vh}
+header{position:sticky;top:0;z-index:10;background:rgba(7,19,29,.95);backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08);padding:14px 16px;display:flex;align-items:center;gap:12px}
+.back{width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#10202d;color:#fff;font-size:20px}.title{flex:1}.title h1{font-size:18px;margin:0}.title p{font-size:12px;color:var(--muted);margin:3px 0 0}.status{font-size:11px;color:#7ef0bd;background:rgba(31,212,154,.1);border:1px solid rgba(31,212,154,.25);padding:6px 8px;border-radius:999px}
+main{padding:16px;max-width:1100px;margin:auto}.shell{background:linear-gradient(180deg,rgba(17,75,63,.92),rgba(8,43,45,.94));border:1px solid rgba(80,185,155,.5);border-radius:20px;padding:14px;box-shadow:0 16px 60px rgba(0,0,0,.28)}
+.shell h2{text-align:center;margin:4px 0 14px;font-size:22px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.app{min-height:118px;border-radius:16px;border:1px solid rgba(112,210,188,.35);background:linear-gradient(180deg,#0d3440,#092833);color:#fff;padding:16px 12px;text-align:center;display:flex;flex-direction:column;justify-content:center;gap:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.025);cursor:pointer}.app:active{transform:scale(.985)}.app .icon{font-size:25px}.app strong{font-size:15px;line-height:1.2}.app span{font-size:10px;color:var(--muted)}
+.panel{display:none;margin-top:14px;background:#091923;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px}.panel.active{display:block}.panelHead{display:flex;align-items:center;gap:10px;margin-bottom:12px}.panelHead h3{margin:0;font-size:17px}.panelHead p{margin:2px 0 0;font-size:11px;color:var(--muted)}.close{margin-left:auto;width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:#132431;color:#fff}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.metric{background:#0e2230;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:11px}.metric b{font-size:18px;display:block}.metric span{font-size:10px;color:var(--muted)}
+.tools{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}.tool{background:#102738;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px}.tool label{display:block;font-size:10px;color:var(--muted);margin-bottom:5px}.tool input,.tool select{width:100%;background:#081722;color:#fff;border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:10px}.action{margin-top:10px;width:100%;background:#136c5d;color:white;border:0;border-radius:11px;padding:11px;font-weight:700}.feed{margin-top:10px}.row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px}.row:last-child{border-bottom:0}.dot{width:8px;height:8px;border-radius:50%;background:var(--green)}.warn{background:var(--amber)}.danger{background:var(--red)}.pill{margin-left:auto;font-size:10px;color:var(--muted)}
+footer{padding:16px;text-align:center;color:var(--muted);font-size:10px}
+@media(max-width:760px){.grid{grid-template-columns:repeat(2,1fr)}.metrics{grid-template-columns:1fr 1fr}.tools{grid-template-columns:1fr}.app{min-height:105px}}
+@media(max-width:430px){.grid{grid-template-columns:1fr 1fr}.app strong{font-size:13px}.app .icon{font-size:22px}.status{display:none}}
+</style>
+</head>
+<body>
+<header>
+<button class="back" onclick="history.back()">‹</button>
+<div class="title"><h1>UGAMAP Operations</h1><p>Extended Applications Control Center</p></div>
+<div class="status">SYSTEM READY</div>
+</header>
+<main>
+<section class="shell">
+<h2>Extended Applications</h2>
+<div class="grid" id="apps"></div>
+<div class="panel" id="panel">
+<div class="panelHead"><div><h3 id="panelTitle"></h3><p id="panelSub"></p></div><button class="close" id="closePanel">✕</button></div>
+<div class="metrics" id="metrics"></div>
+<div class="tools" id="tools"></div>
+<div class="feed" id="feed"></div>
+<button class="action" id="runAction">Run Module Action</button>
+</div>
+</section>
+</main>
+<footer>Uganda National Grid • Extended Applications</footer>
+<script>
+const modules=[
+{id:'transport',icon:'🚚',name:'Transport Management',sub:'Fleet, dispatch and routing',metrics:[['12','Active vehicles'],['4','Routes in progress'],['96%','On-time']],tools:[['Dispatch ID','text'],['Priority','select']],feed:[['Vehicle T-104','En route'],['Vehicle T-208','Loading'],['Vehicle T-311','Available']]},
+{id:'orders',icon:'📦',name:'Order Management',sub:'Orders and fulfillment',metrics:[['148','Open orders'],['37','Picking'],['8','Exceptions']],tools:[['Order reference','text'],['Status','select']],feed:[['ORD-10091','Picking'],['ORD-10092','Packed'],['ORD-10093','Awaiting stock']]},
+{id:'wcs',icon:'🏭',name:'Warehouse Control System (WCS)',sub:'Warehouse equipment and flow',metrics:[['18','Zones online'],['7','Conveyors'],['2','Alerts']],tools:[['Zone','text'],['Command','select']],feed:[['Receiving A','Online'],['Sortation B','Online'],['Dock 4','Attention']]},
+{id:'yard',icon:'🚧',name:'Yard Management',sub:'Gates, bays and trailers',metrics:[['23','Yard units'],['6','Open bays'],['3','Arrivals']],tools:[['Trailer / vehicle','text'],['Gate','select']],feed:[['Gate 1','Open'],['Bay 7','Occupied'],['Bay 9','Available']]},
+{id:'ai',icon:'🧠',name:'AI / ML Analytics',sub:'Forecasting and anomaly detection',metrics:[['92%','Forecast confidence'],['14','Signals'],['3','Anomalies']],tools:[['Analysis window','text'],['Model','select']],feed:[['Demand model','Healthy'],['Delay predictor','Healthy'],['Stock anomaly','Review']]},
+{id:'opt',icon:'⚙️',name:'Optimization Engine',sub:'Routes, slots and workloads',metrics:[['11%','Travel saved'],['8%','Labor saved'],['21','Optimized tasks']],tools:[['Optimization target','text'],['Strategy','select']],feed:[['Route batch A','Optimized'],['Pick wave B','Queued'],['Dock plan C','Ready']]},
+{id:'twin',icon:'🧩',name:'Digital Twin',sub:'Live operational model',metrics:[['9','Facilities'],['41','Live assets'],['1.8s','Sync lag']],tools:[['Facility','text'],['View','select']],feed:[['Warehouse East','Synced'],['Yard Central','Synced'],['Fleet layer','Updating']]},
+{id:'robotics',icon:'🤖',name:'Robotics Orchestration',sub:'Robots, tasks and missions',metrics:[['14','Robots online'],['31','Tasks active'],['98%','Availability']],tools:[['Robot / group','text'],['Mission','select']],feed:[['BOT-01','Picking'],['BOT-04','Charging'],['BOT-09','Staging']]},
+{id:'visibility',icon:'🌐',name:'Supply Chain Visibility',sub:'End-to-end shipment status',metrics:[['67','Shipments tracked'],['5','At risk'],['12','Delivered today']],tools:[['Shipment ID','text'],['Checkpoint','select']],feed:[['SHP-4001','In transit'],['SHP-4008','Customs'],['SHP-4012','Delivered']]}
+];
+const apps=document.getElementById('apps'),panel=document.getElementById('panel'),title=document.getElementById('panelTitle'),sub=document.getElementById('panelSub'),metrics=document.getElementById('metrics'),tools=document.getElementById('tools'),feed=document.getElementById('feed'),run=document.getElementById('runAction');
+modules.forEach(m=>{const b=document.createElement('button');b.className='app';b.innerHTML=`<div class="icon">${m.icon}</div><strong>${m.name}</strong><span>${m.sub}</span>`;b.onclick=()=>openModule(m);apps.appendChild(b)});
+function openModule(m){title.textContent=m.name;sub.textContent=m.sub;metrics.innerHTML=m.metrics.map(x=>`<div class="metric"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');tools.innerHTML=m.tools.map((x,i)=>`<div class="tool"><label>${x[0]}</label>${x[1]==='select'?`<select><option>Automatic</option><option>Normal</option><option>High priority</option></select>`:`<input placeholder="Enter ${x[0].toLowerCase()}">`}</div>`).join('');feed.innerHTML=m.feed.map((x,i)=>`<div class="row"><span class="dot ${/Attention|Review|Risk|Awaiting/.test(x[1])?'warn':''}"></span><b>${x[0]}</b><span class="pill">${x[1]}</span></div>`).join('');run.textContent='Run '+m.name+' Action';run.onclick=()=>{run.textContent='Action queued ✓';setTimeout(()=>run.textContent='Run '+m.name+' Action',1800)};panel.classList.add('active');panel.scrollIntoView({behavior:'smooth',block:'nearest'})}
+document.getElementById('closePanel').onclick=()=>panel.classList.remove('active');
+</script>
+</body>
+</html>
