@@ -30,7 +30,7 @@ def _load_artifact():
  if data.get('type')!='FeatureCollection':raise ValueError('ZIPPER artifact must be a GeoJSON FeatureCollection')
  return data
 def zipper_feature_collection():return _load_artifact() if os.path.exists(ZIPPER_GEOJSON_FILE) else live_zipper_feature_collection()
-def clear_zipper_cache():_load_artifact.cache_clear();live_zipper_feature_collection.cache_clear()
+def clear_zipper_cache():_load_artifact.cache_clear();_indexed_zipper_features.cache_clear();live_zipper_feature_collection.cache_clear()
 
 def _geometry_bbox(geometry):
  coords=(geometry or {}).get('coordinates')
@@ -50,7 +50,7 @@ def _geometry_bbox(geometry):
 @lru_cache(maxsize=1)
 def _indexed_zipper_features():
  data=zipper_feature_collection();out=[]
- for f in data.get('features',[]):out.append((f,_geometry_bbox(f.get('geometry'))))
+ for i,f in enumerate(data.get('features',[])):out.append((i,f,_geometry_bbox(f.get('geometry'))))
  return out
 
 @router.get('/geography/zipper')
@@ -68,11 +68,11 @@ def geography_zipper_viewport(
  if min_lon>=max_lon or min_lat>=max_lat:raise HTTPException(status_code=400,detail='Invalid viewport bounds')
  try:
   features=[]
-  for feature,bbox in _indexed_zipper_features():
+  for index,feature,bbox in _indexed_zipper_features():
    if not bbox:continue
    a,b,c,d=bbox
    if c<min_lon or a>max_lon or d<min_lat or b>max_lat:continue
-   features.append(feature)
+   item=dict(feature);item['__ugamap_index']=index;features.append(item)
    if len(features)>=limit:break
   return {'type':'FeatureCollection','features':features,'viewport':{'min_lon':min_lon,'min_lat':min_lat,'max_lon':max_lon,'max_lat':max_lat},'limited':len(features)>=limit}
  except Exception as exc:raise HTTPException(status_code=500,detail=f'ZIPPER viewport unavailable: {exc}')
