@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ugamap-cache-v4';
+const CACHE_NAME = 'ugamap-cache-v5';
 const APP_SHELL = ['/', '/app.js', '/boundaries.js'];
 
 self.addEventListener('install', event => {
@@ -10,15 +10,16 @@ self.addEventListener('install', event => {
 
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(names =>
-      Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n)))
-    )
+    caches.keys().then(names => Promise.all(names.filter(n => n !== CACHE_NAME).map(n => caches.delete(n))))
   );
   self.clients.claim();
 });
 
 function isTileRequest(url) {
-  return /tile\.openstreetmap\.org/.test(url) || /unpkg\.com\/leaflet/.test(url);
+  return /tile\.openstreetmap\.org/.test(url) ||
+         /unpkg\.com\/leaflet/.test(url) ||
+         /cdn\.jsdelivr\.net\/npm\/leaflet/.test(url) ||
+         /cdnjs\.cloudflare\.com\/ajax\/libs\/leaflet/.test(url);
 }
 
 self.addEventListener('fetch', event => {
@@ -27,15 +28,17 @@ self.addEventListener('fetch', event => {
   const parsed = new URL(req.url);
   const url = req.url;
 
-  // Load the proven UGAMAP application first, then attach ZIPPER boundaries.
-  // This guarantees the core map load handler is registered even if the
-  // optional boundary overlay has a runtime problem.
   if (parsed.origin === self.location.origin && parsed.pathname === '/app.js') {
     event.respondWith((async () => {
       try {
         const appRes = await fetch(req, { cache: 'no-store' });
         if (!appRes.ok) throw new Error('app.js HTTP ' + appRes.status);
-        const appText = await appRes.text();
+        let appText = await appRes.text();
+
+        appText = appText.replace(
+          "window.addEventListener('load', () => {",
+          "((fn) => { if (document.readyState === 'complete') fn(); else window.addEventListener('load', fn); })(() => {"
+        );
 
         let boundaryText = '';
         try {
@@ -55,8 +58,60 @@ self.addEventListener('fetch', event => {
           } catch (_) {}
         }
 
-        // Core first. Overlay second.
-        const combined = appText + '\n\n' + boundaryText;
+        const payload = boundaryText + '\n\n' + appText;
+        const payloadJson = JSON.stringify(payload);
+        const combined = `
+(function () {
+  const ugamapCode = ${payloadJson};
+  let started = false;
+
+  function showError(message) {
+    const status = document.getElementById('status');
+    if (status) {
+      status.textContent = message;
+      status.className = 'status err';
+    }
+  }
+
+  function runUGAMAP() {
+    if (started) return;
+    started = true;
+    try {
+      (0, eval)(ugamapCode);
+    } catch (e) {
+      started = false;
+      console.error('UGAMAP startup failed:', e);
+      showError('Map startup failed — reload once');
+    }
+  }
+
+  function loadScript(src, onload, onerror) {
+    const s = document.createElement('script');
+    s.src = src;
+    s.async = true;
+    s.onload = onload;
+    s.onerror = onerror;
+    document.head.appendChild(s);
+  }
+
+  if (window.L) {
+    runUGAMAP();
+    return;
+  }
+
+  loadScript(
+    'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js',
+    runUGAMAP,
+    function () {
+      loadScript(
+        'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js',
+        runUGAMAP,
+        function () { showError('Map library unavailable — check connection and reload'); }
+      );
+    }
+  );
+})();`;
+
         return new Response(combined, {
           status: 200,
           headers: {
