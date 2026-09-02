@@ -3,6 +3,7 @@
 
   const originalMap = L.map;
   let initialized = false;
+  const GEO_CACHE = 'ugamap-geography-v1';
 
   const API_BASES = (() => {
     const out = [];
@@ -11,16 +12,48 @@
     return Array.from(new Set(out));
   })();
 
+  async function cacheGet(url) {
+    if (!('caches' in window)) return null;
+    try {
+      const cache = await caches.open(GEO_CACHE);
+      const hit = await cache.match(url);
+      if (!hit) return null;
+      return await hit.json();
+    } catch (_) { return null; }
+  }
+
+  async function cachePut(url, response) {
+    if (!('caches' in window)) return;
+    try {
+      const cache = await caches.open(GEO_CACHE);
+      await cache.put(url, response.clone());
+    } catch (_) {}
+  }
+
+  async function networkJson(url, path) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 9000);
+    try {
+      const r = await fetch(url, {headers:{Accept:'application/json'},cache:'no-cache',signal:controller.signal});
+      if (!r.ok) throw new Error(path + ' HTTP ' + r.status);
+      cachePut(url, r);
+      return await r.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function getJson(path) {
     let lastError = null;
     for (const base of API_BASES) {
+      const url = base + path;
+      const cached = await cacheGet(url);
+      if (cached) {
+        networkJson(url, path).catch(function(){});
+        return cached;
+      }
       try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 12000);
-        const r = await fetch(base + path, {headers:{Accept:'application/json'},cache:'no-store',signal:controller.signal});
-        clearTimeout(timer);
-        if (!r.ok) throw new Error(path + ' HTTP ' + r.status);
-        return await r.json();
+        return await networkJson(url, path);
       } catch (e) { lastError = e; }
     }
     throw lastError || new Error(path + ' unavailable');
@@ -47,7 +80,25 @@
   }
 
   function featureBounds(feature){
-    try { return L.geoJSON(feature).getBounds(); } catch(_) { return null; }
+    try {
+      const coords = feature && feature.geometry && feature.geometry.coordinates;
+      if (!coords) return null;
+      let minLat=Infinity,minLon=Infinity,maxLat=-Infinity,maxLon=-Infinity;
+      (function walk(v){
+        if (!Array.isArray(v)) return;
+        if (v.length>=2 && typeof v[0]==='number' && typeof v[1]==='number') {
+          const lon=v[0], lat=v[1];
+          if (Number.isFinite(lat) && Number.isFinite(lon)) {
+            if(lat<minLat)minLat=lat;if(lat>maxLat)maxLat=lat;
+            if(lon<minLon)minLon=lon;if(lon>maxLon)maxLon=lon;
+          }
+          return;
+        }
+        for(const x of v) walk(x);
+      })(coords);
+      if(!Number.isFinite(minLat)) return null;
+      return L.latLngBounds([minLat,minLon],[maxLat,maxLon]);
+    } catch(_) { return null; }
   }
 
   async function initializeBoundaries(map) {
@@ -56,8 +107,9 @@
 
     try {
       const states = await safeGeoJson('/geography/states');
+      const stateCanvas=L.canvas({padding:.25});
       const stateLayer = L.geoJSON(states, {
-        renderer:L.canvas({padding:.25}),
+        renderer:stateCanvas,
         style:{color:'#f59e0b',weight:2,fillOpacity:0},
         onEachFeature:function(f,layer){
           const p=f.properties||{};
@@ -77,6 +129,7 @@
       const ZIPPER_LABEL_ZOOM=15;
       const MAX_VISIBLE_ZIPS=180;
       const palette=['#38bdf8','#22c55e','#facc15','#c084fc','#fb7185','#2dd4bf','#fb923c','#60a5fa','#a3e635','#f472b6'];
+      const zipCanvas=L.canvas({padding:.2});
 
       if(!document.getElementById('ugamap-boundary-style')){
         const style=document.createElement('style');
@@ -106,7 +159,7 @@
 
       function scheduleRender(){
         clearTimeout(renderTimer);
-        renderTimer=setTimeout(renderVisible,140);
+        renderTimer=setTimeout(renderVisible,90);
       }
 
       async function renderVisible(){
@@ -116,7 +169,7 @@
 
         const data=await ensureZipData();
         if(generation!==renderGeneration) return;
-        const view=map.getBounds().pad(.12);
+        const view=map.getBounds().pad(.08);
         const visible=[];
         for(const f of (data.features||[])){
           if(f.__ugamapBounds && f.__ugamapBounds.isValid() && view.intersects(f.__ugamapBounds)) visible.push(f);
@@ -124,14 +177,13 @@
         }
 
         zipLayer.clearLayers();
-        const canvas=L.canvas({padding:.2});
         visible.forEach(function(f){
           const i=f.__ugamapIndex||0;
           const p=f.properties||{};
           const zip=fiveDigitId(p,i);
           const color=palette[i%palette.length];
           const one=L.geoJSON(f,{
-            renderer:canvas,
+            renderer:zipCanvas,
             style:{color:color,weight:.65,opacity:.75,fillColor:color,fillOpacity:.035},
             onEachFeature:function(_,layer){
               layer._ugamapZip=zip;
@@ -165,6 +217,10 @@
       map.on('zoomend moveend',scheduleRender);
       updateStateLabels();
       scheduleRender();
+
+      const warm=function(){ensureZipData().catch(function(){});};
+      if('requestIdleCallback' in window) requestIdleCallback(warm,{timeout:2500});
+      else setTimeout(warm,1200);
 
       window.UGAMAP=window.UGAMAP||{};
       window.UGAMAP.boundaries={states:stateLayer,zips:zipLayer,updateLabels:scheduleRender,minZoom:ZIPPER_MIN_ZOOM,labelZoom:ZIPPER_LABEL_ZOOM,maxVisible:MAX_VISIBLE_ZIPS,control:control};
