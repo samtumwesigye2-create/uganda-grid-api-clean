@@ -3,6 +3,7 @@
   const nativeFetch = window.fetch.bind(window);
   const cache = new Map();
   const inflight = new Map();
+  const latestBySource = new Map();
   const MAX_CACHE = 80;
   const SEARCH_TTL = 30000;
   const SESSION_PREFIX = 'ugamap-search-v1:';
@@ -34,6 +35,12 @@
 
   function keyFor(url) { return String(url || ''); }
   function storageKey(key) { return SESSION_PREFIX + encodeURIComponent(key); }
+  function sourceFor(url) {
+    const s = String(url || '');
+    if (s.includes('photon.komoot.io/api/?q=')) return 'photon';
+    if (s.includes('/search?q=')) return 'ugamap';
+    return 'other';
+  }
 
   function prune() {
     if (cache.size <= MAX_CACHE) return;
@@ -96,7 +103,7 @@
 
     // Reuse an identical request already in flight instead of sending duplicates.
     if (inflight.has(key)) {
-      return inflight.get(key).then(r => r.clone());
+      return inflight.get(key).promise.then(r => r.clone());
     }
 
     const controller = new AbortController();
@@ -105,6 +112,16 @@
       if (externalSignal.aborted) controller.abort();
       else externalSignal.addEventListener('abort', () => controller.abort(), {once:true});
     }
+
+    // Search-as-you-type: once a newer query for the same source starts,
+    // stop the older network request so the phone and radio do less wasted work.
+    const source = sourceFor(url);
+    const previous = latestBySource.get(source);
+    if (previous && previous.key !== key && previous.controller) {
+      try { previous.controller.abort(); } catch (_) {}
+    }
+    latestBySource.set(source, {key, controller});
+
     const timer = setTimeout(() => controller.abort(), 8000);
     const requestOptions = Object.assign({}, options || {}, { signal: controller.signal });
 
@@ -119,9 +136,11 @@
     }).finally(() => {
       clearTimeout(timer);
       inflight.delete(key);
+      const latest = latestBySource.get(source);
+      if (latest && latest.key === key) latestBySource.delete(source);
     });
 
-    inflight.set(key, promise);
+    inflight.set(key, {promise, controller});
     return promise.then(r => r.clone());
   };
 
