@@ -15,6 +15,14 @@ from fastapi.staticfiles import StaticFiles
 
 BOOT_ERROR = None
 BOOT_TRACE = None
+RELEASE = "20260902-5digit-r2"
+CURRENT_MAP_SCRIPTS = {
+    "/app.js": "app.js",
+    "/app-core.js": "app-core.js",
+    "/boundaries.js": "boundaries.js",
+    "/legacy-grid-killer.js": "legacy-grid-killer.js",
+    "/performance-layer.js": "performance-layer.js",
+}
 
 
 def _public_index_source():
@@ -29,10 +37,25 @@ def _public_index_source():
     end = source.find(end_marker, start if start >= 0 else 0)
     if start >= 0 and end > start:
         source = source[:start] + source[end:]
-    bridge = '<script src="/assets/zipper-search-bridge.js?v=1"></script>'
+    source = source.replace('/app.js?v=8', '/app.js?v=' + RELEASE)
+    bridge = '<script src="/assets/zipper-search-bridge.js?v=2"></script>'
     if "/assets/zipper-search-bridge.js" not in source:
         source = source.replace("</body>", bridge + "</body>", 1) if "</body>" in source else source + bridge
     return source
+
+
+def _current_script_response(path):
+    filename = CURRENT_MAP_SCRIPTS.get(path)
+    if not filename:
+        return None
+    file_path = Path(filename)
+    if not file_path.exists():
+        return Response("", status_code=404)
+    return Response(
+        file_path.read_text(encoding="utf-8"),
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 try:
@@ -68,31 +91,9 @@ except BaseException as exc:
                 pass
         return HTMLResponse(f"<h1>{title}</h1><p>Core services are recovering. The web process is online.</p>", status_code=503)
 
-    def _static_file(name: str, media_type: str):
-        path = Path(name)
-        if not path.exists():
-            return Response("", status_code=404)
-        return Response(path.read_text(encoding="utf-8"), media_type=media_type, headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
-
     @app.get("/", include_in_schema=False)
     def emergency_home():
         return _html_file("index.html", "UGAMAP")
-
-    @app.get("/app.js", include_in_schema=False)
-    def emergency_app_js():
-        return _static_file("app.js", "application/javascript")
-
-    @app.get("/app-core.js", include_in_schema=False)
-    def emergency_app_core_js():
-        return _static_file("app-core.js", "application/javascript")
-
-    @app.get("/boundaries.js", include_in_schema=False)
-    def emergency_boundaries_js():
-        return _static_file("boundaries.js", "application/javascript")
-
-    @app.get("/legacy-grid-killer.js", include_in_schema=False)
-    def emergency_legacy_grid_killer_js():
-        return _static_file("legacy-grid-killer.js", "application/javascript")
 
     @app.get("/ship", include_in_schema=False)
     def emergency_ship():
@@ -111,9 +112,6 @@ except BaseException as exc:
         return JSONResponse({"mode":"emergency","process_alive":True,"full_app_loaded":False,"error":BOOT_ERROR,"traceback":BOOT_TRACE})
 
 if BOOT_ERROR is None:
-    # Production account modules remain loaded, but the public root must stay on
-    # the proven navigation UI that owns the ZIPPER/grid experience. Remove any
-    # later account-specific GET / override and serve the sanitized public UI.
     for route in list(app.router.routes):
         if getattr(route, "path", None) == "/" and "GET" in getattr(route, "methods", set()):
             app.router.routes.remove(route)
@@ -127,36 +125,25 @@ if BOOT_ERROR is None:
 
     @app.get("/system/startup-status", include_in_schema=False)
     def startup_status_ok():
-        return {"mode":"normal","process_alive":True,"full_app_loaded":True,"navigation_home":"proven-index","error":None}
+        return {"mode":"normal","process_alive":True,"full_app_loaded":True,"navigation_home":"proven-index","release":RELEASE,"error":None}
 
-    # The Platform Services page already contains the working service consoles,
-    # but on phones the console sits below all nine tall service cards. Serve
-    # this one static page with a tiny mobile helper injected so tapping a card
-    # immediately opens/scrolls to its real workspace. No map/navigation routes
-    # or backend service behavior are changed.
     _full_production_app = app
 
     async def app(scope, receive, send):
-        if scope.get("type") == "http" and scope.get("method") == "GET" and scope.get("path") == "/assets/platform-services.html":
-            path = Path("assets/platform-services.html")
-            if path.exists():
-                source = path.read_text(encoding="utf-8")
-                helper = '<script src="/assets/platform-services-mobile-fix.js?v=1"></script>'
-                if "/assets/platform-services-mobile-fix.js" not in source:
-                    source = source.replace("</body>", helper + "</body>", 1)
-                response = Response(
-                    source,
-                    media_type="text/html",
-                    headers={
-                        "Cache-Control":"no-cache, no-store, must-revalidate",
-                        "Strict-Transport-Security":"max-age=31536000; includeSubDomains",
-                        "X-Content-Type-Options":"nosniff",
-                        "X-Frame-Options":"DENY",
-                        "Referrer-Policy":"strict-origin-when-cross-origin",
-                        "Permissions-Policy":"camera=(self), geolocation=(self), microphone=()",
-                        "Content-Security-Policy":"default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
-                    },
-                )
-                await response(scope, receive, send)
+        if scope.get("type") == "http" and scope.get("method") == "GET":
+            request_path = scope.get("path")
+            script_response = _current_script_response(request_path)
+            if script_response is not None:
+                await script_response(scope, receive, send)
                 return
+            if request_path == "/assets/platform-services.html":
+                path = Path("assets/platform-services.html")
+                if path.exists():
+                    source = path.read_text(encoding="utf-8")
+                    helper = '<script src="/assets/platform-services-mobile-fix.js?v=1"></script>'
+                    if "/assets/platform-services-mobile-fix.js" not in source:
+                        source = source.replace("</body>", helper + "</body>", 1)
+                    response = Response(source, media_type="text/html", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
+                    await response(scope, receive, send)
+                    return
         await _full_production_app(scope, receive, send)
