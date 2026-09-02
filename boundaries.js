@@ -89,11 +89,12 @@
           const zip=String((f.properties||{}).zipper_id||(f.properties||{}).zip_code||'');
           const n=Number(zip.slice(-2))||1;
           const color=palette[(n-1)%palette.length];
-          return {color:color,weight:1,fillColor:color,fillOpacity:.10};
+          return {color:color,weight:.9,fillColor:color,fillOpacity:.08};
         },
         onEachFeature:function(f,layer){
           const p=f.properties||{};
-          const zip=String(p.zipper_id||p.zip_code||'').padStart(5,'0');
+          const raw=String(p.zipper_id||p.zip_code||'').replace(/\D/g,'');
+          const zip=raw.padStart(5,'0').slice(-5);
           const pop=Number(p.population||0);
           const district=p.district||'';
           layer.bindPopup('<b>ZIP '+zip+'</b><br>Population-balanced ZIPPER zone'+(pop?'<br>Estimated population: '+pop.toLocaleString():'')+(district?'<br>'+district:'')+(p.density_class?'<br><small>'+p.density_class+' allocation</small>':''));
@@ -108,12 +109,29 @@
         document.head.appendChild(style);
       }
 
+      const ZIPPER_MIN_ZOOM = 11;
+      const ZIPPER_LABEL_ZOOM = 13;
+      let zipperVisible = false;
+
+      function syncZipperVisibility(){
+        const zoom=map.getZoom();
+        const shouldShow=zoom>=ZIPPER_MIN_ZOOM;
+        if(shouldShow&&!zipperVisible){
+          zipLayer.addTo(map);
+          zipperVisible=true;
+        }else if(!shouldShow&&zipperVisible){
+          map.removeLayer(zipLayer);
+          zipperVisible=false;
+        }
+      }
+
       function syncLabels(){
         const zoom=map.getZoom();
+        syncZipperVisibility();
         zipLayer.eachLayer(function(layer){
           const zip=layer._ugamapZip;
           if(!zip)return;
-          if(zoom>=13){
+          if(zoom>=ZIPPER_LABEL_ZOOM){
             if(!layer.getTooltip())layer.bindTooltip(zip,{permanent:true,direction:'center',className:'ugamap-zip-label',opacity:.92});
             layer.openTooltip();
           }else if(layer.getTooltip()){
@@ -150,7 +168,6 @@
       },{collapsed:true,position:'topright'}).addTo(map);
 
       stateLayer.addTo(map);
-      zipLayer.addTo(map);
       syncLabels();
       map.on('zoomend moveend',syncLabels);
       setTimeout(syncLabels,500);
@@ -158,7 +175,7 @@
       setTimeout(recoverZipLayer,10000);
 
       window.UGAMAP=window.UGAMAP||{};
-      window.UGAMAP.boundaries={states:stateLayer,zips:zipLayer,updateLabels:syncLabels,recover:recoverZipLayer};
+      window.UGAMAP.boundaries={states:stateLayer,zips:zipLayer,updateLabels:syncLabels,recover:recoverZipLayer,minZoom:ZIPPER_MIN_ZOOM,labelZoom:ZIPPER_LABEL_ZOOM};
     } catch(e){
       initialized=false;
       console.error('Boundary layers unavailable:',e);
