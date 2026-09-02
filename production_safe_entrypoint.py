@@ -105,3 +105,35 @@ if BOOT_ERROR is None:
     @app.get("/system/startup-status", include_in_schema=False)
     def startup_status_ok():
         return {"mode":"normal","process_alive":True,"full_app_loaded":True,"navigation_home":"proven-index","error":None}
+
+    # The Platform Services page already contains the working service consoles,
+    # but on phones the console sits below all nine tall service cards. Serve
+    # this one static page with a tiny mobile helper injected so tapping a card
+    # immediately opens/scrolls to its real workspace. No map/navigation routes
+    # or backend service behavior are changed.
+    _full_production_app = app
+
+    async def app(scope, receive, send):
+        if scope.get("type") == "http" and scope.get("method") == "GET" and scope.get("path") == "/assets/platform-services.html":
+            path = Path("assets/platform-services.html")
+            if path.exists():
+                source = path.read_text(encoding="utf-8")
+                helper = '<script src="/assets/platform-services-mobile-fix.js?v=1"></script>'
+                if "/assets/platform-services-mobile-fix.js" not in source:
+                    source = source.replace("</body>", helper + "</body>", 1)
+                response = Response(
+                    source,
+                    media_type="text/html",
+                    headers={
+                        "Cache-Control":"no-cache, no-store, must-revalidate",
+                        "Strict-Transport-Security":"max-age=31536000; includeSubDomains",
+                        "X-Content-Type-Options":"nosniff",
+                        "X-Frame-Options":"DENY",
+                        "Referrer-Policy":"strict-origin-when-cross-origin",
+                        "Permissions-Policy":"camera=(self), geolocation=(self), microphone=()",
+                        "Content-Security-Policy":"default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https://unpkg.com; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+                    },
+                )
+                await response(scope, receive, send)
+                return
+        await _full_production_app(scope, receive, send)
