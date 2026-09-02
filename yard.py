@@ -61,23 +61,35 @@ def update(unit_id:str,payload:YardUnitUpdate,x_access_code:str=Header(default='
  if payload.notes is not None:d['notes']=payload.notes.strip()[:2000]
  c.execute('UPDATE yard_units SET status=?,bay_id=?,gate_id=?,checked_in_at=?,departed_at=?,notes=?,updated_at=? WHERE id=?',(d['status'],d['bay_id'],d['gate_id'],d['checked_in_at'],d['departed_at'],d['notes'],now,r['id']));log(c,r['id'],d['status'],f"bay={d['bay_id']} gate={d['gate_id']}");c.commit();z=dict(get(c,r['id']));c.close();return z
 @router.post('/units/{unit_id}/transport-release')
-def transport_release(unit_id:str,payload:TransportRelease,x_access_code:str=Header(default=''),x_admin_passcode:str=Header(default='')):
+def transport_release(unit_id:str,payload:TransportRelease,x_access_code:str=Header(default='')):
  write(x_access_code);c=conn();r=get(c,unit_id)
  if not r:c.close();raise HTTPException(404,'Yard unit not found')
  if r['status'] not in {'staged','at_dock','loading','released'}:c.close();raise HTTPException(409,'Yard unit must be staged, at_dock, loading, or released before transport dispatch')
+ if c.execute("SELECT 1 FROM dispatch_tasks WHERE notes LIKE ? AND status NOT IN ('completed','failed','cancelled','dropped_off_customer','dropped_off_warehouse') LIMIT 1",('%Yard release '+r['unit_number']+'%',)).fetchone():c.close();raise HTTPException(409,'This yard unit already has an active transport task')
  v=c.execute('SELECT * FROM vehicles WHERE id=?',(payload.vehicle_id,)).fetchone()
  if not v:c.close();raise HTTPException(404,'Vehicle not found')
- if v['status']=='maintenance':c.close();raise HTTPException(409,'Vehicle is in maintenance')
+ if v['status']!='available':c.close();raise HTTPException(409,'Vehicle must be available before yard dispatch')
+ if c.execute("SELECT 1 FROM dispatch_tasks WHERE vehicle_id=? AND status NOT IN ('completed','failed','cancelled','dropped_off_customer','dropped_off_warehouse') LIMIT 1",(payload.vehicle_id,)).fetchone():c.close();raise HTTPException(409,'Vehicle already has an active transport task')
  driver=None
  if payload.driver_id:
   driver=c.execute('SELECT * FROM drivers WHERE id=? AND is_active=1',(payload.driver_id,)).fetchone()
   if not driver:c.close();raise HTTPException(404,'Active driver not found')
+  if driver['status']!='available':c.close();raise HTTPException(409,'Driver must be available before yard dispatch')
+  if c.execute("SELECT 1 FROM dispatch_tasks WHERE driver_id=? AND status NOT IN ('completed','failed','cancelled','dropped_off_customer','dropped_off_warehouse') LIMIT 1",(payload.driver_id,)).fetchone():c.close();raise HTTPException(409,'Driver already has an active transport task')
+ order=None
+ if r['order_number']:
+  order=c.execute('SELECT * FROM orders WHERE order_number=?',(r['order_number'],)).fetchone()
+  if not order:c.close();raise HTTPException(409,'Linked order does not exist')
+  if order['status']!='ready_to_ship':c.close();raise HTTPException(409,'Linked order must be ready_to_ship before transport release')
  task_id=str(uuid.uuid4());counter=c.execute('SELECT next_number FROM dispatch_task_counter WHERE id=1').fetchone();n=counter['next_number'] if counter else 1
  if counter:c.execute('UPDATE dispatch_task_counter SET next_number=? WHERE id=1',(n+1,))
  else:c.execute('INSERT INTO dispatch_task_counter (id,next_number) VALUES (1,2)')
  task_number=f'UG-TASK-{n:06d}';location=(payload.location_text.strip() or r['unit_number']);ship=r['shipment_number'] or ''
- c.execute('INSERT INTO dispatch_tasks (id,task_number,shipment_number,task_type,location_text,latitude,longitude,driver_id,vehicle_id,status,notes,scheduled_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',(task_id,task_number,ship or None,'dropoff_customer',location,payload.latitude,payload.longitude,payload.driver_id or None,payload.vehicle_id,'assigned',(payload.notes or f"Yard release {r['unit_number']} / order {r['order_number']}")[:2000],payload.scheduled_at,time.time()));c.execute('INSERT INTO dispatch_task_history (id,task_id,status,note,photo_url,created_at) VALUES (?,?,?,?,?,?)',(str(uuid.uuid4()),task_id,'assigned',f"Created from yard unit {r['unit_number']}",None,time.time()));c.execute("UPDATE vehicles SET status='in_use' WHERE id=?",(payload.vehicle_id,));c.execute("UPDATE yard_units SET status='departed',departed_at=?,updated_at=? WHERE id=?",(time.time(),time.time(),r['id']));log(c,r['id'],'departed',f'Transport {task_number}; vehicle={payload.vehicle_id}; driver={payload.driver_id or "unassigned"}')
- if r['order_number']:c.execute("UPDATE orders SET status='shipped',updated_at=? WHERE order_number=?",(time.time(),r['order_number']));c.execute('INSERT INTO order_history VALUES (?,?,?,?,?,?)',(str(uuid.uuid4()),c.execute('SELECT id FROM orders WHERE order_number=?',(r['order_number'],)).fetchone()['id'],'transport_dispatched',task_number,'yard-management',time.time())) if c.execute('SELECT id FROM orders WHERE order_number=?',(r['order_number'],)).fetchone() else None
+ note=(payload.notes.strip()+' | ' if payload.notes.strip() else '')+f"Yard release {r['unit_number']} / order {r['order_number']}"
+ now=time.time();c.execute('INSERT INTO dispatch_tasks (id,task_number,shipment_number,task_type,location_text,latitude,longitude,driver_id,vehicle_id,status,notes,scheduled_at,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',(task_id,task_number,ship or None,'dropoff_customer',location,payload.latitude,payload.longitude,payload.driver_id or None,payload.vehicle_id,'assigned',note[:2000],payload.scheduled_at,now));c.execute('INSERT INTO dispatch_task_history (id,task_id,status,note,photo_url,created_at) VALUES (?,?,?,?,?,?)',(str(uuid.uuid4()),task_id,'assigned',f"Created from yard unit {r['unit_number']}",None,now));c.execute("UPDATE vehicles SET status='in_use' WHERE id=?",(payload.vehicle_id,))
+ if payload.driver_id:c.execute("UPDATE drivers SET status='on_duty' WHERE id=?",(payload.driver_id,))
+ c.execute("UPDATE yard_units SET status='departed',departed_at=?,updated_at=?,notes=? WHERE id=?",(now,now,note[:2000],r['id']));log(c,r['id'],'departed',f'Transport {task_number}; vehicle={payload.vehicle_id}; driver={payload.driver_id or "unassigned"}')
+ if order:c.execute("UPDATE orders SET status='shipped',updated_at=? WHERE id=?",(now,order['id']));c.execute('INSERT INTO order_history VALUES (?,?,?,?,?,?)',(str(uuid.uuid4()),order['id'],'transport_dispatched',task_number,'yard-management',now))
  c.commit();c.close();return {'yard_unit':r['unit_number'],'order_number':r['order_number'],'task_id':task_id,'task_number':task_number,'vehicle_id':payload.vehicle_id,'driver_id':payload.driver_id or None,'status':'assigned'}
 @router.post('/bays')
 def create_bay(payload:ResourceCreate,x_access_code:str=Header(default='')):
