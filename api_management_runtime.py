@@ -21,7 +21,7 @@ def product_create(p:ProductIn,x_access_code:str=Header(default='')):
  write(x_access_code);c=conn();pid='API-'+uuid.uuid4().hex[:8].upper();t=now()
  try:c.execute('INSERT INTO platform_api_products VALUES (?,?,?,?,?,?,?,?)',(pid,p.name.strip(),p.base_path.strip(),p.description,p.visibility,1,t,t));c.commit()
  except sqlite3.IntegrityError:c.close();raise HTTPException(409,'API product already exists')
- c.close();return {'id':pid,**p.dict() if hasattr(p,'dict') else p.model_dump(),'active':True}
+ c.close();payload=p.dict() if hasattr(p,'dict') else p.model_dump();return {'id':pid,**payload,'active':True}
 @router.get('/products')
 def products(x_access_code:str=Header(default='')):read(x_access_code);c=conn();r=[dict(x) for x in c.execute('SELECT * FROM platform_api_products ORDER BY name')];c.close();return {'results':r}
 @router.post('/policies')
