@@ -60,6 +60,14 @@ def ugamap_home_with_accounts():
  source=Path('index.html').read_text(encoding='utf-8')
  if '/boundaries.js' not in source:
   leaflet='<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>';source=source.replace(leaflet,leaflet+'\n<script src="/boundaries.js?v=3"></script>',1)
+ if 'id="adminWarehouse"' not in source:
+  marker='<button type="button" class="authTab adminTab" id="adminTabStaff">Staff</button>\n</div>'
+  warehouse='''<button type="button" class="authTab adminTab" id="adminTabStaff">Staff</button>
+</div>
+<div class="row" style="grid-template-columns:1fr;margin-bottom:10px;">
+<button type="button" class="authTab" id="adminWarehouse" onclick="window.location.href='/warehouse'">Warehouse</button>
+</div>'''
+  source=source.replace(marker,warehouse,1)
  scripts='<script src="/assets/ugamap-account-ui.js?v=2"></script>\n<script src="/assets/ugamap-account-incidents.js?v=1"></script>'
  if '/assets/ugamap-account-incidents.js' not in source:source=source.replace('</body>',scripts+'\n</body>') if '</body>' in source else source+scripts
  return Response(source,media_type='text/html',headers={'Cache-Control':'no-cache, no-store, must-revalidate'})
