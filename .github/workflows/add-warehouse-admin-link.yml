@@ -1,0 +1,49 @@
+name: Add Warehouse Admin Link
+
+on:
+  push:
+    paths:
+      - '.github/workflows/add-warehouse-admin-link.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-index:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Add Warehouse launcher to Admin
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('index.html')
+          text = path.read_text(encoding='utf-8')
+          if 'id="adminWarehouse"' in text:
+              print('Warehouse launcher already present')
+              raise SystemExit(0)
+
+          needle = '<button type="button" class="authTab adminTab" id="adminTabStaff">Staff</button>\n</div>'
+          replacement = '''<button type="button" class="authTab adminTab" id="adminTabStaff">Staff</button>
+</div>
+<div class="row" style="grid-template-columns:1fr;margin-bottom:10px;">
+<button type="button" class="authTab" id="adminWarehouse" onclick="window.location.href='/warehouse'">Warehouse</button>
+</div>'''
+
+          if needle not in text:
+              raise SystemExit('Admin Staff tab marker not found; index.html left unchanged')
+
+          path.write_text(text.replace(needle, replacement, 1), encoding='utf-8')
+          PY
+      - name: Commit changes
+        run: |
+          if git diff --quiet -- index.html; then
+            echo "No index changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "Add Warehouse launcher to Admin [skip ci]"
+          git push origin HEAD:main
