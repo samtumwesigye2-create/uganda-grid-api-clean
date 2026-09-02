@@ -7,7 +7,8 @@ Population targets:
 
 The generator consumes parish GeoJSON plus a parish population lookup. Splits
 are area-based estimates whenever population is not available below parish
-level. ZIPPER IDs are plain five-digit numeric codes: 00001-99999.
+level. ZIPPER IDs are plain five-digit numeric codes assigned from each state's
+reserved numbering block.
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ from typing import Optional
 
 from shapely.geometry import shape, mapping, box
 from shapely.ops import unary_union
+from zipper_numbering import assign_state_block_ids
 
 URBAN_MIN = 3000
 URBAN_MAX = 6000
@@ -154,18 +156,10 @@ def generate_zones(parishes: list[Parish]):
 
 
 def assign_zipper_ids(zones: list[dict], start: int = 1):
-    """Assign plain five-digit ZIPPER codes: 00001, 00002, ... 99999."""
-    ordered = sorted(zones, key=lambda z: (
-        z["district"], -z["geometry"].representative_point().y,
-        z["geometry"].representative_point().x
-    ))
-    if start < 0 or start + len(ordered) - 1 > 99999:
-        raise ValueError("Five-digit ZIPPER namespace exhausted")
-    for n, zone in enumerate(ordered, start=start):
-        zone["zipper_id"] = f"{n:05d}"
-    return ordered
+    """Assign five-digit IDs from each state's reserved ZIPPER block."""
+    return assign_state_block_ids(zones)
 
-# Backward-compatible function name for callers created during development.
+
 def assign_zipper2_ids(zones: list[dict], start: int = 1):
     return assign_zipper_ids(zones, start)
 
@@ -195,5 +189,5 @@ def summary(zones: list[dict]):
         "rural_zones": len(rural),
         "urban_range": [URBAN_MIN, URBAN_MAX],
         "rural_range": [RURAL_MIN, RURAL_MAX],
-        "id_format": "00001-99999",
+        "id_format": "state-block five-digit numeric",
     }
