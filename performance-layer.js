@@ -5,6 +5,7 @@
   const inflight = new Map();
   const MAX_CACHE = 80;
   const SEARCH_TTL = 30000;
+  const SESSION_PREFIX = 'ugamap-search-v1:';
 
   function addPreconnect(href) {
     try {
@@ -32,11 +33,48 @@
   }
 
   function keyFor(url) { return String(url || ''); }
+  function storageKey(key) { return SESSION_PREFIX + encodeURIComponent(key); }
 
   function prune() {
     if (cache.size <= MAX_CACHE) return;
     const oldest = [...cache.entries()].sort((a,b) => a[1].time - b[1].time);
     oldest.slice(0, cache.size - MAX_CACHE).forEach(([k]) => cache.delete(k));
+  }
+
+  function restoreSession(key) {
+    try {
+      const raw = sessionStorage.getItem(storageKey(key));
+      if (!raw) return null;
+      const item = JSON.parse(raw);
+      if (!item || Date.now() - Number(item.time || 0) >= SEARCH_TTL) {
+        sessionStorage.removeItem(storageKey(key));
+        return null;
+      }
+      return new Response(item.body || '', {
+        status: Number(item.status || 200),
+        statusText: item.statusText || 'OK',
+        headers: item.headers || {'Content-Type':'application/json'}
+      });
+    } catch (_) { return null; }
+  }
+
+  function persistSession(key, response) {
+    try {
+      const copy = response.clone();
+      copy.text().then(body => {
+        try {
+          const headers = {};
+          copy.headers.forEach((v,k) => { headers[k] = v; });
+          sessionStorage.setItem(storageKey(key), JSON.stringify({
+            time: Date.now(),
+            status: copy.status,
+            statusText: copy.statusText,
+            headers,
+            body
+          }));
+        } catch (_) {}
+      }).catch(() => {});
+    } catch (_) {}
   }
 
   window.fetch = function ugamapFastFetch(url, options) {
@@ -47,6 +85,13 @@
     const hit = cache.get(key);
     if (hit && now - hit.time < SEARCH_TTL) {
       return Promise.resolve(hit.response.clone());
+    }
+
+    const restored = restoreSession(key);
+    if (restored) {
+      cache.set(key, {time: now, response: restored.clone()});
+      prune();
+      return Promise.resolve(restored);
     }
 
     // Reuse an identical request already in flight instead of sending duplicates.
@@ -67,6 +112,7 @@
       clearTimeout(timer);
       if (response.ok) {
         cache.set(key, {time: Date.now(), response: response.clone()});
+        persistSession(key, response);
         prune();
       }
       return response;
