@@ -1,23 +1,28 @@
 """Five-digit ZIPPER numbering plan for Uganda National Grid.
 
-Each of the ten states owns a 10,000-code block. Codes remain exactly five
-digits and preserve large reserves for future growth.
+00000-09999 is reserved for national special ZIPs. The active geographic
+ZIPPER layer uses 10000-99999, divided into ten non-overlapping 9,000-code
+state blocks. This keeps every identifier exactly five digits and prevents the
+replacement geographic layer from colliding with the special namespace.
 """
 
 from state_district_registry import state_for_district
 
 STATE_BLOCKS = {
-    "KMP": (1, 9999),
-    "LKV": (10000, 19999),
-    "NIL": (20000, 29999),
-    "WHS": (30000, 39999),
-    "ELG": (40000, 49999),
-    "NSV": (50000, 59999),
-    "WNL": (60000, 69999),
-    "EPL": (70000, 79999),
-    "KRM": (80000, 89999),
-    "ALB": (90000, 99999),
+    "KMP": (10000, 18999),
+    "LKV": (19000, 27999),
+    "NIL": (28000, 36999),
+    "WHS": (37000, 45999),
+    "ELG": (46000, 54999),
+    "NSV": (55000, 63999),
+    "WNL": (64000, 72999),
+    "EPL": (73000, 81999),
+    "KRM": (82000, 90999),
+    "ALB": (91000, 99999),
 }
+
+SPECIAL_BLOCK = (0, 9999)
+GEOGRAPHIC_BLOCK = (10000, 99999)
 
 
 def block_for_state(state_code: str):
@@ -39,7 +44,7 @@ def format_zipper(value: int) -> str:
 
 
 def assign_state_block_ids(zones: list[dict]) -> list[dict]:
-    """Assign stable five-digit codes inside each zone's state block."""
+    """Assign stable geographic five-digit codes inside each state's block."""
     grouped = {}
     for zone in zones:
         district = str(zone.get("district", "")).strip()
@@ -68,6 +73,10 @@ def assign_state_block_ids(zones: list[dict]) -> list[dict]:
 def numbering_status():
     return {
         "format": "5-digit numeric",
-        "capacity": 99999,
+        "capacity": 100000,
+        "special_block": [format_zipper(SPECIAL_BLOCK[0]), format_zipper(SPECIAL_BLOCK[1])],
+        "geographic_block": [format_zipper(GEOGRAPHIC_BLOCK[0]), format_zipper(GEOGRAPHIC_BLOCK[1])],
+        "state_block_size": 9000,
         "state_blocks": {k: [format_zipper(a), format_zipper(b)] for k, (a, b) in STATE_BLOCKS.items()},
+        "collision_free": True,
     }
