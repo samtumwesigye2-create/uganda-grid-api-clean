@@ -20,27 +20,12 @@ footer{padding:16px;text-align:center;color:var(--muted);font-size:10px}
 </style>
 </head>
 <body>
-<header>
-<button class="back" onclick="history.back()">‹</button>
-<div class="title"><h1>UGAMAP Operations</h1><p>Extended Applications Control Center</p></div>
-<div class="status">SYSTEM READY</div>
-</header>
-<main>
-<section class="shell">
-<h2>Extended Applications</h2>
-<div class="grid" id="apps"></div>
-<div class="panel" id="panel">
-<div class="panelHead"><div><h3 id="panelTitle"></h3><p id="panelSub"></p></div><button class="close" id="closePanel">✕</button></div>
-<div class="metrics" id="metrics"></div>
-<div class="tools" id="tools"></div>
-<div class="feed" id="feed"></div>
-<button class="action" id="runAction">Run Module Action</button>
-</div>
-</section>
-</main>
+<header><button class="back" onclick="history.back()">‹</button><div class="title"><h1>UGAMAP Operations</h1><p>Extended Applications Control Center</p></div><div class="status">SYSTEM READY</div></header>
+<main><section class="shell"><h2>Extended Applications</h2><div class="grid" id="apps"></div><div class="panel" id="panel"><div class="panelHead"><div><h3 id="panelTitle"></h3><p id="panelSub"></p></div><button class="close" id="closePanel">✕</button></div><div class="metrics" id="metrics"></div><div class="tools" id="tools"></div><div class="feed" id="feed"></div><button class="action" id="runAction">Run Module Action</button></div></section></main>
 <footer>Uganda National Grid • Extended Applications</footer>
 <script>
 const modules=[
+{id:'platform',icon:'🧱',name:'Platform Services',sub:'Access, workflows, documents, audit, APIs and monitoring',link:'/assets/platform-services.html'},
 {id:'transport',icon:'🚚',name:'Transport Management',sub:'Fleet, dispatch and routing',metrics:[['12','Active vehicles'],['4','Routes in progress'],['96%','On-time']],tools:[['Dispatch ID','text'],['Priority','select']],feed:[['Vehicle T-104','En route'],['Vehicle T-208','Loading'],['Vehicle T-311','Available']]},
 {id:'orders',icon:'📦',name:'Order Management',sub:'Orders and fulfillment',metrics:[['148','Open orders'],['37','Picking'],['8','Exceptions']],tools:[['Order reference','text'],['Status','select']],feed:[['ORD-10091','Picking'],['ORD-10092','Packed'],['ORD-10093','Awaiting stock']]},
 {id:'wcs',icon:'🏭',name:'Warehouse Control System (WCS)',sub:'Warehouse equipment and flow',metrics:[['18','Zones online'],['7','Conveyors'],['2','Alerts']],tools:[['Zone','text'],['Command','select']],feed:[['Receiving A','Online'],['Sortation B','Online'],['Dock 4','Attention']]},
@@ -52,9 +37,8 @@ const modules=[
 {id:'visibility',icon:'🌐',name:'Supply Chain Visibility',sub:'End-to-end shipment status',metrics:[['67','Shipments tracked'],['5','At risk'],['12','Delivered today']],tools:[['Shipment ID','text'],['Checkpoint','select']],feed:[['SHP-4001','In transit'],['SHP-4008','Customs'],['SHP-4012','Delivered']]}
 ];
 const apps=document.getElementById('apps'),panel=document.getElementById('panel'),title=document.getElementById('panelTitle'),sub=document.getElementById('panelSub'),metrics=document.getElementById('metrics'),tools=document.getElementById('tools'),feed=document.getElementById('feed'),run=document.getElementById('runAction');
-modules.forEach(m=>{const b=document.createElement('button');b.className='app';b.innerHTML=`<div class="icon">${m.icon}</div><strong>${m.name}</strong><span>${m.sub}</span>`;b.onclick=()=>openModule(m);apps.appendChild(b)});
-function openModule(m){title.textContent=m.name;sub.textContent=m.sub;metrics.innerHTML=m.metrics.map(x=>`<div class="metric"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');tools.innerHTML=m.tools.map((x,i)=>`<div class="tool"><label>${x[0]}</label>${x[1]==='select'?`<select><option>Automatic</option><option>Normal</option><option>High priority</option></select>`:`<input placeholder="Enter ${x[0].toLowerCase()}">`}</div>`).join('');feed.innerHTML=m.feed.map((x,i)=>`<div class="row"><span class="dot ${/Attention|Review|Risk|Awaiting/.test(x[1])?'warn':''}"></span><b>${x[0]}</b><span class="pill">${x[1]}</span></div>`).join('');run.textContent='Run '+m.name+' Action';run.onclick=()=>{run.textContent='Action queued ✓';setTimeout(()=>run.textContent='Run '+m.name+' Action',1800)};panel.classList.add('active');panel.scrollIntoView({behavior:'smooth',block:'nearest'})}
+modules.forEach(m=>{const b=document.createElement('button');b.className='app';b.innerHTML=`<div class="icon">${m.icon}</div><strong>${m.name}</strong><span>${m.sub}</span>`;b.onclick=()=>m.link?location.href=m.link:openModule(m);apps.appendChild(b)});
+function openModule(m){title.textContent=m.name;sub.textContent=m.sub;metrics.innerHTML=m.metrics.map(x=>`<div class="metric"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');tools.innerHTML=m.tools.map(x=>`<div class="tool"><label>${x[0]}</label>${x[1]==='select'?`<select><option>Automatic</option><option>Normal</option><option>High priority</option></select>`:`<input placeholder="Enter ${x[0].toLowerCase()}">`}</div>`).join('');feed.innerHTML=m.feed.map(x=>`<div class="row"><span class="dot ${/Attention|Review|Risk|Awaiting/.test(x[1])?'warn':''}"></span><b>${x[0]}</b><span class="pill">${x[1]}</span></div>`).join('');run.textContent='Run '+m.name+' Action';run.onclick=()=>{run.textContent='Action queued ✓';setTimeout(()=>run.textContent='Run '+m.name+' Action',1800)};panel.classList.add('active');panel.scrollIntoView({behavior:'smooth',block:'nearest'})}
 document.getElementById('closePanel').onclick=()=>panel.classList.remove('active');
 </script>
-</body>
-</html>
+</body></html>
