@@ -1,0 +1,28 @@
+name: Fix Trending in Uganda
+on:
+  push:
+    paths:
+      - '.github/workflows/fix-trending-news.yml'
+      - 'scripts/fix_trending_news.py'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply news fix
+        run: python scripts/fix_trending_news.py
+      - name: Validate Python
+        run: python -m py_compile main.py
+      - name: Commit changes
+        run: |
+          if git diff --quiet -- main.py index.html; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add main.py index.html
+          git commit -m "Fix Trending in Uganda news feed [skip ci]"
+          git push origin HEAD:main

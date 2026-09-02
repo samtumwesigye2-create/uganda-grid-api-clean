@@ -1,0 +1,27 @@
+name: Upgrade Ship Quick Tools
+on:
+  push:
+    paths:
+      - '.github/workflows/upgrade-ship-quick-tools.yml'
+      - 'scripts/upgrade_ship_quick_tools.py'
+      - 'customer_tools.py'
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch customer ship tools
+        run: python scripts/upgrade_ship_quick_tools.py
+      - name: Commit changes
+        run: |
+          if git diff --quiet -- ship.html main.py; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ship.html main.py
+          git commit -m "Add customer quick tools and expandable menu [skip ci]"
+          git push origin HEAD:main
