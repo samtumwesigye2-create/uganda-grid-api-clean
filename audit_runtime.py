@@ -40,7 +40,7 @@ def save_control(p:ControlIn,x_access_code:str=Header(default='')):
  write(x_access_code);c=conn();old=c.execute('SELECT id FROM platform_compliance_controls WHERE framework=? AND control_key=?',(p.framework,p.control_key)).fetchone();t=now();cid=old['id'] if old else 'CTL-'+uuid.uuid4().hex[:10].upper()
  if old:c.execute('UPDATE platform_compliance_controls SET title=?,status=?,evidence=?,owner=?,review_due_at=?,updated_at=? WHERE id=?',(p.title,p.status,p.evidence,p.owner,p.review_due_at,t,cid))
  else:c.execute('INSERT INTO platform_compliance_controls VALUES (?,?,?,?,?,?,?,?,?,?)',(cid,p.framework,p.control_key,p.title,p.status,p.evidence,p.owner,p.review_due_at,t,t))
- add_audit(c,'staff','compliance.control.update',cid,p.framework+':'+p.control_key,p.status);c.commit();c.close();return {'id':cid,**p.model_dump() if hasattr(p,'model_dump') else p.dict()}
+ add_audit(c,'staff','compliance.control.update',cid,p.framework+':'+p.control_key,p.status);c.commit();c.close();payload=p.model_dump() if hasattr(p,'model_dump') else p.dict();return {'id':cid,**payload}
 @router.get('/controls')
 def controls(framework:str='',status:str='',x_access_code:str=Header(default='')):
  read(x_access_code);c=conn();q='SELECT * FROM platform_compliance_controls WHERE 1=1';a=[]
