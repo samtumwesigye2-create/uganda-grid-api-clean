@@ -37,8 +37,8 @@ def flags(x_access_code:str=Header(default='')):
 def audience(p:AudienceIn,x_access_code:str=Header(default='')):
  write(x_access_code);c=conn();aid='AUD-'+uuid.uuid4().hex[:8].upper();t=now();c.execute('INSERT INTO platform_feature_audiences VALUES (?,?,?,?,?,?)',(aid,p.feature_key,p.name,json.dumps(p.rules),t,t));c.commit();c.close();return {'id':aid,'feature_key':p.feature_key,'name':p.name,'rules':p.rules}
 @router.get('/audiences/{feature_key}')
-def audiences(feature_key:str,x_access_code:str=Header(default='')):read(x_access_code);c=conn();r=[dict(x) for x in c.execute('SELECT * FROM platform_feature_audiences WHERE feature_key=? ORDER BY name',(feature_key,))];c.close();
-# normalize below
+def audiences(feature_key:str,x_access_code:str=Header(default='')):
+ read(x_access_code);c=conn();r=[dict(x) for x in c.execute('SELECT * FROM platform_feature_audiences WHERE feature_key=? ORDER BY name',(feature_key,))];c.close()
  return {'results':[{**x,'rules':json.loads(x['rules'] or '{}')} for x in r]}
 @router.post('/evaluate')
 def evaluate(p:EvalIn,x_access_code:str=Header(default='')):
