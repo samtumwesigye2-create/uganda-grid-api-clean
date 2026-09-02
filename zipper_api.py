@@ -17,8 +17,9 @@ from notification_runtime import router as notification_runtime_router
 from document_runtime import router as document_runtime_router
 from audit_runtime import router as audit_runtime_router
 from mdm_runtime import router as mdm_runtime_router
+from api_management_runtime import router as api_management_runtime_router
 router=APIRouter(tags=['ZIPPER'])
-for r in (orders_router,yard_router,analytics_router,optimization_router,digital_twin_router,robotics_router,visibility_router,platform_services_router,notification_runtime_router,document_runtime_router,audit_runtime_router,mdm_runtime_router):router.include_router(r)
+for r in (orders_router,yard_router,analytics_router,optimization_router,digital_twin_router,robotics_router,visibility_router,platform_services_router,notification_runtime_router,document_runtime_router,audit_runtime_router,mdm_runtime_router,api_management_runtime_router):router.include_router(r)
 BASE_DIR=os.path.dirname(os.path.abspath(__file__));ZIPPER_GEOJSON_FILE=os.environ.get('ZIPPER_GEOJSON_FILE',os.path.join(BASE_DIR,'zipper_zones.geojson'))
 @lru_cache(maxsize=1)
 def _load_artifact():
