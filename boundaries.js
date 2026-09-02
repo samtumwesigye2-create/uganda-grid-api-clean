@@ -38,7 +38,7 @@
   }
 
   function fiveDigitId(p, index) {
-    const candidates=[p.zipper_id,p.zip_code,p.zip,p.postal_code];
+    const candidates=[p.primary_zip,p.primaryZip,p.zipper_number,p.zipperNumber,p.zipper_id,p.zip_code,p.zip,p.postal_code];
     for(const v of candidates){
       const s=String(v==null?'':v).trim();
       if(/^\d{5}$/.test(s)) return s;
