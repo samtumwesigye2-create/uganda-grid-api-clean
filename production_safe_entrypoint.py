@@ -16,6 +16,22 @@ from fastapi.staticfiles import StaticFiles
 BOOT_ERROR = None
 BOOT_TRACE = None
 
+
+def _public_index_source():
+    """Return the public navigation UI with embedded admin markup removed."""
+    path = Path("index.html")
+    if not path.exists():
+        return None
+    source = path.read_text(encoding="utf-8")
+    start_marker = '<div id="adminOverlay" class="modal-overlay">'
+    end_marker = '<div class="navWrap">'
+    start = source.find(start_marker)
+    end = source.find(end_marker, start if start >= 0 else 0)
+    if start >= 0 and end > start:
+        source = source[:start] + source[end:]
+    return source
+
+
 try:
     production = importlib.import_module("ugamap_accounts_entrypoint")
     app = production.app
@@ -36,7 +52,9 @@ except BaseException as exc:
         path = Path(name)
         if path.exists():
             try:
-                source = path.read_text(encoding="utf-8")
+                source = _public_index_source() if name == "index.html" else path.read_text(encoding="utf-8")
+                if source is None:
+                    raise FileNotFoundError(name)
                 if name == "warehouse.html":
                     source = source.replace('<header class="top"><a href="/ship">← UGASHIP</a><b>Warehouse Management</b></header>','<header class="top"><a href="/">← Uganda National Grid</a><b>Warehouse Management</b></header>',1)
                     source = source.replace('<title>UGASHIP Warehouse Management</title>','<title>Warehouse Command Dashboard</title>',1).replace('<h1>UGASHIP Warehouse Management</h1>','<h1>Warehouse Command Dashboard</h1>',1)
@@ -90,17 +108,17 @@ except BaseException as exc:
 if BOOT_ERROR is None:
     # Production account modules remain loaded, but the public root must stay on
     # the proven navigation UI that owns the ZIPPER/grid experience. Remove any
-    # later account-specific GET / override and serve index.html exactly.
+    # later account-specific GET / override and serve the sanitized public UI.
     for route in list(app.router.routes):
         if getattr(route, "path", None) == "/" and "GET" in getattr(route, "methods", set()):
             app.router.routes.remove(route)
 
     @app.get("/", include_in_schema=False)
     def proven_navigation_home():
-        path = Path("index.html")
-        if not path.exists():
+        source = _public_index_source()
+        if source is None:
             return HTMLResponse("<h1>UGAMAP</h1><p>Navigation frontend missing.</p>", status_code=503)
-        return Response(path.read_text(encoding="utf-8"), media_type="text/html", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
+        return Response(source, media_type="text/html", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
 
     @app.get("/system/startup-status", include_in_schema=False)
     def startup_status_ok():

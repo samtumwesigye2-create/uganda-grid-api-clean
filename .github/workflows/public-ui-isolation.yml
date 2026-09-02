@@ -1,0 +1,29 @@
+name: Public UI Isolation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Verify public root excludes admin overlay
+        run: |
+          python - <<'PY'
+          from production_safe_entrypoint import _public_index_source
+          html = _public_index_source() or ''
+          forbidden = ['id="adminOverlay"', 'id="adminAccessCode"', 'id="adminDashboard"']
+          found = [x for x in forbidden if x in html]
+          if found:
+              raise SystemExit('Admin UI leaked into public root: ' + ', '.join(found))
+          if 'id="map"' not in html:
+              raise SystemExit('Public map missing after admin isolation')
+          print('PUBLIC_UI_CLEAN')
+          PY
