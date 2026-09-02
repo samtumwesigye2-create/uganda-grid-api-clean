@@ -1,0 +1,24 @@
+name: ZIPPER runtime audit
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Exercise live ZIPPER generator
+        run: |
+          python - <<'PY'
+          from zipper_live_geometry import live_zipper_status, live_zipper_feature_collection
+          s=live_zipper_status()
+          print('STATUS',s)
+          fc=live_zipper_feature_collection()
+          print('FEATURES',len(fc.get('features',[])))
+          print('FIRST', (fc.get('features') or [{}])[0].get('properties'))
+          PY
