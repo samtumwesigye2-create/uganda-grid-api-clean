@@ -154,11 +154,7 @@
     const cacheKey=tier==='low'?'__ugamapLowFeature':'__ugamapMediumFeature';
     if(feature[cacheKey]) return feature[cacheKey];
     const tolerance=tier==='low'?0.0012:0.00045;
-    const simplified={
-      type:'Feature',
-      properties:feature.properties||{},
-      geometry:simplifyGeometry(feature.geometry,tolerance)
-    };
+    const simplified={type:'Feature',properties:feature.properties||{},geometry:simplifyGeometry(feature.geometry,tolerance)};
     feature[cacheKey]=simplified;
     return simplified;
   }
@@ -181,12 +177,13 @@
         }
       }).addTo(map);
 
-      let zipData=null;
       let zipLayer=L.layerGroup();
-      let loadPromise=null;
       let renderTimer=null;
       let renderGeneration=0;
       let zipEnabled=true;
+      let fullFallbackPromise=null;
+      const viewportMemory=new Map();
+      const VIEWPORT_CACHE_MAX=24;
       const ZIPPER_MIN_ZOOM=12;
       const ZIPPER_LABEL_ZOOM=15;
       const MAX_VISIBLE_ZIPS=180;
@@ -200,17 +197,61 @@
         document.head.appendChild(style);
       }
 
-      async function ensureZipData(){
-        if(zipData) return zipData;
-        if(!loadPromise) loadPromise=safeGeoJson('/geography/zipper').then(function(data){
-          zipData=data;
-          (zipData.features||[]).forEach(function(f,i){
-            f.__ugamapIndex=i;
-            f.__ugamapBounds=featureBounds(f);
-          });
-          return zipData;
+      function prepareFeatures(data){
+        const features=(data&&Array.isArray(data.features))?data.features:[];
+        features.forEach(function(f,i){
+          const serverIndex=Number(f.__ugamap_index);
+          f.__ugamapIndex=Number.isInteger(serverIndex)&&serverIndex>=0?serverIndex:i;
+          if(!f.__ugamapBounds) f.__ugamapBounds=featureBounds(f);
         });
-        return loadPromise;
+        return {type:'FeatureCollection',features:features};
+      }
+
+      function viewportPath(){
+        const b=map.getBounds().pad(.12);
+        const step=.02;
+        const minLon=Math.floor(b.getWest()/step)*step;
+        const minLat=Math.floor(b.getSouth()/step)*step;
+        const maxLon=Math.ceil(b.getEast()/step)*step;
+        const maxLat=Math.ceil(b.getNorth()/step)*step;
+        return '/geography/zipper/viewport?min_lon='+minLon.toFixed(4)+'&min_lat='+minLat.toFixed(4)+'&max_lon='+maxLon.toFixed(4)+'&max_lat='+maxLat.toFixed(4)+'&limit='+MAX_VISIBLE_ZIPS;
+      }
+
+      function rememberViewport(key,data){
+        if(viewportMemory.has(key)) viewportMemory.delete(key);
+        viewportMemory.set(key,data);
+        while(viewportMemory.size>VIEWPORT_CACHE_MAX){
+          const oldest=viewportMemory.keys().next().value;
+          viewportMemory.delete(oldest);
+        }
+      }
+
+      async function loadFullFallback(){
+        if(!fullFallbackPromise){
+          fullFallbackPromise=safeGeoJson('/geography/zipper').then(prepareFeatures);
+        }
+        return fullFallbackPromise;
+      }
+
+      async function loadViewportData(){
+        const path=viewportPath();
+        if(viewportMemory.has(path)){
+          const hit=viewportMemory.get(path);
+          viewportMemory.delete(path);viewportMemory.set(path,hit);
+          return hit;
+        }
+        try {
+          const data=await getJson(path);
+          if(!data||data.type!=='FeatureCollection'||!Array.isArray(data.features)) throw new Error('Invalid ZIPPER viewport response');
+          const prepared=prepareFeatures(data);
+          rememberViewport(path,prepared);
+          return prepared;
+        } catch(e) {
+          console.warn('UGAMAP viewport ZIPPER request failed; using full geography fallback.',e);
+          const all=await loadFullFallback();
+          const view=map.getBounds().pad(.12);
+          return {type:'FeatureCollection',features:(all.features||[]).filter(function(f){return f.__ugamapBounds&&f.__ugamapBounds.isValid()&&view.intersects(f.__ugamapBounds);}).slice(0,MAX_VISIBLE_ZIPS)};
+        }
       }
 
       function clearZipLayer(){
@@ -229,14 +270,9 @@
         const zoom=map.getZoom();
         if(!zipEnabled || zoom<ZIPPER_MIN_ZOOM){ clearZipLayer(); updateStateLabels(); return; }
 
-        const data=await ensureZipData();
+        const data=await loadViewportData();
         if(generation!==renderGeneration) return;
-        const view=map.getBounds().pad(.08);
-        const visible=[];
-        for(const f of (data.features||[])){
-          if(f.__ugamapBounds && f.__ugamapBounds.isValid() && view.intersects(f.__ugamapBounds)) visible.push(f);
-          if(visible.length>=MAX_VISIBLE_ZIPS) break;
-        }
+        const visible=(data.features||[]).slice(0,MAX_VISIBLE_ZIPS);
 
         zipLayer.clearLayers();
         visible.forEach(function(f){
@@ -280,12 +316,8 @@
       updateStateLabels();
       scheduleRender();
 
-      const warm=function(){ensureZipData().catch(function(){});};
-      if('requestIdleCallback' in window) requestIdleCallback(warm,{timeout:2500});
-      else setTimeout(warm,1200);
-
       window.UGAMAP=window.UGAMAP||{};
-      window.UGAMAP.boundaries={states:stateLayer,zips:zipLayer,updateLabels:scheduleRender,minZoom:ZIPPER_MIN_ZOOM,labelZoom:ZIPPER_LABEL_ZOOM,maxVisible:MAX_VISIBLE_ZIPS,control:control,geometryTiers:true};
+      window.UGAMAP.boundaries={states:stateLayer,zips:zipLayer,updateLabels:scheduleRender,minZoom:ZIPPER_MIN_ZOOM,labelZoom:ZIPPER_LABEL_ZOOM,maxVisible:MAX_VISIBLE_ZIPS,control:control,geometryTiers:true,viewportLoading:true};
     } catch(e) {
       initialized=false;
       console.error('ZIPPER layer unavailable:',e);
