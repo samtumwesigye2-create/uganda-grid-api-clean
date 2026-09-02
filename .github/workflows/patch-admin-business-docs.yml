@@ -16,14 +16,31 @@ jobs:
       - uses: actions/checkout@v7
       - name: Patch admin
         run: python scripts/patch_admin_docs.py
+      - name: Add Warehouse launcher to map Admin
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          text = p.read_text(encoding='utf-8')
+          if 'id="adminWarehouse"' not in text:
+              marker = '<button type="button" class="authTab adminTab" id="adminTabStaff">Staff</button>\n</div>'
+              replacement = '''<button type="button" class="authTab adminTab" id="adminTabStaff">Staff</button>
+</div>
+<div class="row" style="grid-template-columns:1fr;margin-bottom:10px;">
+<button type="button" class="authTab" id="adminWarehouse" onclick="window.location.href='/warehouse'">Warehouse</button>
+</div>'''
+              if marker not in text:
+                  raise SystemExit('Admin Staff marker not found')
+              p.write_text(text.replace(marker, replacement, 1), encoding='utf-8')
+          PY
       - name: Commit changes
         run: |
-          if git diff --quiet -- admin.html; then
+          if git diff --quiet -- admin.html index.html; then
             echo "No admin changes needed"
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add admin.html
-          git commit -m "Make business document launchers compact [skip ci]"
+          git add admin.html index.html
+          git commit -m "Expose Warehouse from Admin [skip ci]"
           git push origin HEAD:main
