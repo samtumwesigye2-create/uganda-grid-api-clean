@@ -6,7 +6,8 @@ import json, os, time, uuid, math
 from postal_assignment import resolve_zip
 from grid_assignment import next_grid_id
 from state_geometry import state_feature_collection, state_for_coordinate
-from national_zip_geometry import zip_feature_collection, validation_status
+from national_zip_geometry import validation_status
+from zipper_api import router as zipper_router, zipper_feature_collection, geography_zipper_status
 from manual_zip_assignments import list_assignments, available_reserves, create_assignment, delete_assignment, feature_collection as manual_zip_features
 from special_zip_assignments import list_assignments as list_special_zips, create_assignment as create_special_zip, delete_assignment as delete_special_zip, category_catalog as special_zip_catalog, feature_collection as special_zip_features
 from address_confidence import evaluate_address_application
@@ -45,6 +46,7 @@ from data_hub import router as data_router;app.include_router(data_router)
 from users import router as users_router;app.include_router(users_router)
 from drivers import router as drivers_router;app.include_router(drivers_router)
 from customer_tools import router as customer_tools_router;app.include_router(customer_tools_router)
+app.include_router(zipper_router)
 def check_admin(v):
  if v!=ADMIN_PASSCODE:raise HTTPException(status_code=401,detail="Invalid passcode")
 def prune_reports():
@@ -77,12 +79,11 @@ def health():return {"status":"ok","records":len(addresses),"address_approval":"
 @app.get("/geography/states")
 def geography_states():return state_feature_collection()
 @app.get("/geography/zips")
-def geography_zips():
- base=zip_feature_collection();base["features"].extend(manual_zip_features()["features"]);return base
+def geography_zips():return zipper_feature_collection()
 @app.get("/geography/special-zips")
 def geography_special_zips():return special_zip_features()
 @app.get("/geography/status")
-def geography_status():return validation_status()
+def geography_status():return geography_zipper_status()
 @app.get("/coordinates/lookup")
 def coordinate_lookup(lat:float=Query(...),lon:float=Query(...),tolerance_m:float=Query(default=15.0,ge=0.0,le=500.0)):
  state=state_for_coordinate(lat,lon)
