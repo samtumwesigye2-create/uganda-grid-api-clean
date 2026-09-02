@@ -5,7 +5,7 @@ from fastapi.responses import Response
 from production_safe_entrypoint import app as production_app
 from data_relay_client import emit as relay_emit
 
-RELEASE = "20260902-5digit-r3"
+RELEASE = "20260902-5digit-r4"
 
 
 def _public_index():
@@ -17,6 +17,9 @@ def _public_index():
     if start >= 0 and end > start:
         source = source[:start] + source[end:]
     source = source.replace('/app.js?v=8', '/app.js?v=' + RELEASE)
+    routing_fix = '<script src="/assets/routing-transport-fix.js?v=' + RELEASE + '"></script>'
+    if '/assets/routing-transport-fix.js' not in source:
+        source = source.replace('</body>', routing_fix + '</body>', 1) if '</body>' in source else source + routing_fix
     return source
 
 
