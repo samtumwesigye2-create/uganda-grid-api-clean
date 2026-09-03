@@ -3,11 +3,12 @@ from fastapi.testclient import TestClient
 from ugatu_production_entrypoint import app
 
 
-def test_driver_screen_includes_more_addon():
+def test_driver_screen_includes_more_addons():
     client = TestClient(app)
     response = client.get('/driver/ugatu')
     assert response.status_code == 200
     assert '/assets/driver-ugatu-more-v1.js' in response.text
+    assert '/assets/driver-ugatu-more-energy-v1.js' in response.text
 
 
 def test_more_addon_exposes_driver_operations():
@@ -20,6 +21,14 @@ def test_more_addon_exposes_driver_operations():
         'SEARCH / FAVORITES', 'OFFLINE / SYNC', 'DRIVER PROFILE',
         'U-1920', 'U-1950', 'U-1960', 'U-1970', 'U-1980'
     ]:
+        assert marker in response.text
+
+
+def test_energy_mode_supports_fuel_charge_and_odometer():
+    client = TestClient(app)
+    response = client.get('/assets/driver-ugatu-more-energy-v1.js')
+    assert response.status_code == 200
+    for marker in ['FUEL', 'CHARGE', 'ODOMETER', 'EV CHARGE']:
         assert marker in response.text
 
 
