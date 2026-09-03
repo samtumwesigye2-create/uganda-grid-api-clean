@@ -4,7 +4,7 @@ Run with:
     uvicorn ugatu_production_entrypoint:app --host 0.0.0.0 --port $PORT
 
 This imports the existing National Grid FastAPI application and attaches the
-UGATU command runtime as an additional router. Existing routes remain intact.
+UGATU command runtime as additional routers. Existing routes remain intact.
 """
 
 import os
@@ -13,16 +13,19 @@ from fastapi.responses import FileResponse
 
 from main import app
 from ugatu.ugatu_routes import router as ugatu_router
+from ugatu.ugatu_driver_route import router as ugatu_driver_route_router
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
-def _already_mounted() -> bool:
-    return any(getattr(route, "path", None) == "/api/ugatu/health" for route in app.routes)
+def _has_path(path: str) -> bool:
+    return any(getattr(route, "path", None) == path for route in app.routes)
 
 
-if not _already_mounted():
+if not _has_path("/api/ugatu/health"):
     app.include_router(ugatu_router)
+if not _has_path("/api/ugatu/driver-route/manifest"):
+    app.include_router(ugatu_driver_route_router)
 
 
 @app.get("/api/ugatu/integration-status", tags=["UGATU"])
@@ -32,6 +35,7 @@ def ugatu_integration_status():
         "mode": "production-compatible",
         "existing_app_preserved": True,
         "ugatu_router_mounted": True,
+        "driver_route_router_mounted": True,
         "driver_ipad_screen": "/driver/ugatu",
     }
 
