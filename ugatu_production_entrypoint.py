@@ -68,6 +68,7 @@ def ugatu_driver_ipad_screen():
     if secure not in html:
         html = html.replace(core, secure + core)
     addons = [
+        '<script src="/assets/driver-ugatu-offline-ui-v1.js"></script>',
         '<script src="/assets/driver-ugatu-route-v1.js"></script>',
         '<script src="/assets/driver-ugatu-orders-v1.js"></script>',
         '<script src="/assets/driver-ugatu-tasks-v1.js"></script>',
