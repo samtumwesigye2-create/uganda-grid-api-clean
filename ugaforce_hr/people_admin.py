@@ -14,7 +14,7 @@ from ugaforce_hr.ugacore_client import mirror_audit
 
 router = APIRouter(prefix="/api/v1", tags=["people-admin"])
 DATABASE_URL = os.getenv("UGAFORCE_HR_DATABASE_URL") or os.getenv("DATABASE_URL")
-ALLOWED_ROLES = {"EMPLOYEE", "MANAGER", "HR_SPECIALIST", "HR_MANAGER", "HR_ADMIN"}
+ALLOWED_ROLES = {"EMPLOYEE", "MANAGER", "HR_SPECIALIST", "PAYROLL_ADMIN", "HR_MANAGER", "HR_ADMIN"}
 SELF_SERVICE_FIELDS = {"personal_email", "phone"}
 
 
@@ -58,7 +58,7 @@ def provision_account(employee_id: str, payload: AccountCreate, user: dict[str, 
     role = payload.role_name.upper().strip()
     if role not in ALLOWED_ROLES:
         raise HTTPException(status_code=400, detail="Invalid HR role")
-    if role in {"HR_MANAGER", "HR_ADMIN"} and user.get("role") != "HR_ADMIN":
+    if role in {"PAYROLL_ADMIN", "HR_MANAGER", "HR_ADMIN"} and user.get("role") != "HR_ADMIN":
         raise HTTPException(status_code=403, detail="HR_ADMIN required to grant elevated HR authority")
     try:
         with db() as conn:
