@@ -62,7 +62,10 @@ def ugatu_integration_status():
         "driver_routing_router_mounted": True,
         "driver_leg_lifecycle": "1.0.0",
         "driver_next_stop_sequencing": "1.1.0",
-        "driver_live_ugamap_routing": "1.0.0",
+        "driver_live_ugamap_routing": "1.1.0",
+        "driver_readiness_gate": "1.1.0",
+        "driver_registry": "1.3.0",
+        "driver_secure_offline_finalization": "1.0.0",
         "driver_more_center": "/api/ugatu/driver-more",
         "driver_dashboard": "/api/ugatu/driver-dashboard",
         "driver_documents": "/api/ugatu/driver-documents",
@@ -94,6 +97,7 @@ def ugatu_driver_ipad_screen():
         '<script src="/assets/driver-ugatu-routing-v1.js"></script>',
         '<script src="/assets/driver-ugatu-sequence-v1.js"></script>',
         '<script src="/assets/driver-ugatu-documents-v1.js"></script>',
+        '<script src="/assets/driver-ugatu-finalize-v1.js"></script>',
     ]
     for addon in addons:
         if addon not in html:
