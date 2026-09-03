@@ -57,6 +57,7 @@ def ugatu_integration_status():
         "driver_dashboard_router_mounted": True,
         "driver_documents_router_mounted": True,
         "driver_leg_lifecycle": "1.0.0",
+        "driver_next_stop_sequencing": "1.0.0",
         "driver_more_center": "/api/ugatu/driver-more",
         "driver_dashboard": "/api/ugatu/driver-dashboard",
         "driver_documents": "/api/ugatu/driver-documents",
@@ -84,6 +85,7 @@ def ugatu_driver_ipad_screen():
         '<script src="/assets/driver-ugatu-more-v1.js"></script>',
         '<script src="/assets/driver-ugatu-more-energy-v1.js"></script>',
         '<script src="/assets/driver-ugatu-dashboard-v1.js"></script>',
+        '<script src="/assets/driver-ugatu-sequence-v1.js"></script>',
         '<script src="/assets/driver-ugatu-documents-v1.js"></script>',
     ]
     for addon in addons:
