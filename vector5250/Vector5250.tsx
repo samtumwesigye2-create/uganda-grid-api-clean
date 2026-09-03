@@ -3,11 +3,10 @@ import React from "react";
 /**
  * Vector 5250 React host adapter.
  *
- * The production Vector 5250 console is served by the existing FastAPI stack
- * at /vector5250 so it can reuse shared auth, warehouse data and UGATU without
- * creating a second client-side database. React hosts can embed that console
- * through this component while the original prototype screens are migrated
- * one workflow at a time onto the same backend services.
+ * Vector 5250 is an independent system of record. The production console is
+ * served at /vector5250 and owns its operational persistence, transactions,
+ * custody and audit/event journal. Shared platform services are consumed only
+ * through explicit identity, relay, backup and interoperability boundaries.
  */
 export default function Vector5250() {
   return (
