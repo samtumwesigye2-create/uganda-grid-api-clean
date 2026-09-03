@@ -9,7 +9,7 @@ UGATU command runtime as additional routers. Existing routes remain intact.
 
 import os
 
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 
 from main import app
 from ugatu.ugatu_routes import router as ugatu_router
@@ -42,4 +42,10 @@ def ugatu_integration_status():
 
 @app.get("/driver/ugatu", tags=["UGATU"])
 def ugatu_driver_ipad_screen():
-    return FileResponse(os.path.join(BASE_DIR, "driver-ugatu.html"), media_type="text/html")
+    path = os.path.join(BASE_DIR, "driver-ugatu.html")
+    with open(path, "r", encoding="utf-8") as fh:
+        html = fh.read()
+    addon = '<script src="/assets/driver-ugatu-route-v1.js"></script>'
+    if addon not in html:
+        html = html.replace("</body>", addon + "</body>")
+    return Response(content=html, media_type="text/html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
