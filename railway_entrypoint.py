@@ -6,6 +6,7 @@ import time
 import requests
 from fastapi.responses import Response
 from production_safe_entrypoint import app as production_app
+from ugatu_production_entrypoint import app as ugatu_app
 from data_relay_client import emit as relay_emit
 
 RELEASE = "20260902-5digit-r8"
@@ -35,8 +36,6 @@ async def _read_body(receive):
     return b"".join(chunks)
 
 def _valhalla_request(body: bytes):
-    # Browser gives a route attempt 8 seconds. Fail over quickly enough that
-    # OSRM can answer before the browser aborts the same-origin request.
     return requests.post(VALHALLA_URL,data=body,headers={"Content-Type":"application/json","Accept":"application/json","User-Agent":"UGAMAP/1.0"},timeout=2.0)
 
 def _osrm_fallback(body: bytes):
@@ -84,13 +83,15 @@ async def app(scope,receive,send):
     try:
         if scope.get("type")=="http":
             method=scope.get("method"); path=scope.get("path")
+            if path=="/driver/ugatu" or path.startswith("/api/ugatu/"):
+                await ugatu_app(scope,receive,relay_send); return
             if method=="POST" and path=="/routing/route":
                 response=await _route_response(await _read_body(receive)); await response(scope,receive,relay_send); return
             if method=="GET":
                 if path=="/":
                     response=Response(_public_index(),media_type="text/html",headers={"Cache-Control":"no-cache, no-store, must-revalidate"}); await response(scope,receive,relay_send); return
                 if path=="/system/release":
-                    response=Response(json.dumps({"release":RELEASE,"routing_proxy":True,"routing_fallback":"osrm","valhalla_timeout_seconds":2}),media_type="application/json",headers={"Cache-Control":"no-store"}); await response(scope,receive,relay_send); return
+                    response=Response(json.dumps({"release":RELEASE,"routing_proxy":True,"routing_fallback":"osrm","valhalla_timeout_seconds":2,"ugatu_driver":True}),media_type="application/json",headers={"Cache-Control":"no-store"}); await response(scope,receive,relay_send); return
                 if path=="/routing/test":
                     response=await _routing_test(); await response(scope,receive,relay_send); return
                 if path in {"/app.js","/boundaries.js","/performance-layer.js","/app-core.js"}:
