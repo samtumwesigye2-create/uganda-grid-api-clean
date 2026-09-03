@@ -63,6 +63,10 @@ def ugatu_driver_ipad_screen():
     path = os.path.join(BASE_DIR, "driver-ugatu.html")
     with open(path, "r", encoding="utf-8") as fh:
         html = fh.read()
+    secure = '<script src="/assets/ugatu-offline-secure-v1.js"></script>'
+    core = '<script src="/assets/driver-ugatu-v3.js"></script>'
+    if secure not in html:
+        html = html.replace(core, secure + core)
     addons = [
         '<script src="/assets/driver-ugatu-route-v1.js"></script>',
         '<script src="/assets/driver-ugatu-orders-v1.js"></script>',
