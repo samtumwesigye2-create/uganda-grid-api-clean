@@ -62,6 +62,7 @@ def ugatu_driver_ipad_screen():
         '<script src="/assets/driver-ugatu-orders-v1.js"></script>',
         '<script src="/assets/driver-ugatu-tasks-v1.js"></script>',
         '<script src="/assets/driver-ugatu-more-v1.js"></script>',
+        '<script src="/assets/driver-ugatu-more-energy-v1.js"></script>',
     ]
     for addon in addons:
         if addon not in html:
