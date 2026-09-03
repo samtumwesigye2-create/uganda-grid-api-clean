@@ -12,6 +12,7 @@ from .ugatu_models import UCodeDefinition
 class UCodeRegistry:
     def __init__(self, registry_path: Optional[Path] = None):
         self.registry_path = registry_path or Path(__file__).with_name("registry_v1.json")
+        self.supplement_paths = [Path(__file__).with_name("registry_driver_v1_3.json")]
         self.version = "0"
         self.codes: Dict[str, UCodeDefinition] = {}
         self.reserved_ranges = []
@@ -25,10 +26,18 @@ class UCodeRegistry:
 
     def reload(self) -> None:
         payload = json.loads(self.registry_path.read_text(encoding="utf-8"))
-        self.version = payload["registry_version"]
+        versions = [payload["registry_version"]]
+        merged = list(payload.get("codes", []))
+        for path in self.supplement_paths:
+            if not path.exists():
+                continue
+            supplement = json.loads(path.read_text(encoding="utf-8"))
+            versions.append(supplement.get("registry_version", "0"))
+            merged.extend(supplement.get("codes", []))
+        self.version = max(versions, key=lambda v: tuple(int(x) for x in str(v).split(".")))
         self.codes = {
             item["ucode"]: UCodeDefinition(**item)
-            for item in payload.get("codes", [])
+            for item in merged
         }
         self.reserved_ranges = payload.get("reserved_ranges", [])
 
