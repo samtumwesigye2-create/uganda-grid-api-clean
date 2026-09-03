@@ -1,4 +1,4 @@
-"""Best-effort backup client shared by UGAMAP and UGASHIP."""
+"""Best-effort backup client shared by UGAMAP, UGASHIP, Warehouse and Vector 5250."""
 import json
 import os
 import threading
@@ -11,10 +11,13 @@ BACKUP_SERVICE_URL=os.environ.get("BACKUP_SERVICE_URL","https://uga-backup-servi
 BACKUP_SYNC_TOKEN=os.environ.get("BACKUP_SYNC_TOKEN","").strip()
 _MAX_WORKERS=4
 _MAX_OUTSTANDING=100
+_SOURCES=("UGAMAP","UGASHIP","WAREHOUSE","VECTOR5250")
 _executor=ThreadPoolExecutor(max_workers=_MAX_WORKERS,thread_name_prefix="uga-backup-sync")
 _slots=threading.BoundedSemaphore(_MAX_OUTSTANDING)
 _status_lock=threading.Lock()
-_status={"last_attempt":None,"last_success":None,"last_error":None,"queued":0,"active":0,"completed":0,"failed":0,"dropped":0,"max_workers":_MAX_WORKERS,"max_outstanding":_MAX_OUTSTANDING,"UGAMAP":{"completed":0,"failed":0,"dropped":0,"last_success":None,"last_error":None},"UGASHIP":{"completed":0,"failed":0,"dropped":0,"last_success":None,"last_error":None},"WAREHOUSE":{"completed":0,"failed":0,"dropped":0,"last_success":None,"last_error":None}}
+_status={"last_attempt":None,"last_success":None,"last_error":None,"queued":0,"active":0,"completed":0,"failed":0,"dropped":0,"max_workers":_MAX_WORKERS,"max_outstanding":_MAX_OUTSTANDING}
+for _source in _SOURCES:
+    _status[_source]={"completed":0,"failed":0,"dropped":0,"last_success":None,"last_error":None}
 
 def sync_client_status():
     with _status_lock:return json.loads(json.dumps(_status))
@@ -23,7 +26,7 @@ def _set(**values):
 def _change(key,delta):
     with _status_lock:_status[key]=max(0,int(_status.get(key,0))+delta)
 def _source_change(source,key,delta=0,value=None):
-    if source not in ("UGAMAP","UGASHIP","WAREHOUSE"):return
+    if source not in _SOURCES:return
     with _status_lock:
         state=_status[source]
         if value is not None:state[key]=value
@@ -60,3 +63,4 @@ def backup_event(source,entity_type,entity_id,action,data=None):
 def ugamap_backup(entity_type,entity_id,action,data=None):backup_event("UGAMAP",entity_type,entity_id,action,data)
 def ugaship_backup(entity_type,entity_id,action,data=None):backup_event("UGASHIP",entity_type,entity_id,action,data)
 def warehouse_backup(entity_type,entity_id,action,data=None):backup_event("WAREHOUSE",entity_type,entity_id,action,data)
+def vector5250_backup(entity_type,entity_id,action,data=None):backup_event("VECTOR5250",entity_type,entity_id,action,data)
