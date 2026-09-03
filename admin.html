@@ -1745,5 +1745,6 @@ async function loadPoBoxes(){
 document.querySelectorAll('[data-po-filter]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-po-filter]').forEach(x=>x.classList.remove('active'));b.classList.add('active');poBoxFilter=b.dataset.poFilter||'';loadPoBoxes();}));
 </script>
 
+<script src="/ugatu/command-ui.js"></script>
 </body>
 </html>
