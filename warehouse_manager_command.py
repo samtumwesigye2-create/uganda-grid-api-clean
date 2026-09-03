@@ -6,11 +6,13 @@ from auth import require_permission, is_master
 from vector5250_records import router as vector_records_router
 from vector5250_resilience import router as vector_resilience_router
 from vector5250_jobs import router as vector_jobs_router
+from vector5250_queues import router as vector_queues_router
 
 router = APIRouter(tags=["Vector 5250"])
 router.include_router(vector_records_router)
 router.include_router(vector_resilience_router)
 router.include_router(vector_jobs_router)
+router.include_router(vector_queues_router)
 MANAGER_PERMISSION = "warehouse:manager"
 
 COMMANDS = {
@@ -33,6 +35,9 @@ COMMANDS = {
     "U-9900": {"target": "system_status", "label": "Vector System Status"},
     "U-9910": {"target": "active_jobs", "label": "Work with Active Jobs"},
     "U-9920": {"target": "subsystems", "label": "Work with Subsystems"},
+    "U-9930": {"target": "jobq", "label": "Work with Job Queues"},
+    "U-9940": {"target": "outq", "label": "Work with Output Queues"},
+    "U-9950": {"target": "splf", "label": "Work with Spooled Files"},
 }
 
 def _manager(access_code: str):
