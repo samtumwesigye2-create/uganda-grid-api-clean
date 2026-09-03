@@ -5,10 +5,12 @@ from fastapi.responses import Response
 from auth import require_permission, is_master
 from vector5250_records import router as vector_records_router
 from vector5250_resilience import router as vector_resilience_router
+from vector5250_jobs import router as vector_jobs_router
 
 router = APIRouter(tags=["Vector 5250"])
 router.include_router(vector_records_router)
 router.include_router(vector_resilience_router)
+router.include_router(vector_jobs_router)
 MANAGER_PERMISSION = "warehouse:manager"
 
 COMMANDS = {
@@ -28,6 +30,9 @@ COMMANDS = {
     "U-1320": {"target": "exceptions", "label": "Pickup Exceptions"},
     "U-1700": {"target": "dispatch", "label": "Driver Dispatch Center"},
     "U-2000": {"target": "alerts", "label": "Alerts & Tasks Center"},
+    "U-9900": {"target": "system_status", "label": "Vector System Status"},
+    "U-9910": {"target": "active_jobs", "label": "Work with Active Jobs"},
+    "U-9920": {"target": "subsystems", "label": "Work with Subsystems"},
 }
 
 def _manager(access_code: str):
@@ -50,6 +55,11 @@ def vector_5250_page():
 @router.get("/vector5250-runtime.js", include_in_schema=False)
 def vector_5250_runtime():
     source = Path("vector5250-runtime.js").read_text(encoding="utf-8")
+    return Response(source, media_type="application/javascript", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
+
+@router.get("/vector5250-jobs.js", include_in_schema=False)
+def vector_5250_jobs_runtime():
+    source = Path("vector5250-jobs.js").read_text(encoding="utf-8")
     return Response(source, media_type="application/javascript", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
 
 @router.get("/warehouse/manager/session")
