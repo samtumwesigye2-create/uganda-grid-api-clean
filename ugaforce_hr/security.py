@@ -13,7 +13,7 @@ from fastapi import Header, HTTPException
 DATABASE_URL = os.getenv("UGAFORCE_HR_DATABASE_URL") or os.getenv("DATABASE_URL")
 PBKDF2_ITERATIONS = int(os.getenv("UGAFORCE_HR_PBKDF2_ITERATIONS", "310000"))
 SESSION_HOURS = int(os.getenv("UGAFORCE_HR_SESSION_HOURS", "8"))
-ROLE_RANK = {"EMPLOYEE": 10, "MANAGER": 20, "HR_SPECIALIST": 30, "PAYROLL_ADMIN": 35, "HR_MANAGER": 40, "HR_ADMIN": 50}
+ROLE_RANK = {"EMPLOYEE": 10, "PAYROLL_ADMIN": 15, "MANAGER": 20, "HR_SPECIALIST": 30, "HR_MANAGER": 40, "HR_ADMIN": 50}
 
 
 def hash_password(password: str) -> str:
