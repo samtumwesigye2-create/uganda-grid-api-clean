@@ -3,8 +3,10 @@ from pathlib import Path
 from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import Response
 from auth import require_permission, is_master
+from vector5250_records import router as vector_records_router
 
 router = APIRouter(tags=["Vector 5250"])
+router.include_router(vector_records_router)
 MANAGER_PERMISSION = "warehouse:manager"
 
 COMMANDS = {
