@@ -1,0 +1,40 @@
+name: Install UGATU command bar
+
+on:
+  push:
+    paths:
+      - 'ugatu/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inject UGATU command UI into admin
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('admin.html')
+          s = p.read_text(encoding='utf-8')
+          tag = '<script src="/ugatu/command-ui.js"></script>'
+          if tag not in s:
+              if '</body>' not in s:
+                  raise SystemExit('admin.html is missing </body>')
+              s = s.replace('</body>', tag + '\n</body>')
+              p.write_text(s, encoding='utf-8')
+          PY
+      - name: Commit installer result
+        run: |
+          if git diff --quiet; then
+            echo 'UGATU already installed'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add admin.html
+          git commit -m 'Install UGATU command bar in admin interface'
+          git push
