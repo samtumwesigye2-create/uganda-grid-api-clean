@@ -20,8 +20,10 @@ from ugatu.ugatu_driver_more import router as ugatu_driver_more_router
 from ugatu.ugatu_driver_dashboard import router as ugatu_driver_dashboard_router
 from ugatu.ugatu_driver_documents import router as ugatu_driver_documents_router
 from ugatu.ugatu_driver_routing import router as ugatu_driver_routing_router
+from ugatu.ugatu_master_driver import ensure_master_driver, master_key_configured
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MASTER_DRIVER_READY = ensure_master_driver()
 
 
 def _has_path(path: str) -> bool:
@@ -66,6 +68,9 @@ def ugatu_integration_status():
         "driver_readiness_gate": "1.1.0",
         "driver_registry": "1.3.0",
         "driver_secure_offline_finalization": "1.0.0",
+        "master_driver_supported": True,
+        "master_key_configured": master_key_configured(),
+        "master_driver_ready": MASTER_DRIVER_READY,
         "driver_more_center": "/api/ugatu/driver-more",
         "driver_dashboard": "/api/ugatu/driver-dashboard",
         "driver_documents": "/api/ugatu/driver-documents",
