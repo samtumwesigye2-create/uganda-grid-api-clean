@@ -39,7 +39,7 @@ if not _has_path("/api/ugatu/driver-more"):
     app.include_router(ugatu_driver_more_router)
 if not _has_path("/api/ugatu/driver-dashboard"):
     app.include_router(ugatu_driver_dashboard_router)
-if not _has_path("/api/ugatu/driver-documents/task/{task_id}"):
+if not _has_path("/api/ugatu/driver-documents"):
     app.include_router(ugatu_driver_documents_router)
 
 
@@ -58,7 +58,7 @@ def ugatu_integration_status():
         "driver_documents_router_mounted": True,
         "driver_more_center": "/api/ugatu/driver-more",
         "driver_dashboard": "/api/ugatu/driver-dashboard",
-        "driver_documents": "/api/ugatu/driver-documents/task/{task_id}",
+        "driver_documents": "/api/ugatu/driver-documents",
         "driver_ipad_screen": "/driver/ugatu",
     }
 
@@ -69,9 +69,12 @@ def ugatu_driver_ipad_screen():
     with open(path, "r", encoding="utf-8") as fh:
         html = fh.read()
     secure = '<script src="/assets/ugatu-offline-secure-v1.js"></script>'
+    leg = '<script src="/assets/driver-ugatu-leg-v1.js"></script>'
     core = '<script src="/assets/driver-ugatu-v3.js"></script>'
     if secure not in html:
         html = html.replace(core, secure + core)
+    if leg not in html:
+        html = html.replace(core, leg + core)
     addons = [
         '<script src="/assets/driver-ugatu-offline-ui-v1.js"></script>',
         '<script src="/assets/driver-ugatu-route-v1.js"></script>',
