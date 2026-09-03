@@ -6,10 +6,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_live_routing_backend_uses_ugamap_core():
     src = (ROOT / "ugatu" / "ugatu_driver_routing.py").read_text()
-    assert 'from ugamap_core import core_address, core_route' in src
+    assert 'from ugamap_core import core_address, core_reports, core_route' in src
     assert 'mode="driving"' in src
     assert 'UGAMAP Core / Valhalla' in src
-    assert 'ACTIVE_WORK > URGENT > DUE_WINDOW > UGAMAP_ROAD_TIME' in src
+    assert 'INCIDENT_ADJUSTED_UGAMAP_ROAD_TIME' in src
     assert 'CACHE_TTL_S = 90' in src
     assert 'MAX_ROUTED_STOPS = 12' in src
 
@@ -29,6 +29,17 @@ def test_delivery_grid_is_resolved_before_road_route():
     assert 'navigation_destination' in src
 
 
+def test_incident_aware_routing_uses_route_corridor_and_safe_categories():
+    src = (ROOT / "ugatu" / "ugatu_driver_routing.py").read_text()
+    assert 'INCIDENT_CORRIDOR_M = 350' in src
+    assert 'road_closure' in src and 'accident' in src and 'traffic' in src
+    assert '_route_incidents' in src
+    assert 'route_incident_count' in src
+    assert 'incident_delay_minutes' in src
+    assert 'reroute_advisory' in src
+    assert 'Police reports are deliberately informational only' in src
+
+
 def test_driver_ipad_mounts_live_routing_after_dashboard():
     src = (ROOT / "ugatu_production_entrypoint.py").read_text()
     assert 'ugatu_driver_routing_router' in src
@@ -39,10 +50,12 @@ def test_driver_ipad_mounts_live_routing_after_dashboard():
     assert dash < live
 
 
-def test_routing_addon_replaces_fallback_eta_and_recommends_live_sequence():
+def test_routing_addon_shows_incident_advisories_and_live_sequence():
     src = (ROOT / "assets" / "driver-ugatu-routing-v1.js").read_text()
     assert '/api/ugatu/driver-routing' in src
-    assert 'UGAMAP live route' in src
+    assert 'UGAMAP route' in src
     assert 'road_distance_km' in src
+    assert 'route_incident_count' in src
+    assert 'Road conditions changed ahead' in src
     assert "routing_source:'UGAMAP_LIVE'" in src
     assert 'stopImmediatePropagation' in src
