@@ -42,7 +42,7 @@ def documents_for_task(task_id: str, x_driver_passcode: str = Header(default='')
     d = _driver(x_driver_passcode); c = _conn()
     try:
         _ensure_platform_tables(c); t = _task_for_driver(c, d['id'], task_id)
-        refs = [task_id, t.get('task_number') or '', t.get('shipment_number') or '']
+        refs = [str(task_id), str(t.get('task_number') or ''), str(t.get('shipment_number') or '')]
         clauses = ' OR '.join(['tags LIKE ?' for _ in refs])
         rows = c.execute(f'SELECT * FROM platform_documents WHERE {clauses} ORDER BY updated_at DESC', tuple('%'+r+'%' for r in refs)).fetchall()
     finally: c.close()
@@ -81,15 +81,33 @@ async def scan_document(task_id: str, file: UploadFile = File(...), document_typ
     d = _driver(x_driver_passcode); data = await file.read()
     if not data: raise HTTPException(400, 'Document image/file is empty')
     if len(data) > 15*1024*1024: raise HTTPException(413, 'Document exceeds 15 MB')
-    c = _conn()
+    c = _conn(); path = None
     try:
         _ensure_platform_tables(c); t = _task_for_driver(c, d['id'], task_id)
         did = 'DOC-' + uuid.uuid4().hex[:10].upper(); version = 1; now = time.time()
         stored = f'{did}-v1-{uuid.uuid4().hex[:8]}'
-        with open(os.path.join(DOC_DIR, stored), 'wb') as fh: fh.write(data)
-        tags = '|'.join(filter(None, ['UGATU_DRIVER', document_type.strip().upper(), task_id, t.get('task_number'), t.get('shipment_number'), f"driver:{d['id']}", notes[:300]]))
-        c.execute('INSERT INTO platform_documents VALUES (?,?,?,?,?,?,?,?,?,?)', (did, file.filename or 'driver-document', stored, file.content_type or 'application/octet-stream', len(data), version, tags, d['id'], now, now))
-        c.execute('INSERT INTO platform_document_versions VALUES (?,?,?,?,?,?)', (str(uuid.uuid4()), did, version, stored, len(data), now))
+        path = os.path.join(DOC_DIR, stored)
+        with open(path, 'wb') as fh: fh.write(data)
+        raw_tags = ['UGATU_DRIVER', document_type.strip().upper(), task_id, t.get('task_number'), t.get('shipment_number'), f"driver:{d['id']}", notes[:300]]
+        tags = '|'.join(str(x) for x in raw_tags if x is not None and str(x).strip())
+        c.execute('''INSERT INTO platform_documents
+                     (id,name,stored_name,mime_type,size,version,tags,owner,created_at,updated_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?)''',
+                  (did, file.filename or 'driver-document', stored, file.content_type or 'application/octet-stream', len(data), version, tags, d['id'], now, now))
+        c.execute('''INSERT INTO platform_document_versions
+                     (id,document_id,version,stored_name,size,created_at)
+                     VALUES (?,?,?,?,?,?)''',
+                  (str(uuid.uuid4()), did, version, stored, len(data), now))
         c.commit()
+    except HTTPException:
+        if path and os.path.isfile(path):
+            try: os.remove(path)
+            except OSError: pass
+        raise
+    except Exception as exc:
+        if path and os.path.isfile(path):
+            try: os.remove(path)
+            except OSError: pass
+        raise HTTPException(500, f'Document upload failed: {type(exc).__name__}') from exc
     finally: c.close()
     return {'id': did, 'task_id': task_id, 'shipment_number': t.get('shipment_number'), 'document_type': document_type.strip().upper(), 'version': 1, 'size': len(data), 'linked': True}
