@@ -1,0 +1,2 @@
+UGATU — Uganda National Grid Transaction U-Codes
+Command bar installation trigger.
