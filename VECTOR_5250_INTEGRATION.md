@@ -28,7 +28,7 @@ This produces three distinct integrity roles:
 
 ## UGATU boundary
 
-UGATU U-Codes are not renamed, replaced, or rewritten by Vector 5250. Vector 5250 keeps its own operator commands such as MIGO, MB51, MB52, MI01, MI04, MB5T, VL06O and LT03, plus Vector-native commands such as VRCV, VSCAN and VCUST.
+UGATU U-Codes are not renamed, replaced, or rewritten by Vector 5250. Vector 5250 keeps its own operator commands such as MIGO, MB51, MB52, MI01, MI04, MB5T, VL06O and LT03, plus Vector-native commands such as VRCV, VSCAN, VCUST, VADJ, VMOVE and VHOLD.
 
 Where an operational event needs to enter UGATU, a separate interoperability adapter may translate that Vector event to an existing UGATU U-Code. The adapter is a boundary mapping only; it does not modify the UGATU registry and it does not make UGATU the internal command system of Vector 5250.
 
@@ -44,10 +44,17 @@ Vector 5250 emits operational, audit, health and integration events to the exist
 - `/api/vector5250/dashboard` — Vector-owned operational dashboard
 - `/api/vector5250/commands` — Vector command catalog
 - `/api/vector5250/resolve/{command}` — Vector command resolver
-- `/api/vector5250/receiving` — Phase 2 inbound receipt posting
-- `/api/vector5250/scan` — Phase 2 package/freight/pallet/location scans
+- `/api/vector5250/receiving` — inbound receipt posting
+- `/api/vector5250/scan` — package/freight/pallet/location scans
 - `/api/vector5250/custody/{object_code}` — Vector custody history
 - `/api/vector5250/backup-status` — Vector backup replication health
+- `/api/vector5250/inventory` — inventory lookup by warehouse/SKU
+- `/api/vector5250/inventory/{sku}/movements` — immutable movement history
+- `/api/vector5250/inventory/move` — controlled bin/location movement
+- `/api/vector5250/inventory/adjust` — explicit inventory adjustment
+- `/api/vector5250/cycle-counts` — create physical count
+- `/api/vector5250/cycle-counts/complete` — record physical count and variance
+- `/api/vector5250/inventory/hold` — place/release inventory hold
 
 ## Migration policy for the original prototype
 
@@ -66,15 +73,20 @@ Phase 1 established Vector 5250 as an independent system of record, its database
 
 ## Phase 2
 
-Phase 2 adds the first real warehouse execution path while preserving Vector independence:
+Phase 2 added inbound receiving, package/freight/pallet/location scanning, custody history, transaction idempotency, Vector inventory receipt posting, Relay emission and backup replication/status visibility.
 
-- Inbound receiving with Vector-owned receipt records.
-- Atomic inventory increases in the Vector primary database.
-- Package, freight, pallet and location scan recording.
-- Warehouse custody creation/history.
-- Transaction idempotency through `client_request_id`.
-- Relay emission for Vector events.
-- Backup replication for Vector events, transactions, receipts and scans.
-- Backup-status visibility for integrity/reconciliation.
+## Phase 3
+
+Phase 3 adds Vector-native inventory control:
+
+- Inventory lookup by warehouse/SKU with bin/location quantities.
+- Immutable movement journal for receipts, moves and adjustments.
+- Controlled location-to-location moves with quantity validation.
+- Physical cycle-count creation and completion.
+- Variance capture without silently changing stock; adjustment is a separate explicit transaction.
+- Explicit inventory adjustments with non-negative stock protection.
+- Inventory hold/release records for quality, damage or operational review.
+- Dashboard alerts for open counts and active holds.
+- Relay monitoring and backup replication for inventory movements, cycle counts and holds.
 
 Outbound/loading, transfers, returns, purchasing/MRP and MES/EAM remain subsequent Vector phases and are not absorbed into another system.
