@@ -48,6 +48,7 @@ def ugatu_integration_status():
         "driver_orders_router_mounted": True,
         "driver_center_router_mounted": True,
         "driver_more_router_mounted": True,
+        "driver_more_center": "/api/ugatu/driver-more",
         "driver_ipad_screen": "/driver/ugatu",
     }
 
