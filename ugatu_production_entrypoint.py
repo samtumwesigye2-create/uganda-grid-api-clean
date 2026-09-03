@@ -56,6 +56,7 @@ def ugatu_integration_status():
         "driver_more_router_mounted": True,
         "driver_dashboard_router_mounted": True,
         "driver_documents_router_mounted": True,
+        "driver_leg_lifecycle": "1.0.0",
         "driver_more_center": "/api/ugatu/driver-more",
         "driver_dashboard": "/api/ugatu/driver-dashboard",
         "driver_documents": "/api/ugatu/driver-documents",
