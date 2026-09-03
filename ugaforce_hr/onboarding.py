@@ -90,29 +90,29 @@ def _resolve_assignee(cur: Any, role: str, employee_id: str, manager_id: Optiona
     if role == "manager":
         return manager_id
     if role in {"hr_admin", "hr_specialist"}:
-        cur.execute("select employee_id::text from ugaforce_hr_users where active=true and role_name in ('HR_ADMIN','HR_MANAGER','HR_SPECIALIST') and employee_id is not null order by case role_name when 'HR_ADMIN' then 1 when 'HR_MANAGER' then 2 else 3 end limit 1")
+        cur.execute("select employee_id::text as employee_id from ugaforce_hr_users where active=true and role_name in ('HR_ADMIN','HR_MANAGER','HR_SPECIALIST') and employee_id is not null order by case role_name when 'HR_ADMIN' then 1 when 'HR_MANAGER' then 2 else 3 end limit 1")
         row = cur.fetchone()
-        return row[0] if row else None
+        return row["employee_id"] if row else None
     return None
 
 
 def _instantiate_tasks(cur: Any, case_id: str, template_id: Optional[str], employee_id: str, manager_id: Optional[str], hire_date: date) -> None:
     if not template_id:
         defaults = [
-            ("document_sign", "Complete required employment documents", "new_hire", -3, 10),
-            ("it_provision", "Provision corporate identity and email", "hr_admin", -2, 20),
-            ("equipment_order", "Prepare assigned equipment", "hr_admin", -2, 30),
-            ("manager_task", "Manager day-one welcome and role briefing", "manager", 0, 40),
-            ("training", "Complete mandatory orientation", "new_hire", 5, 50),
+            ("document_sign", "Complete required employment documents", "new_hire", -3),
+            ("it_provision", "Provision corporate identity and email", "hr_admin", -2),
+            ("equipment_order", "Prepare assigned equipment", "hr_admin", -2),
+            ("manager_task", "Manager day-one welcome and role briefing", "manager", 0),
+            ("training", "Complete mandatory orientation", "new_hire", 5),
         ]
-        for task_type, title, assignee_role, offset, sort_order in defaults:
+        for task_type, title, assignee_role, offset in defaults:
             assignee = _resolve_assignee(cur, assignee_role, employee_id, manager_id)
             cur.execute("insert into ugaforce_hr_onboarding_case_tasks(case_id,task_type,title,assignee_id,due_date) values(%s,%s,%s,%s,%s)", (case_id, task_type, title, assignee, hire_date + timedelta(days=offset)))
         return
-    cur.execute("select id::text,task_type,title,assignee_role,due_offset_days from ugaforce_hr_onboarding_template_tasks where template_id=%s order by sort_order,title", (template_id,))
+    cur.execute("select id::text as id,task_type,title,assignee_role,due_offset_days from ugaforce_hr_onboarding_template_tasks where template_id=%s order by sort_order,title", (template_id,))
     for row in cur.fetchall():
-        assignee = _resolve_assignee(cur, row[3], employee_id, manager_id)
-        cur.execute("insert into ugaforce_hr_onboarding_case_tasks(case_id,template_task_id,task_type,title,assignee_id,due_date) values(%s,%s,%s,%s,%s,%s)", (case_id, row[0], row[1], row[2], assignee, hire_date + timedelta(days=row[4])))
+        assignee = _resolve_assignee(cur, row["assignee_role"], employee_id, manager_id)
+        cur.execute("insert into ugaforce_hr_onboarding_case_tasks(case_id,template_task_id,task_type,title,assignee_id,due_date) values(%s,%s,%s,%s,%s,%s)", (case_id, row["id"], row["task_type"], row["title"], assignee, hire_date + timedelta(days=row["due_offset_days"])))
 
 
 @router.get("/metrics")
@@ -120,9 +120,9 @@ def metrics(user: dict[str, Any] = Depends(current_user)) -> dict[str, int]:
     require_role(user, "MANAGER")
     with db() as conn:
         with conn.cursor() as cur:
-            cur.execute("select count(*) from ugaforce_hr_onboarding_cases where status='in_progress'")
+            cur.execute("select count(*) from ugaforce_hr_onboarding_cases where status in ('in_progress','overdue')")
             active = cur.fetchone()[0]
-            cur.execute("select count(*) from ugaforce_hr_onboarding_case_tasks where status not in ('done') and due_date < current_date")
+            cur.execute("select count(*) from ugaforce_hr_onboarding_case_tasks where status<>'done' and due_date<current_date")
             overdue = cur.fetchone()[0]
             cur.execute("select count(*) from ugaforce_hr_documents where status in ('sent','viewed')")
             docs = cur.fetchone()[0]
@@ -182,7 +182,7 @@ def start_from_offer(offer_id: str, payload: StartFromOffer, user: dict[str, Any
                 existing = cur.fetchone()
                 if existing:
                     return {"case_id": existing["id"], "employee_id": existing["employee_id"], "status": existing["status"], "already_started": True}
-                cur.execute("select id from ugaforce_hr_roles where name='EMPLOYEE'")
+                cur.execute("select id::text as id from ugaforce_hr_roles where name='EMPLOYEE'")
                 role = cur.fetchone()
                 if not role:
                     raise HTTPException(status_code=503, detail="EMPLOYEE role is not initialized")
@@ -191,7 +191,7 @@ def start_from_offer(offer_id: str, payload: StartFromOffer, user: dict[str, Any
                 cur.execute("""insert into ugaforce_hr_employees(employee_number,first_name,last_name,personal_email,work_email,phone,hire_date,job_title,department_id,role_id,employment_type)
                     values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     returning id::text,employee_number,first_name,last_name,work_email,hire_date,job_title,department_id::text,manager_id::text,employment_status,created_at""",
-                    (payload.employee_number.strip(), offer["first_name"], offer["last_name"], offer["email"], work_email, offer["phone"], hire_date, offer["job_title"], offer["department_id"], role[0], payload.employment_type))
+                    (payload.employee_number.strip(), offer["first_name"], offer["last_name"], offer["email"], work_email, offer["phone"], hire_date, offer["job_title"], offer["department_id"], role["id"], payload.employment_type))
                 employee = dict(cur.fetchone())
                 cur.execute("insert into ugaforce_hr_employee_sensitive_data(employee_id,base_salary,salary_effective_at) values(%s,%s,%s) on conflict (employee_id) do update set base_salary=excluded.base_salary,salary_effective_at=excluded.salary_effective_at,updated_at=now()", (employee["id"], offer["base_salary"], hire_date))
                 cur.execute("insert into ugaforce_hr_employment_history(employee_id,event_type,effective_date,new_value_json,created_by) values(%s,'hire',%s,%s::jsonb,%s)", (employee["id"], hire_date, json.dumps(employee, default=str), user.get("employee_id")))
@@ -257,8 +257,8 @@ def update_task(task_id: str, payload: TaskUpdate, user: dict[str, Any] = Depend
             completed_expr = "now()" if status == "done" else "null"
             cur.execute(f"update ugaforce_hr_onboarding_case_tasks set status=%s,notes=coalesce(%s,notes),completed_at={completed_expr} where id=%s returning id::text,case_id::text,status,due_date,completed_at,notes", (status, payload.notes, task_id))
             row = dict(cur.fetchone())
-            cur.execute("select count(*) from ugaforce_hr_onboarding_case_tasks where case_id=%s and status<>'done'", (task["case_id"],))
-            remaining = cur.fetchone()[0]
+            cur.execute("select count(*) as count from ugaforce_hr_onboarding_case_tasks where case_id=%s and status<>'done'", (task["case_id"],))
+            remaining = cur.fetchone()["count"]
             if remaining == 0:
                 cur.execute("update ugaforce_hr_onboarding_cases set status='completed',completed_at=now() where id=%s", (task["case_id"],))
                 emit(conn, "onboarding.completed", {"case_id": task["case_id"], "employee_id": task["employee_id"]})
