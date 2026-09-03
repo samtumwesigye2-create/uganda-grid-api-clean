@@ -4,9 +4,11 @@ from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import Response
 from auth import require_permission, is_master
 from vector5250_records import router as vector_records_router
+from vector5250_resilience import router as vector_resilience_router
 
 router = APIRouter(tags=["Vector 5250"])
 router.include_router(vector_records_router)
+router.include_router(vector_resilience_router)
 MANAGER_PERMISSION = "warehouse:manager"
 
 COMMANDS = {
