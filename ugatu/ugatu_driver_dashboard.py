@@ -18,6 +18,8 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data_hub.db")
 FINAL = {"completed", "failed", "cancelled", "dropped_off_customer", "dropped_off_warehouse"}
 IN_PROGRESS = {"en_route_pickup", "arrived_pickup", "picked_up", "en_route_dropoff", "arrived_dropoff"}
+BLOCKING_VEHICLE_EVENTS = {"DEFECT", "BREAKDOWN"}
+BLOCKING_SEVERITIES = {"HIGH", "CRITICAL"}
 
 
 class RouteStartIn(BaseModel):
@@ -64,12 +66,17 @@ def _shift(c, driver_id: str):
 def _readiness(c, d: Dict[str, Any]) -> Dict[str, Any]:
     vehicle = c.execute("SELECT * FROM vehicles WHERE id=?", (d.get("vehicle_id"),)).fetchone() if d.get("vehicle_id") else None
     shift = _shift(c, d["id"])
-    midnight = time.time() - 18 * 3600
     pretrip = None
-    if vehicle:
+    blocking_event = None
+    if vehicle and shift:
         pretrip = c.execute("""SELECT * FROM ugatu_driver_vehicle_events
             WHERE driver_id=? AND vehicle_id=? AND event_type='PRE_TRIP' AND created_at>=?
-            ORDER BY created_at DESC LIMIT 1""", (d["id"], vehicle["id"], midnight)).fetchone()
+            ORDER BY created_at DESC LIMIT 1""", (d["id"], vehicle["id"], shift["started_at"])).fetchone()
+        if pretrip:
+            blocking_event = c.execute("""SELECT * FROM ugatu_driver_vehicle_events
+                WHERE driver_id=? AND vehicle_id=? AND created_at>?
+                  AND (out_of_service=1 OR (event_type IN ('DEFECT','BREAKDOWN') AND UPPER(severity) IN ('HIGH','CRITICAL')))
+                ORDER BY created_at DESC LIMIT 1""", (d["id"], vehicle["id"], pretrip["created_at"])).fetchone()
     reasons = []
     if not shift:
         reasons.append("SHIFT_NOT_STARTED")
@@ -77,17 +84,22 @@ def _readiness(c, d: Dict[str, Any]) -> Dict[str, Any]:
         reasons.append("NO_VEHICLE_ASSIGNED")
     elif str(vehicle["status"] or "").lower() == "maintenance":
         reasons.append("VEHICLE_OUT_OF_SERVICE")
-    if vehicle and not pretrip:
-        reasons.append("PRE_TRIP_REQUIRED")
+    if vehicle and shift and not pretrip:
+        reasons.append("PRE_TRIP_REQUIRED_THIS_SHIFT")
     if pretrip and int(pretrip["out_of_service"] or 0):
         reasons.append("PRE_TRIP_OUT_OF_SERVICE")
+    if blocking_event:
+        reasons.append("POST_INSPECTION_CRITICAL_VEHICLE_EVENT")
     return {
         "ready": not reasons,
         "reasons": reasons,
         "shift_active": bool(shift),
+        "shift_started_at": shift["started_at"] if shift else None,
         "vehicle": dict(vehicle) if vehicle else None,
         "pretrip_complete": bool(pretrip),
         "pretrip_at": pretrip["created_at"] if pretrip else None,
+        "pretrip_bound_to_current_shift": bool(pretrip and shift and pretrip["created_at"] >= shift["started_at"]),
+        "blocking_vehicle_event": dict(blocking_event) if blocking_event else None,
     }
 
 
@@ -147,7 +159,6 @@ def _sequence(c, d: Dict[str, Any], rows: list[Dict[str, Any]]) -> list[Dict[str
         navigation_destination = delivery.get("delivery_grid_id") or delivery.get("delivery_address") or (
             f"{t.get('latitude')},{t.get('longitude')}" if t.get("latitude") is not None and t.get("longitude") is not None else t.get("location_text") or ""
         )
-        # Keep work already in progress first, then urgent/overdue/time-window work, then nearer stops.
         score = 0.0
         reason = "NEXT PLANNED STOP"
         if status in IN_PROGRESS:
@@ -167,7 +178,6 @@ def _sequence(c, d: Dict[str, Any], rows: list[Dict[str, Any]]) -> list[Dict[str
             score += 1000
         drive_eta = None
         if dist is not None:
-            # Low-confidence road estimate: 1.25 road-factor at 30 km/h; UGAMAP can replace this with live routing later.
             drive_eta = max(1, int(round((dist * 1.25 / 30.0) * 60)))
         t.update({
             "leg_mode": mode,
@@ -274,7 +284,7 @@ def protected_route_start(payload: RouteStartIn, x_driver_passcode: str = Header
         raise HTTPException(409, "No active stops assigned")
     result = engine.execute(ExecuteRequest(
         ucode="U-1810",
-        parameters={"planned_stop_count": len(rows), "pickup_count": sum(1 for x in sequence if x['leg_mode'] == 'PICKUP'), "readiness_verified": True, "initial_next_stop_id": sequence[0]["id"] if sequence else None},
+        parameters={"planned_stop_count": len(rows), "pickup_count": sum(1 for x in sequence if x['leg_mode'] == 'PICKUP'), "readiness_verified": True, "current_shift_pretrip_verified": True, "critical_vehicle_event_clear": True, "initial_next_stop_id": sequence[0]["id"] if sequence else None},
         client_request_id=payload.client_request_id,
         actor_id=d["id"], role="DRIVER", device_id=payload.device_id,
     ))
