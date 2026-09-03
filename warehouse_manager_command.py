@@ -7,12 +7,14 @@ from vector5250_records import router as vector_records_router
 from vector5250_resilience import router as vector_resilience_router
 from vector5250_jobs import router as vector_jobs_router
 from vector5250_queues import router as vector_queues_router
+from vector5250_messages import router as vector_messages_router
 
 router = APIRouter(tags=["Vector 5250"])
 router.include_router(vector_records_router)
 router.include_router(vector_resilience_router)
 router.include_router(vector_jobs_router)
 router.include_router(vector_queues_router)
+router.include_router(vector_messages_router)
 MANAGER_PERMISSION = "warehouse:manager"
 
 COMMANDS = {
@@ -38,6 +40,9 @@ COMMANDS = {
     "U-9930": {"target": "jobq", "label": "Work with Job Queues"},
     "U-9940": {"target": "outq", "label": "Work with Output Queues"},
     "U-9950": {"target": "splf", "label": "Work with Spooled Files"},
+    "U-9960": {"target": "message_queues", "label": "Work with Message Queues"},
+    "U-9970": {"target": "operator_messages", "label": "Display QSYSOPR Messages"},
+    "U-9980": {"target": "send_message", "label": "Send Vector Message"},
 }
 
 def _manager(access_code: str):
@@ -70,6 +75,11 @@ def vector_5250_jobs_runtime():
 @router.get("/vector5250-queues.js", include_in_schema=False)
 def vector_5250_queues_runtime():
     source = Path("vector5250-queues.js").read_text(encoding="utf-8")
+    return Response(source, media_type="application/javascript", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
+
+@router.get("/vector5250-messages.js", include_in_schema=False)
+def vector_5250_messages_runtime():
+    source = Path("vector5250-messages.js").read_text(encoding="utf-8")
     return Response(source, media_type="application/javascript", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
 
 @router.get("/warehouse/manager/session")
