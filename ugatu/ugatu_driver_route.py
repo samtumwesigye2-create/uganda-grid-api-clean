@@ -4,9 +4,9 @@ import os
 import sqlite3
 import time
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from .ugatu_engine import engine
@@ -15,6 +15,8 @@ from .ugatu_models import ExecuteRequest
 router = APIRouter(prefix="/api/ugatu/driver-route", tags=["UGATU Driver Route"])
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB_PATH = os.path.join(BASE_DIR, "data_hub.db")
+FINAL_STATUSES = {"completed", "failed", "cancelled", "dropped_off_customer", "dropped_off_warehouse"}
+CUSTODY_STATUSES = {"picked_up", "en_route_dropoff", "arrived_dropoff"}
 
 
 class DynamicPickupRequest(BaseModel):
@@ -69,6 +71,96 @@ def _next_task_number(c: sqlite3.Connection) -> str:
     return f"UG-TASK-{n:06d}"
 
 
+def _is_return(row: Dict[str, Any]) -> bool:
+    text = " ".join(
+        str(row.get(k) or "") for k in ("task_type", "notes", "location_text")
+    ).lower()
+    return "return" in text or "rts" in text
+
+
+def _unit_kind(row: Dict[str, Any]) -> str:
+    text = " ".join(
+        str(row.get(k) or "") for k in ("notes", "shipment_number", "task_number")
+    ).lower()
+    if "pallet" in text or "plt-" in text:
+        return "PALLET"
+    if "freight" in text:
+        return "FREIGHT"
+    return "PACKAGE"
+
+
+def _route_rows(c: sqlite3.Connection, driver_id: str, since: float = 0) -> list[Dict[str, Any]]:
+    if since > 0:
+        rows = c.execute(
+            """SELECT * FROM dispatch_tasks
+               WHERE driver_id=? AND (
+                 status NOT IN ('completed','failed','cancelled','dropped_off_customer','dropped_off_warehouse')
+                 OR COALESCE(completed_at,0)>=?
+                 OR created_at>=?
+               )
+               ORDER BY created_at""",
+            (driver_id, since, since),
+        ).fetchall()
+    else:
+        rows = c.execute(
+            "SELECT * FROM dispatch_tasks WHERE driver_id=? ORDER BY created_at",
+            (driver_id,),
+        ).fetchall()
+    return [dict(x) for x in rows]
+
+
+def _ledger_from_rows(rows: list[Dict[str, Any]], dynamic_count: int = 0) -> Dict[str, Any]:
+    on_vehicle = [r for r in rows if str(r.get("status") or "").lower() in CUSTODY_STATUSES]
+    delivered = [r for r in rows if str(r.get("status") or "").lower() == "dropped_off_customer"]
+    transferred = [r for r in rows if str(r.get("status") or "").lower() == "dropped_off_warehouse"]
+    returns = [r for r in rows if _is_return(r)]
+    active = [r for r in rows if str(r.get("status") or "").lower() not in FINAL_STATUSES]
+
+    package_count = sum(1 for r in on_vehicle if _unit_kind(r) == "PACKAGE")
+    pallet_count = sum(1 for r in on_vehicle if _unit_kind(r) == "PALLET")
+    freight_count = sum(1 for r in on_vehicle if _unit_kind(r) == "FREIGHT")
+
+    entries = []
+    for row in rows:
+        status = str(row.get("status") or "assigned").lower()
+        state = "ACTIVE"
+        if status in CUSTODY_STATUSES:
+            state = "ON_VEHICLE"
+        elif status == "dropped_off_customer":
+            state = "DELIVERED"
+        elif status == "dropped_off_warehouse":
+            state = "TRANSFERRED"
+        elif status in {"failed", "cancelled"}:
+            state = "EXCEPTION"
+        if _is_return(row):
+            state = "RETURN"
+        entries.append({
+            "task_id": row.get("id"),
+            "task_number": row.get("task_number"),
+            "shipment_number": row.get("shipment_number"),
+            "task_type": row.get("task_type"),
+            "location_text": row.get("location_text"),
+            "status": status,
+            "custody_state": state,
+            "unit_kind": _unit_kind(row),
+        })
+
+    return {
+        "on_vehicle_count": len(on_vehicle),
+        "on_vehicle_packages": package_count,
+        "on_vehicle_pallets": pallet_count,
+        "on_vehicle_freight": freight_count,
+        "pickups_added": dynamic_count,
+        "delivered_count": len(delivered),
+        "transferred_count": len(transferred),
+        "returns_count": len(returns),
+        "active_count": len(active),
+        "unaccounted_count": len(on_vehicle),
+        "reconciled": len(on_vehicle) == 0,
+        "entries": entries,
+    }
+
+
 @router.get("/manifest")
 def manifest(x_driver_passcode: str = Header(default="")):
     d = _driver(x_driver_passcode)
@@ -94,7 +186,7 @@ def manifest(x_driver_passcode: str = Header(default="")):
 
     active_rows = [dict(x) for x in active]
     pickup_rows = [x for x in active_rows if str(x.get("task_type", "")).lower() == "pickup"]
-    custody_rows = [x for x in active_rows if str(x.get("status", "")).lower() == "picked_up"]
+    custody_rows = [x for x in active_rows if str(x.get("status", "")).lower() in CUSTODY_STATUSES]
     return {
         "driver_id": d["id"],
         "active_count": len(active_rows),
@@ -104,6 +196,31 @@ def manifest(x_driver_passcode: str = Header(default="")):
         "active": active_rows,
         "dynamic_pickups": [dict(x) for x in dyn],
     }
+
+
+@router.get("/ledger")
+def custody_ledger(
+    since: float = Query(default=0, ge=0),
+    x_driver_passcode: str = Header(default=""),
+):
+    d = _driver(x_driver_passcode)
+    c = _conn()
+    try:
+        _ensure_dynamic_table(c)
+        rows = _route_rows(c, d["id"], since)
+        if since > 0:
+            dynamic_count = c.execute(
+                "SELECT COUNT(*) FROM ugatu_dynamic_pickups WHERE driver_id=? AND created_at>=?",
+                (d["id"], since),
+            ).fetchone()[0]
+        else:
+            dynamic_count = c.execute(
+                "SELECT COUNT(*) FROM ugatu_dynamic_pickups WHERE driver_id=?",
+                (d["id"],),
+            ).fetchone()[0]
+    finally:
+        c.close()
+    return {"driver_id": d["id"], "since": since, **_ledger_from_rows(rows, int(dynamic_count))}
 
 
 @router.post("/dynamic-pickup")
@@ -192,20 +309,30 @@ def create_dynamic_pickup(payload: DynamicPickupRequest, x_driver_passcode: str 
 @router.post("/complete-route")
 def complete_route(payload: Dict[str, Any], x_driver_passcode: str = Header(default="")):
     d = _driver(x_driver_passcode)
+    since = float(payload.get("since") or 0)
     c = _conn()
     try:
-        open_rows = c.execute(
-            """SELECT id,task_number,status,task_type FROM dispatch_tasks
-               WHERE driver_id=? AND status NOT IN
-               ('completed','failed','cancelled','dropped_off_customer','dropped_off_warehouse')""",
-            (d["id"],),
-        ).fetchall()
+        rows = _route_rows(c, d["id"], since)
+        open_rows = [r for r in rows if str(r.get("status") or "").lower() not in FINAL_STATUSES]
+        custody_rows = [r for r in rows if str(r.get("status") or "").lower() in CUSTODY_STATUSES]
     finally:
         c.close()
+    if custody_rows:
+        raise HTTPException(
+            409,
+            detail={
+                "message": "Route cannot close while freight remains in driver custody",
+                "unaccounted_count": len(custody_rows),
+                "custody_items": [
+                    {"task_id": x.get("id"), "task_number": x.get("task_number"), "status": x.get("status")}
+                    for x in custody_rows
+                ],
+            },
+        )
     if open_rows:
         raise HTTPException(
             409,
-            detail={"message": "Route cannot close while active stops remain", "active_stops": [dict(x) for x in open_rows]},
+            detail={"message": "Route cannot close while active stops remain", "active_stops": open_rows},
         )
     request_id = str(payload.get("client_request_id") or f"ROUTE-{uuid.uuid4()}")
     result = engine.execute(
@@ -218,4 +345,4 @@ def complete_route(payload: Dict[str, Any], x_driver_passcode: str = Header(defa
             device_id=str(payload.get("device_id") or "DRIVER-IPAD"),
         )
     )
-    return {"completed": True, "unaccounted_count": 0, "ugatu": result.model_dump()}
+    return {"completed": True, "unaccounted_count": 0, "reconciled": True, "ugatu": result.model_dump()}
