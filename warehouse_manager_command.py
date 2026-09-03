@@ -1,5 +1,7 @@
 """Manager-only command authorization and Vector 5250 command metadata."""
+from pathlib import Path
 from fastapi import APIRouter, Header, HTTPException
+from fastapi.responses import Response
 from auth import require_permission, is_master
 
 router = APIRouter(tags=["Warehouse Manager Command"])
@@ -32,11 +34,17 @@ def _manager(access_code: str):
     try:
         require_permission(access_code, MANAGER_PERMISSION)
     except HTTPException as exc:
-        # Never downgrade this endpoint to general inventory permissions.
         if exc.status_code in (401, 403):
             raise HTTPException(status_code=403, detail="Warehouse Manager or higher access required")
         raise
     return {"role": "warehouse_manager", "manager_access": True}
+
+
+@router.get("/vector5250", include_in_schema=False)
+@router.get("/vector-5250", include_in_schema=False)
+def vector_5250_page():
+    source = Path("vector5250.html").read_text(encoding="utf-8")
+    return Response(source, media_type="text/html", headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
 
 
 @router.get("/warehouse/manager/session")
