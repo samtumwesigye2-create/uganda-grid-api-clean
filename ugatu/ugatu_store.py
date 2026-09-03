@@ -16,7 +16,13 @@ from .ugatu_models import EventRecord, TransactionRecord
 
 
 class UGATUStore:
-    """Persistence adapter. Uses Postgres when DATABASE_URL exists, otherwise memory."""
+    """Persistence adapter. Uses Postgres when healthy, otherwise memory.
+
+    A stale or temporarily unavailable DATABASE_URL must never crash the entire
+    National Grid web process. UGATU falls back to in-process memory so UGAMAP,
+    UGASHIP and the driver UI can still boot while the database connection is
+    repaired.
+    """
 
     def __init__(self) -> None:
         self.database_url = os.getenv("DATABASE_URL", "").strip()
@@ -26,8 +32,16 @@ class UGATUStore:
         self.memory_favorites: Dict[str, List[str]] = {}
         self.memory_recent: Dict[str, List[str]] = {}
         self.postgres_enabled = bool(self.database_url and psycopg2)
+        self.persistence_error: Optional[str] = None
         if self.postgres_enabled:
-            self._init_schema()
+            try:
+                self._init_schema()
+            except Exception as exc:
+                # Production safety: UGATU is an add-on to the existing app and
+                # must not make the whole Railway service unavailable because a
+                # referenced Postgres service is missing or restarting.
+                self.persistence_error = f"{type(exc).__name__}: {exc}"
+                self.postgres_enabled = False
 
     def _connect(self):
         return psycopg2.connect(self.database_url)
