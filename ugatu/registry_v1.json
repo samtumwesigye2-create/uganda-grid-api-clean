@@ -1,5 +1,5 @@
 {
-  "registry_version": "1.1.0",
+  "registry_version": "1.2.0",
   "codes": [
     {"ucode":"U-1310","name":"Delivery Exception","domain":"DRIVER","module":"EXCEPTIONS","aliases":["Report Issue","Delivery Problem","Report Delivery Issue"],"roles":["DRIVER"],"safety_level":1,"can_run_offline":true,"handler":"driver.delivery_exception.v1","emits_events":["DELIVERY_EXCEPTION_REPORTED"]},
     {"ucode":"U-1320","name":"Pickup Exception","domain":"DRIVER","module":"EXCEPTIONS","aliases":["Pickup Problem","Report Pickup Issue"],"roles":["DRIVER"],"safety_level":1,"can_run_offline":true,"handler":"driver.pickup_exception.v1","emits_events":["PICKUP_EXCEPTION_REPORTED"]},
