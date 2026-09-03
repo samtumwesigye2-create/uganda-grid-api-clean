@@ -1,0 +1,6 @@
+vector5250.db
+vector5250.db-*
+*.sqlite
+*.sqlite3
+__pycache__/
+*.pyc
