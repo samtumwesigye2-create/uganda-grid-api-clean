@@ -17,6 +17,7 @@ from ugatu.ugatu_driver_route import router as ugatu_driver_route_router
 from ugatu.ugatu_driver_orders import router as ugatu_driver_orders_router
 from ugatu.ugatu_driver_center import router as ugatu_driver_center_router
 from ugatu.ugatu_driver_more import router as ugatu_driver_more_router
+from ugatu.ugatu_driver_dashboard import router as ugatu_driver_dashboard_router
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -35,6 +36,8 @@ if not _has_path("/api/ugatu/driver-center"):
     app.include_router(ugatu_driver_center_router)
 if not _has_path("/api/ugatu/driver-more"):
     app.include_router(ugatu_driver_more_router)
+if not _has_path("/api/ugatu/driver-dashboard"):
+    app.include_router(ugatu_driver_dashboard_router)
 
 
 @app.get("/api/ugatu/integration-status", tags=["UGATU"])
@@ -48,7 +51,9 @@ def ugatu_integration_status():
         "driver_orders_router_mounted": True,
         "driver_center_router_mounted": True,
         "driver_more_router_mounted": True,
+        "driver_dashboard_router_mounted": True,
         "driver_more_center": "/api/ugatu/driver-more",
+        "driver_dashboard": "/api/ugatu/driver-dashboard",
         "driver_ipad_screen": "/driver/ugatu",
     }
 
@@ -64,6 +69,7 @@ def ugatu_driver_ipad_screen():
         '<script src="/assets/driver-ugatu-tasks-v1.js"></script>',
         '<script src="/assets/driver-ugatu-more-v1.js"></script>',
         '<script src="/assets/driver-ugatu-more-energy-v1.js"></script>',
+        '<script src="/assets/driver-ugatu-dashboard-v1.js"></script>',
     ]
     for addon in addons:
         if addon not in html:
