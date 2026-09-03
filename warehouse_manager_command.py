@@ -67,6 +67,11 @@ def vector_5250_jobs_runtime():
     source = Path("vector5250-jobs.js").read_text(encoding="utf-8")
     return Response(source, media_type="application/javascript", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
 
+@router.get("/vector5250-queues.js", include_in_schema=False)
+def vector_5250_queues_runtime():
+    source = Path("vector5250-queues.js").read_text(encoding="utf-8")
+    return Response(source, media_type="application/javascript", headers={"Cache-Control":"no-cache, no-store, must-revalidate"})
+
 @router.get("/warehouse/manager/session")
 def manager_session(x_access_code: str = Header(default="")):
     result = _manager(x_access_code)
