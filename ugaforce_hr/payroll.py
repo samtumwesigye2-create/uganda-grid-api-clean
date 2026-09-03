@@ -39,19 +39,54 @@ def money(value: Any) -> Decimal:
 
 def emit(conn: Any, event_type: str, payload: dict[str, Any]) -> None:
     with conn.cursor() as cur:
-        cur.execute(
-            "insert into ugaforce_hr_event_outbox(event_type,payload_json) values(%s,%s::jsonb)",
-            (event_type, json.dumps(payload, default=str)),
-        )
+        cur.execute("insert into ugaforce_hr_event_outbox(event_type,payload_json) values(%s,%s::jsonb)", (event_type, json.dumps(payload, default=str)))
 
 
 def audit(conn: Any, actor_id: Optional[str], action: str, entity_type: str, entity_id: str, after: Any = None) -> None:
     with conn.cursor() as cur:
-        cur.execute(
-            "insert into ugaforce_hr_audit_log(actor_id,action,entity_type,entity_id,after_json) values(%s,%s,%s,%s,%s::jsonb)",
-            (actor_id, action, entity_type, entity_id, json.dumps(after, default=str) if after is not None else None),
-        )
+        cur.execute("insert into ugaforce_hr_audit_log(actor_id,action,entity_type,entity_id,after_json) values(%s,%s,%s,%s,%s::jsonb)", (actor_id, action, entity_type, entity_id, json.dumps(after, default=str) if after is not None else None))
     mirror_audit(action, entity_type, entity_id, actor_id=actor_id)
+
+
+def _tax_for_period(gross: Decimal, rules: dict[str, Any], frequency: str, additional: Decimal) -> Decimal:
+    periods = Decimal(FREQUENCY_DIVISORS.get(frequency, 26))
+    deduction = money(Decimal(str(rules.get("standard_deduction", 0))) / periods)
+    taxable = max(Decimal("0"), gross - deduction)
+    if "flat_rate" in rules:
+        tax = taxable * Decimal(str(rules["flat_rate"]))
+    elif isinstance(rules.get("brackets"), list):
+        tax, remaining, lower = Decimal("0"), taxable, Decimal("0")
+        for item in rules["brackets"]:
+            rate = Decimal(str(item.get("rate", 0)))
+            upper_raw = item.get("up_to")
+            if upper_raw is None:
+                tax += remaining * rate
+                remaining = Decimal("0")
+                break
+            upper = Decimal(str(upper_raw)) / periods
+            span = max(Decimal("0"), upper - lower)
+            portion = min(remaining, span)
+            tax += portion * rate
+            remaining -= portion
+            lower = upper
+            if remaining <= 0:
+                break
+        if remaining > 0:
+            tax += remaining * Decimal(str(rules.get("top_rate", 0)))
+    else:
+        raise ValueError("Unsupported tax rules")
+    return money(max(Decimal("0"), tax + additional))
+
+
+def _tax_for_employee(cur: Any, employee_id: str, gross: Decimal, period_end: Any, frequency: str) -> Decimal:
+    cur.execute("""select j.rules_json,p.additional_withholding
+        from ugaforce_hr_employee_tax_profiles p join ugaforce_hr_tax_jurisdictions j on j.id=p.jurisdiction_id
+        where p.employee_id=%s and j.effective_date<=%s order by j.effective_date desc limit 1""", (employee_id, period_end))
+    row = cur.fetchone()
+    if not row:
+        raise ValueError("Missing tax profile")
+    rules = row[0] if isinstance(row[0], dict) else json.loads(row[0])
+    return _tax_for_period(gross, rules, frequency, money(row[1]))
 
 
 class PayGroupCreate(BaseModel):
@@ -90,12 +125,17 @@ class EnrollmentCreate(BaseModel):
     effective_date: str
 
 
+class DisbursementConfirm(BaseModel):
+    provider: str = Field(min_length=2, max_length=120)
+    reference: str = Field(min_length=4, max_length=240)
+
+
 @router.get("/metrics")
 def metrics(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     require_any(user, PAYROLL_VIEW_ROLES)
     with db() as conn:
         with conn.cursor() as cur:
-            cur.execute("select count(*) from ugaforce_hr_payroll_runs where status in ('draft','time_locked','pending_approval')")
+            cur.execute("select count(*) from ugaforce_hr_payroll_runs where status in ('draft','pending_approval')")
             open_runs = cur.fetchone()[0]
             cur.execute("select count(*) from ugaforce_hr_payroll_runs where status='pending_approval'")
             pending_approval = cur.fetchone()[0]
@@ -103,7 +143,9 @@ def metrics(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
             ytd_gross, ytd_net = cur.fetchone()
             cur.execute("select count(*) from ugaforce_hr_benefit_enrollments where status='active' and (end_date is null or end_date>=current_date)")
             active_enrollments = cur.fetchone()[0]
-    return {"open_runs": open_runs, "pending_approval": pending_approval, "ytd_gross": ytd_gross, "ytd_net": ytd_net, "active_benefit_enrollments": active_enrollments}
+            cur.execute("select count(*) from ugaforce_hr_payroll_runs where jsonb_array_length(calculation_warnings)>0 and status='draft'")
+            runs_with_warnings = cur.fetchone()[0]
+    return {"open_runs": open_runs, "pending_approval": pending_approval, "ytd_gross": ytd_gross, "ytd_net": ytd_net, "active_benefit_enrollments": active_enrollments, "runs_with_warnings": runs_with_warnings}
 
 
 @router.get("/pay-groups")
@@ -208,7 +250,7 @@ def create_run(payload: RunCreate, user: dict[str, Any] = Depends(current_user))
                 if not row:
                     raise HTTPException(status_code=409, detail="No active pay group configured")
                 pay_group_id = row["id"]
-            cur.execute("insert into ugaforce_hr_payroll_runs(pay_group_id,period_start,period_end,pay_date,created_by) values(%s,%s,%s,%s,%s) returning id::text,pay_group_id::text,period_start,period_end,pay_date,status,total_gross,total_net,created_at", (pay_group_id, payload.period_start, payload.period_end, payload.pay_date, user.get("employee_id")))
+            cur.execute("insert into ugaforce_hr_payroll_runs(pay_group_id,period_start,period_end,pay_date,created_by) values(%s,%s,%s,%s,%s) returning id::text,pay_group_id::text,period_start,period_end,pay_date,status,total_gross,total_net,calculation_warnings,created_at", (pay_group_id, payload.period_start, payload.period_end, payload.pay_date, user.get("employee_id")))
             run = dict(cur.fetchone())
             audit(conn, user.get("employee_id"), "created", "payroll_run", run["id"], run)
             emit(conn, "payroll.run.created", {"payroll_run_id": run["id"]})
@@ -221,7 +263,7 @@ def list_runs(status: str = Query(default=""), limit: int = Query(default=50, ge
     require_any(user, PAYROLL_VIEW_ROLES)
     with db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""select r.id::text,r.pay_group_id::text,g.name pay_group,g.pay_frequency,g.currency,r.period_start,r.period_end,r.pay_date,r.status,r.total_gross,r.total_net,r.created_at,r.locked_at,r.approved_at,r.disbursed_at,
+            cur.execute("""select r.id::text,r.pay_group_id::text,g.name pay_group,g.pay_frequency,g.currency,r.period_start,r.period_end,r.pay_date,r.status,r.total_gross,r.total_net,r.calculation_warnings,r.disbursement_provider,r.disbursement_reference,r.created_at,r.locked_at,r.approved_at,r.disbursed_at,
                 (select count(*) from ugaforce_hr_payroll_line_items l where l.payroll_run_id=r.id) employee_count
                 from ugaforce_hr_payroll_runs r left join ugaforce_hr_pay_groups g on g.id=r.pay_group_id
                 where (%s='' or r.status=%s) order by r.pay_date desc,r.created_at desc limit %s""", (status, status, limit))
@@ -249,11 +291,10 @@ def build_run(run_id: str, user: dict[str, Any] = Depends(current_user)) -> dict
                 join ugaforce_hr_employee_sensitive_data s on s.employee_id=e.id
                 left join ugaforce_hr_timesheets t on t.employee_id=e.id and t.period_start=%s and t.period_end=%s and t.status='approved'
                 left join ugaforce_hr_employee_pay_groups epg on epg.employee_id=e.id
-                where e.employment_status='active' and (epg.pay_group_id=%s or (epg.pay_group_id is null and %s is not null))""",
-                (run["period_end"], run["period_end"], run["period_start"], run["period_end"], run["pay_group_id"], run["pay_group_id"]))
+                where e.employment_status='active' and (epg.pay_group_id=%s or (epg.pay_group_id is null and %s is not null))""", (run["period_end"], run["period_end"], run["period_start"], run["period_end"], run["pay_group_id"], run["pay_group_id"]))
             employees = cur.fetchall()
-            total_gross = Decimal("0")
-            total_net = Decimal("0")
+            total_gross, total_net = Decimal("0"), Decimal("0")
+            warnings: list[dict[str, Any]] = []
             for emp in employees:
                 annual = money(emp["base_salary"])
                 base_pay = money(annual / divisor)
@@ -265,22 +306,25 @@ def build_run(run_id: str, user: dict[str, Any] = Depends(current_user)) -> dict
                 bonus = adjustment if adjustment > 0 else Decimal("0")
                 other_deductions = abs(adjustment) if adjustment < 0 else Decimal("0")
                 gross = money(base_pay + overtime_pay + bonus)
-                tax = Decimal("0.00")
+                try:
+                    tax = _tax_for_employee(cur, emp["id"], gross, run["period_end"], run["pay_frequency"] or "biweekly")
+                except Exception as exc:
+                    tax = Decimal("0.00")
+                    warnings.append({"employee_id": emp["id"], "employee_number": emp["employee_number"], "code": "TAX_CONFIGURATION_REQUIRED", "detail": str(exc)[:160]})
                 net = money(gross - tax - benefit - other_deductions)
                 cur.execute("""insert into ugaforce_hr_payroll_line_items(payroll_run_id,employee_id,timesheet_id,base_pay,overtime_pay,bonus,gross_pay,tax_withholding,benefit_deductions,other_deductions,net_pay)
                     values(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) returning id::text""", (run_id, emp["id"], emp["timesheet_id"], base_pay, overtime_pay, bonus, gross, tax, benefit, other_deductions, net))
                 line_id = cur.fetchone()["id"]
-                details = [("earning","Base Pay",base_pay,10),("earning","Overtime",overtime_pay,20),("earning","Bonus / Positive Adjustments",bonus,30),("benefit_deduction","Benefits",benefit,50),("other_deduction","Other Deductions",other_deductions,60)]
-                for kind,label,amount,order in details:
+                for kind,label,amount,order in [("earning","Base Pay",base_pay,10),("earning","Overtime",overtime_pay,20),("earning","Bonus / Positive Adjustments",bonus,30),("tax","Tax Withholding",tax,40),("benefit_deduction","Benefits",benefit,50),("other_deduction","Other Deductions",other_deductions,60)]:
                     if amount:
                         cur.execute("insert into ugaforce_hr_payroll_line_item_details(line_item_id,detail_type,label,amount,sort_order) values(%s,%s,%s,%s,%s)", (line_id, kind, label, amount, order))
                 total_gross += gross
                 total_net += net
-            cur.execute("update ugaforce_hr_payroll_runs set total_gross=%s,total_net=%s where id=%s", (money(total_gross), money(total_net), run_id))
-            audit(conn, user.get("employee_id"), "built", "payroll_run", run_id, {"employees": len(employees), "total_gross": money(total_gross), "total_net": money(total_net)})
-            emit(conn, "payroll.run.built", {"payroll_run_id": run_id, "employee_count": len(employees)})
+            cur.execute("update ugaforce_hr_payroll_runs set total_gross=%s,total_net=%s,calculation_warnings=%s::jsonb where id=%s", (money(total_gross), money(total_net), json.dumps(warnings), run_id))
+            audit(conn, user.get("employee_id"), "built", "payroll_run", run_id, {"employees": len(employees), "total_gross": money(total_gross), "total_net": money(total_net), "warnings": warnings})
+            emit(conn, "payroll.run.built", {"payroll_run_id": run_id, "employee_count": len(employees), "warning_count": len(warnings)})
         conn.commit()
-    return {"payroll_run_id": run_id, "employee_count": len(employees), "total_gross": money(total_gross), "total_net": money(total_net)}
+    return {"payroll_run_id": run_id, "employee_count": len(employees), "total_gross": money(total_gross), "total_net": money(total_net), "calculation_warnings": warnings}
 
 
 @router.post("/runs/{run_id}/adjustments")
@@ -306,10 +350,19 @@ def submit_run(run_id: str, user: dict[str, Any] = Depends(current_user)) -> dic
     require_any(user, PAYROLL_EDIT_ROLES)
     with db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("update ugaforce_hr_payroll_runs set status='pending_approval',locked_at=now() where id=%s and status='draft' and exists(select 1 from ugaforce_hr_payroll_line_items where payroll_run_id=%s) returning id::text,status,locked_at,total_gross,total_net", (run_id, run_id))
+            cur.execute("select status,calculation_warnings from ugaforce_hr_payroll_runs where id=%s for update", (run_id,))
+            run = cur.fetchone()
+            if not run:
+                raise HTTPException(status_code=404, detail="Payroll run not found")
+            if run["status"] != "draft":
+                raise HTTPException(status_code=409, detail="Run is not draft")
+            warnings = run["calculation_warnings"] or []
+            if warnings:
+                raise HTTPException(status_code=409, detail={"message": "Payroll calculation warnings must be resolved before submission", "warnings": warnings})
+            cur.execute("update ugaforce_hr_payroll_runs set status='pending_approval',locked_at=now() where id=%s and exists(select 1 from ugaforce_hr_payroll_line_items where payroll_run_id=%s) returning id::text,status,locked_at,total_gross,total_net", (run_id, run_id))
             row = cur.fetchone()
             if not row:
-                raise HTTPException(status_code=409, detail="Run must be draft and built before submission")
+                raise HTTPException(status_code=409, detail="Run must be built before submission")
             row = dict(row)
             audit(conn, user.get("employee_id"), "submitted", "payroll_run", run_id, row)
             emit(conn, "payroll.run.pending_approval", {"payroll_run_id": run_id})
@@ -328,6 +381,12 @@ def approve_run(run_id: str, user: dict[str, Any] = Depends(current_user)) -> di
             if not row:
                 raise HTTPException(status_code=409, detail="Run is not pending approval")
             row = dict(row)
+            cur.execute("delete from ugaforce_hr_accounting_journal_entries where payroll_run_id=%s", (run_id,))
+            cur.execute("select coalesce(sum(tax_withholding),0),coalesce(sum(benefit_deductions),0),coalesce(sum(other_deductions),0),coalesce(sum(net_pay),0) from ugaforce_hr_payroll_line_items where payroll_run_id=%s", (run_id,))
+            tax_total, benefits_total, other_total, net_total = map(money, cur.fetchone())
+            for account, debit, credit in [("PAYROLL_EXPENSE", row["total_gross"], 0),("TAX_WITHHOLDING_PAYABLE", 0, tax_total),("BENEFITS_PAYABLE", 0, benefits_total),("OTHER_DEDUCTIONS_PAYABLE", 0, other_total),("NET_PAYROLL_PAYABLE", 0, net_total)]:
+                if money(debit) or money(credit):
+                    cur.execute("insert into ugaforce_hr_accounting_journal_entries(payroll_run_id,gl_account,debit,credit) values(%s,%s,%s,%s)", (run_id, account, money(debit), money(credit)))
             audit(conn, user.get("employee_id"), "approved", "payroll_run", run_id, row)
             emit(conn, "payroll.run.approved", {"payroll_run_id": run_id})
         conn.commit()
@@ -335,21 +394,24 @@ def approve_run(run_id: str, user: dict[str, Any] = Depends(current_user)) -> di
 
 
 @router.post("/runs/{run_id}/disburse")
-def disburse_run(run_id: str, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+def disburse_run(run_id: str, payload: DisbursementConfirm, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     require_any(user, PAYROLL_EDIT_ROLES)
-    with db() as conn:
-        with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("update ugaforce_hr_payroll_runs set status='disbursed',disbursed_at=now() where id=%s and status='approved' returning id::text,status,total_gross,total_net,disbursed_at", (run_id,))
-            row = cur.fetchone()
-            if not row:
-                raise HTTPException(status_code=409, detail="Run must be approved before disbursement")
-            cur.execute("update ugaforce_hr_payroll_line_items set status='paid' where payroll_run_id=%s", (run_id,))
-            cur.execute("insert into ugaforce_hr_pay_slips(payroll_line_item_id,employee_id) select id,employee_id from ugaforce_hr_payroll_line_items where payroll_run_id=%s on conflict (payroll_line_item_id) do nothing", (run_id,))
-            row = dict(row)
-            audit(conn, user.get("employee_id"), "disbursed", "payroll_run", run_id, row)
-            emit(conn, "payroll.run.disbursed", {"payroll_run_id": run_id})
-        conn.commit()
-    return row
+    try:
+        with db() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("update ugaforce_hr_payroll_runs set status='disbursed',disbursed_at=now(),disbursement_provider=%s,disbursement_reference=%s where id=%s and status='approved' returning id::text,status,total_gross,total_net,disbursed_at,disbursement_provider,disbursement_reference", (payload.provider.strip(), payload.reference.strip(), run_id))
+                row = cur.fetchone()
+                if not row:
+                    raise HTTPException(status_code=409, detail="Run must be approved before confirmed disbursement can be recorded")
+                cur.execute("update ugaforce_hr_payroll_line_items set status='paid',payment_reference=%s where payroll_run_id=%s", (payload.reference.strip(), run_id))
+                cur.execute("insert into ugaforce_hr_pay_slips(payroll_line_item_id,employee_id) select id,employee_id from ugaforce_hr_payroll_line_items where payroll_run_id=%s on conflict (payroll_line_item_id) do nothing", (run_id,))
+                row = dict(row)
+                audit(conn, user.get("employee_id"), "disbursement_confirmed", "payroll_run", run_id, row)
+                emit(conn, "payroll.run.disbursed", {"payroll_run_id": run_id, "provider": payload.provider.strip(), "reference": payload.reference.strip()})
+            conn.commit()
+        return row
+    except psycopg2.errors.UniqueViolation:
+        raise HTTPException(status_code=409, detail="Disbursement reference has already been recorded")
 
 
 @router.get("/runs/{run_id}/lines")
@@ -381,8 +443,7 @@ def my_payslips(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
 def payslip_detail(payslip_id: str, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     with db() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
-            cur.execute("""select p.id::text,p.employee_id::text,p.generated_at,p.viewed_at,p.storage_key,l.id::text line_item_id,l.base_pay,l.overtime_pay,l.bonus,l.gross_pay,l.tax_withholding,l.benefit_deductions,l.other_deductions,l.net_pay,
-                r.period_start,r.period_end,r.pay_date,e.employee_number,e.first_name,e.last_name
+            cur.execute("""select p.id::text,p.employee_id::text,p.generated_at,p.viewed_at,p.storage_key,l.id::text line_item_id,l.base_pay,l.overtime_pay,l.bonus,l.gross_pay,l.tax_withholding,l.benefit_deductions,l.other_deductions,l.net_pay,r.period_start,r.period_end,r.pay_date,e.employee_number,e.first_name,e.last_name
                 from ugaforce_hr_pay_slips p join ugaforce_hr_payroll_line_items l on l.id=p.payroll_line_item_id join ugaforce_hr_payroll_runs r on r.id=l.payroll_run_id join ugaforce_hr_employees e on e.id=p.employee_id where p.id=%s""", (payslip_id,))
             row = cur.fetchone()
             if not row:
