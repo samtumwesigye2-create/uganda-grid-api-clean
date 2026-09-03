@@ -19,6 +19,7 @@ from ugatu.ugatu_driver_center import router as ugatu_driver_center_router
 from ugatu.ugatu_driver_more import router as ugatu_driver_more_router
 from ugatu.ugatu_driver_dashboard import router as ugatu_driver_dashboard_router
 from ugatu.ugatu_driver_documents import router as ugatu_driver_documents_router
+from ugatu.ugatu_driver_routing import router as ugatu_driver_routing_router
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -41,6 +42,8 @@ if not _has_path("/api/ugatu/driver-dashboard"):
     app.include_router(ugatu_driver_dashboard_router)
 if not _has_path("/api/ugatu/driver-documents"):
     app.include_router(ugatu_driver_documents_router)
+if not _has_path("/api/ugatu/driver-routing"):
+    app.include_router(ugatu_driver_routing_router)
 
 
 @app.get("/api/ugatu/integration-status", tags=["UGATU"])
@@ -56,11 +59,14 @@ def ugatu_integration_status():
         "driver_more_router_mounted": True,
         "driver_dashboard_router_mounted": True,
         "driver_documents_router_mounted": True,
+        "driver_routing_router_mounted": True,
         "driver_leg_lifecycle": "1.0.0",
-        "driver_next_stop_sequencing": "1.0.0",
+        "driver_next_stop_sequencing": "1.1.0",
+        "driver_live_ugamap_routing": "1.0.0",
         "driver_more_center": "/api/ugatu/driver-more",
         "driver_dashboard": "/api/ugatu/driver-dashboard",
         "driver_documents": "/api/ugatu/driver-documents",
+        "driver_routing": "/api/ugatu/driver-routing",
         "driver_ipad_screen": "/driver/ugatu",
     }
 
@@ -85,6 +91,7 @@ def ugatu_driver_ipad_screen():
         '<script src="/assets/driver-ugatu-more-v1.js"></script>',
         '<script src="/assets/driver-ugatu-more-energy-v1.js"></script>',
         '<script src="/assets/driver-ugatu-dashboard-v1.js"></script>',
+        '<script src="/assets/driver-ugatu-routing-v1.js"></script>',
         '<script src="/assets/driver-ugatu-sequence-v1.js"></script>',
         '<script src="/assets/driver-ugatu-documents-v1.js"></script>',
     ]
