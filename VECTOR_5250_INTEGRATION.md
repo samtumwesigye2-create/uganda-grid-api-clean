@@ -16,14 +16,14 @@ No direct cross-system database writes are allowed. Synchronization is event/API
 
 ## Backup and integrity boundary
 
-Every important Vector 5250 operational fact is written to Vector's primary database first. The same transaction/event is then sent through the existing backup synchronization service using source identity `VECTOR5250`. The backup service is responsible for persisting the replica in the backup database.
+Every important Vector 5250 operational fact is committed to Vector's primary database first. The same fact is then replicated through the existing backup synchronization service using source identity `VECTOR5250`. That service is the authorized path to the backup database; Vector does not bypass the service with direct cross-database writes.
 
-Backup failure must never silently rewrite or replace the Vector primary record. Backup client status exposes successful, failed, queued and dropped synchronization state so reconciliation can detect integrity gaps. Data Relay separately receives Vector operational events for monitoring and integrity/observability purposes.
+Backup failure must never silently rewrite or replace the Vector primary record. Backup client status exposes successful, failed, queued and dropped synchronization state so reconciliation can detect integrity gaps. Data Relay separately receives Vector operational events for monitoring, anomaly detection and integrity/observability purposes.
 
-This produces two independent integrity channels:
+This produces three distinct integrity roles:
 
 - Primary truth: Vector 5250 database.
-- Recovery replica: backup database via the backup synchronization service.
+- Recovery replica: backup database through the backup synchronization service.
 - Monitoring/integrity telemetry: Data Relay.
 
 ## UGATU boundary
