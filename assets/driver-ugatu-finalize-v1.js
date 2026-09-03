@@ -3,6 +3,14 @@
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const msg=(text,type='ok')=>{const b=$('ugatuMsg');if(!b)return;b.className='notice '+type;b.textContent=text;b.hidden=false;clearTimeout(msg.t);msg.t=setTimeout(()=>b.hidden=true,4600)};
 
+  function installOverlayHiddenFix(){
+    if($('ugatuOverlayHiddenFix'))return;
+    const style=document.createElement('style');
+    style.id='ugatuOverlayHiddenFix';
+    style.textContent='[hidden]{display:none!important}.overlay[hidden]{display:none!important}';
+    document.head.appendChild(style);
+  }
+
   async function secureState(){
     const api=window.UGATUOffline;
     if(!api)return {count:0,conflicts:[],rows:[],secure:false};
@@ -46,6 +54,7 @@
   }
 
   function hook(){
+    installOverlayHiddenFix();
     const close=$('completeRouteBtn');
     if(close&&!close.dataset.secureFinalGuard){close.dataset.secureFinalGuard='1';close.addEventListener('click',guardRouteClose,true)}
     const offline=document.querySelector('[data-more="offline"]');
