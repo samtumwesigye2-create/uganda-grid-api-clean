@@ -1,38 +1,49 @@
 # Vector 5250 Integration
 
-Vector 5250 is the enterprise warehouse/operator console for the Uganda National Grid ecosystem. It keeps the green-screen / 5250 operating style while using the existing ecosystem as the system of record.
+Vector 5250 is an independent enterprise operations system and a system of record inside the Uganda National Grid ecosystem. Integration must not strip Vector 5250 of its own persistence, transaction rules, command set, audit trail, or operational responsibilities.
 
 ## Architecture
 
-Vector 5250 UI -> shared staff RBAC -> existing Warehouse/UGASHIP services and `data_hub.db` -> UGATU command/event layer -> UGAMAP for geography/routing -> UGA Integration Gateway for external systems.
+Vector 5250 UI -> Vector 5250 application services -> Vector 5250 system-of-record database -> Vector 5250 event/audit log -> Data Relay monitoring/event exchange -> authorized ecosystem consumers.
 
-Vector 5250 must not maintain a separate production warehouse database, separate production user/password table, or direct arbitrary outbound webhooks.
+Shared platform services may be reused where appropriate (for example identity/security, UGAMAP geography/routing, document services, and the signed Integration Gateway), but Vector 5250 remains authoritative for the records it owns.
+
+## System-of-record boundary
+
+Vector 5250 owns its enterprise operations records and must persist them independently. Warehouse/UGASHIP may consume or publish authorized events through the relay/integration boundary, but Vector 5250 is not a thin UI over `data_hub.db` and does not depend on Warehouse/UGASHIP as its source of truth.
+
+No direct cross-system database writes are allowed. Synchronization is event/API based and must preserve source-system identity, timestamps, idempotency keys, and audit history.
+
+## UGATU boundary
+
+UGATU U-Codes are not renamed, replaced, or rewritten by Vector 5250. Vector 5250 keeps its own operator commands such as MIGO, MB51, MB52, MI01, MI04, MB5T, VL06O and LT03.
+
+Where an operational event needs to enter UGATU, a separate interoperability adapter may translate that Vector event to an existing UGATU U-Code. The adapter is a boundary mapping only; it does not modify the UGATU registry and it does not make UGATU the internal command system of Vector 5250.
+
+## Relay monitoring
+
+Vector 5250 emits operational, audit, health, and integration events to the existing Data Relay. Relay monitoring is observability/integration, not ownership: the relay does not replace Vector 5250 persistence.
 
 ## Production paths
 
 - `/vector5250` — Vector 5250 terminal UI
-- `/api/vector5250/status` — integration status
-- `/api/vector5250/session` — shared staff authorization check
-- `/api/vector5250/dashboard` — existing warehouse control-tower data
-- `/api/vector5250/commands` — Vector/SAP-style aliases mapped to UGATU
-- `/api/vector5250/resolve/{command}` — resolve alias to canonical UGATU identity
-
-## Command policy
-
-Legacy/SAP-like transaction names are aliases for trained operators. UGATU remains canonical and immutable for execution, audit and integration. Current first-pass aliases include MIGO, MB51, MB52, MI01, MI04, MB5T, VL06O, LT03 and ZV5250.
+- `/api/vector5250/status` — Vector status and system-of-record state
+- `/api/vector5250/session` — authorized sign-on
+- `/api/vector5250/dashboard` — Vector-owned operational dashboard
+- `/api/vector5250/commands` — Vector command catalog
+- `/api/vector5250/resolve/{command}` — Vector command resolver
 
 ## Migration policy for the original prototype
 
-The original prototype contains valuable screens for inbound, outbound, inventory, purchasing, cycle count, MRP, MES, transportation, PLM, EAM, analytics and reporting. Those screens should be migrated incrementally. During migration:
+The original prototype contains inbound, outbound, inventory, purchasing, cycle count, MRP, MES, transportation, PLM, EAM, analytics and reporting responsibilities. These responsibilities remain Vector 5250 responsibilities while the prototype is hardened for production.
 
-1. Replace prototype `window.storage` persistence with existing warehouse/UGASHIP APIs.
-2. Remove hard-coded/quick-login users and rely on shared staff RBAC.
-3. Route operational commands through UGATU rather than creating a second transaction system.
-4. Route external events through the signed UGA Integration Gateway rather than direct arbitrary webhooks.
-5. Keep the 5250 visual/keyboard workflow as the advanced operator experience.
+1. Replace browser-only prototype persistence with Vector 5250 server-side persistence, not Warehouse/UGASHIP persistence.
+2. Preserve Vector 5250 workflows, commands and business rules.
+3. Use shared security/identity where useful without making Vector dependent on another application's operational database.
+4. Emit monitored events through Data Relay and use the signed Integration Gateway for external partners where appropriate.
+5. Keep UGATU translation at the interoperability boundary only.
+6. Keep the 5250 visual/keyboard workflow as the advanced operator experience.
 
 ## Phase 1
 
-Phase 1 installs the renamed Vector 5250 shell, shared authentication, live warehouse dashboard, command alias resolver and Railway mount. It does not duplicate inventory or custody truth.
-
-Next phases migrate transaction screens in this order: inbound/receiving -> scan/custody -> inventory -> outbound/loading -> transfers -> returns -> purchasing/MRP -> MES/EAM -> analytics.
+Phase 1 establishes Vector 5250 as an independent system of record, its database and event journal, relay monitoring, command catalog, shared sign-on boundary, Railway mount, and explicit UGATU isolation.
