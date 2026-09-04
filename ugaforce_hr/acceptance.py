@@ -33,7 +33,7 @@ def static_checks() -> dict[str, Any]:
             failures.append(f'import {module}: {exc}')
     try:
         from ugaforce_hr_runtime import app
-        routes = {r.path for r in app.routes}
+        routes = {path for route in app.routes if (path := getattr(route, 'path', None))}
         missing = sorted(REQUIRED_ROUTES - routes)
         if missing:
             failures.append('missing routes: ' + ', '.join(missing))
