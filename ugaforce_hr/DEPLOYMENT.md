@@ -4,24 +4,27 @@ UGAFORCE-HR is intentionally deployed as an independent Railway service from the
 
 ## Railway service
 
-Start command:
+Production start command:
+
+```bash
+bash ugaforce_hr/entrypoint.sh
+```
+
+The production entrypoint performs three ordered actions: validates required production environment settings, applies only pending PostgreSQL migrations, then starts `ugaforce_hr_runtime:app`. A missing database URL, missing bootstrap authority key, missing allowed-origin configuration, or wildcard CORS origin prevents production startup.
+
+Direct development command:
 
 ```bash
 uvicorn ugaforce_hr_runtime:app --host 0.0.0.0 --port $PORT
 ```
 
-`ugaforce_hr_runtime.py` composes the standalone HR core with the Phase 2 People/RBAC routes and the fail-open UGACORE adapter. UGACORE is optional and must never be required for an HR transaction to succeed.
-
 Required variables:
 
 - `UGAFORCE_HR_DATABASE_URL` — dedicated PostgreSQL connection string. `DATABASE_URL` is accepted as a fallback for local/dev use.
 - `UGAFORCE_HR_BOOTSTRAP_KEY` — one-time authority key used to create the first HR administrator. Do not use a hard-coded default.
+- `UGAFORCE_HR_ALLOWED_ORIGINS` — comma-separated production origins. Wildcard `*` is rejected by the production readiness gate.
 
-Recommended production variable:
-
-- `UGAFORCE_HR_ALLOWED_ORIGINS` — comma-separated allowed origins. Set this to the final UGAFORCE-HR hostname rather than `*`.
-
-Future platform variables (optional until UGACORE is deployed):
+Future platform variables remain optional until UGACORE is deployed:
 
 - `UGACORE_URL`
 - `UGACORE_SERVICE_ID` — defaults to `ugaforce-hr`.
@@ -30,26 +33,35 @@ Future platform variables (optional until UGACORE is deployed):
 
 ## Migrations
 
-Run against the dedicated HR database before first production start and after adding migrations:
+The production entrypoint automatically runs:
 
 ```bash
 python ugaforce_hr/migrate.py
 ```
 
-The migration runner records applied migrations in `ugaforce_hr_schema_migrations` and does not repeat them. Current migrations establish the HR core, identity/session/RBAC controls, and People-directory indexes.
+The migration runner records applied migrations in `ugaforce_hr_schema_migrations`, skips migrations already recorded, and applies new migrations in filename order. This allows a Railway deployment to bring the dedicated HR database forward before the API begins serving traffic.
 
-## Phase 2 endpoints
+For a manual migration-only run, use the same command above with the production HR database environment loaded.
 
-- `/` — authenticated HR Command Center and People directory
-- `/health` — service and PostgreSQL readiness
-- `/api/v1/auth/bootstrap` — one-time first administrator initialization
-- `/api/v1/auth/login`, `/api/v1/auth/me`, `/api/v1/auth/logout` — HR session lifecycle
-- `/api/v1/dashboard` — live HR dashboard counts
-- `/api/v1/departments` — organization structure
-- `/api/v1/employees` — People directory and HR-managed employee records
-- `/api/v1/employees/{employee_id}/account` — controlled user-account provisioning
-- `/api/v1/profile-change-requests` — employee self-service change requests and HR review
-- `/api/v1/audit` — local authoritative HR audit trail for HR management
+## Acceptance
+
+Repository/static acceptance:
+
+```bash
+python -m ugaforce_hr.acceptance
+```
+
+Production environment gate:
+
+```bash
+python -m ugaforce_hr.acceptance --environment
+```
+
+The production gate fails closed when the dedicated database configuration, bootstrap authority, or safe CORS origin configuration is absent.
+
+## Production verification
+
+After Railway reports the service healthy, verify `/health` first. Then exercise authentication and the protected HR modules using real authorized test accounts: People, Recruiting, Onboarding, Time & Attendance, Payroll & Benefits, Performance, Approvals, Analytics, Notifications, Offboarding, and Security Readiness. Do not treat repository acceptance alone as proof that the Railway database and deployed service are healthy.
 
 ## Security boundary
 
