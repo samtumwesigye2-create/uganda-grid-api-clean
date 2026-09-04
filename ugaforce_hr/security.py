@@ -52,11 +52,11 @@ def authenticate(username: str, password: str) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="HR database is not configured")
     with psycopg2.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
-            cur.execute("select id::text,username,password_hash,role_name,active,failed_signins,locked_until,employee_id::text from ugaforce_hr_users where lower(username)=lower(%s)", (username.strip(),))
+            cur.execute("select id::text,username,password_hash,role_name,active,failed_signins,locked_until,employee_id::text,must_change_password from ugaforce_hr_users where lower(username)=lower(%s)", (username.strip(),))
             row = cur.fetchone()
             if not row:
                 raise HTTPException(status_code=401, detail="Invalid credentials")
-            uid, uname, phash, role, active, failed, locked_until, employee_id = row
+            uid, uname, phash, role, active, failed, locked_until, employee_id, must_change_password = row
             now = datetime.now(timezone.utc)
             if not active:
                 raise HTTPException(status_code=403, detail="Account disabled")
@@ -70,7 +70,7 @@ def authenticate(username: str, password: str) -> dict[str, Any]:
             cur.execute("update ugaforce_hr_users set failed_signins=0,locked_until=null,last_signin=now(),updated_at=now() where id=%s", (uid,))
         token, expires = issue_session(conn, uid)
         conn.commit()
-    return {"token": token, "expires_at": expires, "user": {"id": uid, "username": uname, "role": role, "employee_id": employee_id}}
+    return {"token": token, "expires_at": expires, "must_change_password": bool(must_change_password), "user": {"id": uid, "username": uname, "role": role, "employee_id": employee_id, "must_change_password": bool(must_change_password)}}
 
 
 def current_user(authorization: str = Header(default="")) -> dict[str, Any]:
@@ -83,14 +83,14 @@ def current_user(authorization: str = Header(default="")) -> dict[str, Any]:
     with psycopg2.connect(DATABASE_URL) as conn:
         with conn.cursor() as cur:
             cur.execute("""
-                select u.id::text,u.username,u.role_name,u.employee_id::text,u.active,s.id::text
+                select u.id::text,u.username,u.role_name,u.employee_id::text,u.active,s.id::text,u.must_change_password
                 from ugaforce_hr_sessions s join ugaforce_hr_users u on u.id=s.user_id
                 where s.token_hash=%s and s.revoked_at is null and s.expires_at>now()
             """, (token_hash(token),))
             row = cur.fetchone()
     if not row or not row[4]:
         raise HTTPException(status_code=401, detail="Session expired or invalid")
-    return {"id": row[0], "username": row[1], "role": row[2], "employee_id": row[3], "session_id": row[5], "token": token}
+    return {"id": row[0], "username": row[1], "role": row[2], "employee_id": row[3], "session_id": row[5], "must_change_password": bool(row[6]), "token": token}
 
 
 def require_role(user: dict[str, Any], minimum: str) -> None:
