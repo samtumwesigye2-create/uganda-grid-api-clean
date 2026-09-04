@@ -1,0 +1,26 @@
+name: UGAFORCE-HR Acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'ugaforce_hr/**'
+      - 'ugaforce_hr_app.py'
+      - 'ugaforce_hr_runtime.py'
+      - 'requirements.txt'
+      - '.github/workflows/ugaforce-hr-acceptance.yml'
+  workflow_dispatch:
+
+jobs:
+  static-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Compile HR service
+        run: python -m compileall -q ugaforce_hr ugaforce_hr_app.py ugaforce_hr_runtime.py
+      - name: Run route and module acceptance
+        run: python -m ugaforce_hr.acceptance
