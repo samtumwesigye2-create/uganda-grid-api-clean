@@ -1,14 +1,6 @@
 """
 special_zip_assignments.py
-Persistent special ZIP registry — monuments, national parks, government buildings.
-
-Drop-in replacement: same function names your main.py already imports
-(list_assignments, create_assignment, delete_assignment, category_catalog, feature_collection)
-No changes needed anywhere else.
-
-Saves every record to a JSON file on disk immediately after every change,
-the same way entebbe_database.json works for regular addresses — so nothing
-is lost on redeploy or restart.
+Persistent special ZIP registry - monuments, national parks, government buildings.
 """
 
 import os
@@ -62,20 +54,25 @@ _store = _load()
 
 def category_catalog():
     return [
-        {"category": key, "label": info["label"],
-         "range_start": str(info["range"][0]).zfill(5),
-         "range_end": str(info["range"][1]).zfill(5)}
+        {
+            "category": key,
+            "label": info["label"],
+            "range_start": str(info["range"][0]).zfill(5),
+            "range_end": str(info["range"][1]).zfill(5),
+        }
         for key, info in CATEGORIES.items()
     ]
 
 
 def _next_code(category):
     start, end = CATEGORIES[category]["range"]
-    used = {int(code) for code in _store.keys()}
+    used = set()
+    for code in _store.keys():
+        used.add(int(code))
     for n in range(start, end + 1):
         if n not in used:
             return str(n).zfill(5)
-    raise ValueError(f"No free ZIP codes left in category '{category}'")
+    raise ValueError("No free ZIP codes left in category '" + category + "'")
 
 
 def list_assignments():
@@ -84,9 +81,11 @@ def list_assignments():
 
 def create_assignment(category, name, latitude, longitude, address="", notes="", zip_code=None):
     if category not in CATEGORIES:
-        raise ValueError(f"Invalid category '{category}'. Must be one of: {list(CATEGORIES.keys())}")
+        raise ValueError("Invalid category '" + str(category) + "'")
+
     if not name or not str(name).strip():
         raise ValueError("Name is required")
+
     try:
         latitude = float(latitude)
         longitude = float(longitude)
@@ -96,7 +95,7 @@ def create_assignment(category, name, latitude, longitude, address="", notes="",
     if zip_code:
         code = str(zip_code).zfill(5)
         if code in _store:
-            raise ValueError(f"ZIP code {code} is already assigned")
+            raise ValueError("ZIP code " + code + " is already assigned")
     else:
         code = _next_code(category)
 
@@ -109,6 +108,7 @@ def create_assignment(category, name, latitude, longitude, address="", notes="",
         "address": address or "",
         "notes": notes or "",
     }
+
     _store[code] = record
     _save(_store)
     return record
@@ -124,50 +124,23 @@ def delete_assignment(zip_code):
 
 
 def feature_collection():
+    features = []
+    for r in _store.values():
+        features.append({
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [r["longitude"], r["latitude"]],
+            },
+            "properties": {
+                "zip_code": r["zip_code"],
+                "name": r["name"],
+                "category": r["category"],
+                "address": r.get("address", ""),
+                "notes": r.get("notes", ""),
+            },
+        })
     return {
         "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [r["longitude"], r["latitude"]],
-                },
-                "properties": {
-                    "zip_code": r["zip_code"],
-                    "name": r["name"],
-                    "category": r["category"],
-                    "address": r.get("address", ""),
-                    "notes": r.get("notes", ""),
-                },
-            }
-            for r in _store.values()
-        ],
+        "features": features,
     }
-ot None:updated["latitude"]=float(latitude)
- if longitude is not None:updated["longitude"]=float(longitude)
- if address is not None:updated["address"]=str(address).strip()
- if notes is not None:updated["notes"]=str(notes).strip()
- if new_code!=old:
-  if DATABASE_URL:_delete_db(old)
-  else:_save_json([x for x in _runtime_load_json() if str(x.get("zip_code","")).zfill(5)!=old])
- _persist_item(updated);return updated
-def delete_assignment(zip_code):
- code=str(zip_code).zfill(5)
- if code in {x["zip_code"] for x in DEFAULT_ASSIGNMENTS if x.get("locked_anchor")}:return False
- if DATABASE_URL:return bool(_delete_db(code))
- runtime=_runtime_load_json();new=[x for x in runtime if str(x.get("zip_code","")).zfill(5)!=code]
- if len(new)==len(runtime):return False
- _save_json(new);return True
-def category_catalog():
- used={str(x.get("zip_code","")).zfill(5) for x in _load()};result=[]
- for anchor,info in SPECIAL_CATEGORY_ANCHORS.items():
-  category=info["category"];codes=[anchor]+_legacy_codes(category)+_block_codes(category);available=[z for z in codes if z not in used]
-  result.append({"anchor":anchor,**info,"range":SPECIAL_BLOCKS[category],"next_available":available[0] if available else None,"available_count":len(available),"persistent_backend":"postgresql" if DATABASE_URL else "json_fallback"})
- return result
-def feature_collection():return {"type":"FeatureCollection","features":[{"type":"Feature","properties":{k:v for k,v in x.items() if k not in {"latitude","longitude"}},"geometry":{"type":"Point","coordinates":[x["longitude"],x["latitude"]]}} for x in _load()]}
-def persistence_status():return {"backend":"postgresql" if DATABASE_URL else "json_fallback","durable_across_redeploys":bool(DATABASE_URL),"database_configured":bool(DATABASE_URL)}
-
-try:
- _init_db();_migrate_json_to_db()
-except Exception as e:print("Special ZIP database init unavailable:",e)
