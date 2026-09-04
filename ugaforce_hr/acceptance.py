@@ -18,6 +18,15 @@ REQUIRED_ROUTES = {
     '/api/v1/performance/metrics','/api/v1/approvals/inbox','/api/v1/analytics/executive',
     '/api/v1/notifications/me','/api/v1/offboarding','/api/v1/security/readiness',
 }
+ROUTER_MODULES = [
+    'ugaforce_hr.people_admin','ugaforce_hr.recruiting','ugaforce_hr.onboarding',
+    'ugaforce_hr.time_attendance','ugaforce_hr.payroll','ugaforce_hr.performance',
+    'ugaforce_hr.workflow_analytics','ugaforce_hr.completion',
+]
+
+
+def _paths(obj: Any) -> set[str]:
+    return {p for route in getattr(obj, 'routes', []) if (p := getattr(route, 'path', None))}
 
 
 def static_checks() -> dict[str, Any]:
@@ -33,7 +42,13 @@ def static_checks() -> dict[str, Any]:
             failures.append(f'import {module}: {exc}')
     try:
         from ugaforce_hr_runtime import app
-        routes = {path for route in app.routes if (path := getattr(route, 'path', None))}
+        routes = _paths(app)
+        for name in ROUTER_MODULES:
+            module = importlib.import_module(name)
+            for attr in ('router', 'public_router'):
+                candidate = getattr(module, attr, None)
+                if candidate is not None:
+                    routes |= _paths(candidate)
         missing = sorted(REQUIRED_ROUTES - routes)
         if missing:
             failures.append('missing routes: ' + ', '.join(missing))
