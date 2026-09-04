@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import importlib
 import os
 from pathlib import Path
@@ -58,20 +59,28 @@ def static_checks() -> dict[str, Any]:
 
 
 def environment_checks() -> dict[str, Any]:
+    database_url = os.getenv('UGAFORCE_HR_DATABASE_URL') or os.getenv('DATABASE_URL')
+    allowed_origins = [x.strip() for x in os.getenv('UGAFORCE_HR_ALLOWED_ORIGINS', '').split(',') if x.strip()]
     checks = {
-        'database_url': bool(os.getenv('UGAFORCE_HR_DATABASE_URL') or os.getenv('DATABASE_URL')),
+        'database_url': bool(database_url),
         'bootstrap_key': bool(os.getenv('UGAFORCE_HR_BOOTSTRAP_KEY')),
-        'allowed_origins': bool(os.getenv('UGAFORCE_HR_ALLOWED_ORIGINS')),
+        'allowed_origins': bool(allowed_origins) and '*' not in allowed_origins,
     }
     return {'ok': all(checks.values()), 'checks': checks}
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--environment', action='store_true', help='fail unless production environment variables are ready')
+    args = parser.parse_args()
     result = static_checks()
     print('UGAFORCE-HR static acceptance:', result)
     if not result['ok']:
         raise SystemExit(1)
-    print('UGAFORCE-HR environment readiness:', environment_checks())
+    environment = environment_checks()
+    print('UGAFORCE-HR environment readiness:', environment)
+    if args.environment and not environment['ok']:
+        raise SystemExit('UGAFORCE-HR production environment is incomplete or unsafe')
 
 
 if __name__ == '__main__':
