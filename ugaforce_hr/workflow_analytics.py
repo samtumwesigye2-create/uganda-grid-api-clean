@@ -20,11 +20,12 @@ class Decision(BaseModel): action:str; comments:Optional[str]=None
 @router.post('/workflows')
 def workflow(p:WorkflowIn,u:dict=Depends(current_user)):
  if u.get('role') not in {'HR_MANAGER','HR_ADMIN'}: raise HTTPException(403,'HR manager authority required')
+ if not p.approver_roles: raise HTTPException(400,'At least one approver role is required')
  with db() as cn:
   with cn.cursor(cursor_factory=RealDictCursor) as c:
    c.execute('insert into ugaforce_hr_workflow_definitions(name,resource_type,sla_hours) values(%s,%s,%s) returning id::text,name,resource_type,sla_hours,is_active',(p.name,p.resource_type,p.sla_hours)); r=dict(c.fetchone())
    for i,role in enumerate(p.approver_roles,1): c.execute('insert into ugaforce_hr_workflow_steps(workflow_id,step_order,approver_role) values(%s,%s,%s)',(r['id'],i,role))
-   emit(cn.cursor(),'workflow.created',r)
+   emit(c,'workflow.created',r)
   cn.commit(); return r
 @router.post('/approvals')
 def request(p:ApprovalIn,u:dict=Depends(current_user)):
@@ -37,7 +38,8 @@ def request(p:ApprovalIn,u:dict=Depends(current_user)):
     wid=w['id']; sla=w['sla_hours']
    else:
     c.execute('select sla_hours from ugaforce_hr_workflow_definitions where id=%s and is_active',(wid,)); w=c.fetchone()
-    if not w: raise HTTPException(404,'Workflow not found'); sla=w['sla_hours']
+    if not w: raise HTTPException(404,'Workflow not found')
+    sla=w['sla_hours']
    c.execute("insert into ugaforce_hr_approval_requests(workflow_id,resource_type,resource_id,requested_by,due_at) values(%s,%s,%s,%s,now()+(%s||' hours')::interval) returning id::text,status,current_step,due_at",(wid,p.resource_type,p.resource_id,u.get('employee_id'),sla)); r=dict(c.fetchone()); emit(c,'approval.requested',{'approval_id':r['id'],'resource_type':p.resource_type,'resource_id':p.resource_id})
   cn.commit(); return r
 @router.get('/approvals/inbox')
