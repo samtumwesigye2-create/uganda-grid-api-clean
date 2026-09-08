@@ -15,12 +15,13 @@ from fastapi.staticfiles import StaticFiles
 
 BOOT_ERROR = None
 BOOT_TRACE = None
-RELEASE = "20260908-vector-payment-r1"
+RELEASE = "20260908-zip-visible-r1"
 CURRENT_MAP_SCRIPTS = {
     "/app.js": "app.js",
     "/app-core.js": "app-core.js",
     "/boundaries.js": "boundaries.js",
     "/performance-layer.js": "performance-layer.js",
+    "/zip-map-layer.js": "zip-map-layer.js",
 }
 
 
