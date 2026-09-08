@@ -8,8 +8,9 @@ from fastapi.responses import Response
 from production_safe_entrypoint import app as production_app
 from ugatu_production_entrypoint import app as ugatu_app
 from data_relay_client import emit as relay_emit
+from zipper_routing_bridge import maybe_handle_zipper_bridge
 
-RELEASE = "20260902-5digit-r8"
+RELEASE = "20260908-zipper-apex-r9"
 VALHALLA_URL = "https://valhalla1.openstreetmap.de/route"
 OSRM_BASE = "https://router.project-osrm.org/route/v1/driving"
 
@@ -88,10 +89,23 @@ async def app(scope,receive,send):
             if method=="POST" and path=="/routing/route":
                 response=await _route_response(await _read_body(receive)); await response(scope,receive,relay_send); return
             if method=="GET":
+                bridge=await maybe_handle_zipper_bridge(scope,receive)
+                if isinstance(bridge,dict) and bridge.get('kind')=='route_to_zip':
+                    route_response=await _route_response(bridge['route_payload'])
+                    try: route_data=json.loads(route_response.body.decode('utf-8'))
+                    except Exception: route_data={}
+                    headers={"Cache-Control":"no-store","X-UGAMAP-Destination-Source":"UNG-ZIPPER"}
+                    router=route_response.headers.get("X-UGAMAP-Router")
+                    if router: headers["X-UGAMAP-Router"]=router
+                    payload={"ok":route_response.status_code==200,"source":"UNG-ZIPPER→UGAMAP","destination":bridge['zip'],"route":route_data}
+                    response=Response(json.dumps(payload),status_code=route_response.status_code,media_type="application/json",headers=headers)
+                    await response(scope,receive,relay_send); return
+                if bridge is not None:
+                    await bridge(scope,receive,relay_send); return
                 if path=="/":
                     response=Response(_public_index(),media_type="text/html",headers={"Cache-Control":"no-cache, no-store, must-revalidate"}); await response(scope,receive,relay_send); return
                 if path=="/system/release":
-                    response=Response(json.dumps({"release":RELEASE,"routing_proxy":True,"routing_fallback":"osrm","valhalla_timeout_seconds":2,"ugatu_driver":True}),media_type="application/json",headers={"Cache-Control":"no-store"}); await response(scope,receive,relay_send); return
+                    response=Response(json.dumps({"release":RELEASE,"routing_proxy":True,"routing_fallback":"osrm","valhalla_timeout_seconds":2,"ugatu_driver":True,"zipper_destination_resolution":True,"route_to_zip":True}),media_type="application/json",headers={"Cache-Control":"no-store"}); await response(scope,receive,relay_send); return
                 if path=="/routing/test":
                     response=await _routing_test(); await response(scope,receive,relay_send); return
                 if path in {"/app.js","/boundaries.js","/performance-layer.js","/app-core.js"}:
