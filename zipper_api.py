@@ -26,7 +26,7 @@ for r in (orders_router,yard_router,analytics_router,optimization_router,digital
 BASE_DIR=os.path.dirname(os.path.abspath(__file__))
 ZIPPER_GEOJSON_FILE=os.environ.get('ZIPPER_GEOJSON_FILE',os.path.join(BASE_DIR,'zipper_zones.geojson'))
 ZIPPER_API_URL=os.environ.get('ZIPPER_API_URL','https://ung-zipper-production.up.railway.app').rstrip('/')
-ZIPPER_TIMEOUT=float(os.environ.get('ZIPPER_TIMEOUT_SECONDS','4'))
+ZIPPER_TIMEOUT=float(os.environ.get('ZIPPER_TIMEOUT_SECONDS','8'))
 
 @lru_cache(maxsize=1)
 def _load_artifact():
@@ -47,6 +47,33 @@ def _zipper_get(path:str):
  if response.status_code!=200:raise HTTPException(status_code=502,detail=f'UNG-ZIPPER returned HTTP {response.status_code}')
  try:return response.json()
  except ValueError:raise HTTPException(status_code=502,detail='UNG-ZIPPER returned invalid JSON')
+
+@router.get('/integration/zipper/health')
+def zipper_integration_health():
+ """Live end-to-end acceptance: readiness -> sample -> validation -> resolution."""
+ ready=_zipper_get('/ready')
+ records=_zipper_get('/zipper/?limit=1')
+ if not isinstance(records,list) or not records:
+  raise HTTPException(status_code=503,detail='UNG-ZIPPER registry is empty')
+ sample=records[0]
+ code=str(sample.get('code') or '').strip()
+ if not code:
+  raise HTTPException(status_code=503,detail='UNG-ZIPPER sample has no code')
+ validation=_zipper_get(f'/zipper/validate/{code}')
+ resolution=_zipper_get(f'/zipper/{code}')
+ if not validation.get('valid') or str(resolution.get('code'))!=code:
+  raise HTTPException(status_code=503,detail='UNG-ZIPPER validation/resolution mismatch')
+ return {
+  'status':'ok',
+  'integration':'UGAMAP->UNG-ZIPPER',
+  'registry_records':ready.get('records'),
+  'sample_code':code,
+  'district':resolution.get('district'),
+  'area_type':resolution.get('area_type'),
+  'population_covered':resolution.get('population_covered'),
+  'validation':validation,
+  'resolution_ok':True,
+ }
 
 @router.get('/zipper/validate/{code}')
 def validate_zipper_code(code:str):
