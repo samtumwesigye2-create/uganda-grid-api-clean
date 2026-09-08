@@ -44,7 +44,7 @@
     const polygons = L.geoJSON(data, {
       pane: 'overlayPane',
       style: function () {
-        return { color: '#111827', weight: 1, opacity: 0.75, fillColor: '#2563eb', fillOpacity: 0.06 };
+        return { color: '#111827', weight: 1, opacity: 0.78, fillColor: '#2563eb', fillOpacity: 0.08 };
       },
       onEachFeature: function (feature, layer) {
         const code = zipCodeOf(feature);
@@ -75,10 +75,10 @@
     function refreshLabels() {
       labels.clearLayers();
       const z = map.getZoom();
-      if (z < 9) return;
+      if (z < 7) return;
       const bounds = map.getBounds().pad(0.15);
       let shown = 0;
-      const limit = z >= 12 ? 1200 : z >= 10 ? 550 : 220;
+      const limit = z >= 12 ? 1200 : z >= 10 ? 550 : z >= 9 ? 300 : z >= 8 ? 160 : 90;
       for (const marker of labelMarkers) {
         if (shown >= limit) break;
         if (bounds.contains(marker.getLatLng())) {
