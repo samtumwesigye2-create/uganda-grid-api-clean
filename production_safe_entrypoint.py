@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 BOOT_ERROR = None
 BOOT_TRACE = None
-RELEASE = "20260908-zipper-ship-r1"
+RELEASE = "20260908-vector-payment-r1"
 CURRENT_MAP_SCRIPTS = {
     "/app.js": "app.js",
     "/app-core.js": "app-core.js",
@@ -57,8 +57,11 @@ try:
     app = production.app
     from zipper_search_runtime import router as zipper_search_router
     from ugaship_zipper_runtime import router as ugaship_zipper_router
+    from ugaship_vector_payment_hook import install_payment_hook, router as vector_payment_router
+    install_payment_hook()
     app.include_router(zipper_search_router)
     app.include_router(ugaship_zipper_router)
+    app.include_router(vector_payment_router)
 except BaseException as exc:
     BOOT_ERROR = f"{type(exc).__name__}: {exc}"
     BOOT_TRACE = traceback.format_exc()
@@ -120,7 +123,7 @@ if BOOT_ERROR is None:
 
     @app.get("/system/startup-status", include_in_schema=False)
     def startup_status_ok():
-        return {"mode":"normal","process_alive":True,"full_app_loaded":True,"navigation_home":"proven-index","release":RELEASE,"ugaship_zipper":True,"error":None}
+        return {"mode":"normal","process_alive":True,"full_app_loaded":True,"navigation_home":"proven-index","release":RELEASE,"ugaship_zipper":True,"ugaship_vector_payment_hook":True,"error":None}
 
     _full_production_app = app
 
