@@ -21,7 +21,14 @@ def test_driver_lifecycle_exposes_shift_and_shipment_leg_controls():
         assert marker in source
 
 
-def test_driver_frontend_purges_secure_cache_on_logout():
-    source = (ROOT / 'assets' / 'driver-ugatu-v3.js').read_text(encoding='utf-8')
-    assert 'UGATUOffline.purge' in source
-    assert 'UGATUOffline.bindSession' in source
+def test_driver_frontend_binds_session_and_guards_secure_purge():
+    source = (ROOT / 'assets' / 'driver-ugatu-finalize-v1.js').read_text(encoding='utf-8')
+    assert 'bindSecureSession' in source
+    assert 'api.bindSession' in source
+    assert 'api.purge({force:false})' in source
+
+
+def test_production_entrypoint_mounts_driver_lifecycle():
+    source = (ROOT / 'ugatu_production_entrypoint.py').read_text(encoding='utf-8')
+    assert 'ugatu_driver_lifecycle_router' in source
+    assert "'/api/ugatu/driver-lifecycle'" in source
