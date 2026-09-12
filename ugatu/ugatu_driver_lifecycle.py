@@ -40,7 +40,8 @@ def _ensure(c):
     c.execute('''CREATE TABLE IF NOT EXISTS ugatu_driver_shifts(
       id TEXT PRIMARY KEY, driver_id TEXT NOT NULL, started_at REAL NOT NULL, ended_at REAL,
       status TEXT NOT NULL, start_odometer REAL, end_odometer REAL, reconciled_at REAL,
-      notes TEXT, UNIQUE(driver_id,status))''')
+      notes TEXT)''')
+    c.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_ugatu_driver_open_shift ON ugatu_driver_shifts(driver_id) WHERE status='open'")
     c.execute('''CREATE TABLE IF NOT EXISTS ugatu_shipment_legs(
       id TEXT PRIMARY KEY, shipment_id TEXT, task_id TEXT UNIQUE NOT NULL, driver_id TEXT NOT NULL,
       leg_type TEXT NOT NULL, status TEXT NOT NULL, from_location TEXT, to_location TEXT,
