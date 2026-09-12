@@ -1,0 +1,25 @@
+name: UGATU Finalization
+on:
+  push:
+    branches: ['feature/ugatu-layer-finalization']
+    paths:
+      - 'ugatu/**'
+      - 'assets/driver-ugatu-v3.js'
+      - 'assets/ugatu-offline-secure-v1.js'
+      - 'tests/test_ugatu_layer_finalization.py'
+      - '.github/workflows/ugatu-finalization.yml'
+  pull_request:
+    paths:
+      - 'ugatu/**'
+      - 'assets/driver-ugatu-v3.js'
+      - 'assets/ugatu-offline-secure-v1.js'
+      - 'tests/test_ugatu_layer_finalization.py'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install pytest
+      - run: pytest -q tests/test_ugatu_layer_finalization.py
