@@ -35,6 +35,14 @@ def _task_for_driver(c, driver_id: str, task_id: str):
 def _ensure_platform_tables(c):
     c.execute('''CREATE TABLE IF NOT EXISTS platform_documents(id TEXT PRIMARY KEY,name TEXT NOT NULL,stored_name TEXT NOT NULL,mime_type TEXT,size INTEGER NOT NULL,version INTEGER NOT NULL DEFAULT 1,tags TEXT,owner TEXT,created_at REAL NOT NULL,updated_at REAL NOT NULL)''')
     c.execute('''CREATE TABLE IF NOT EXISTS platform_document_versions(id TEXT PRIMARY KEY,document_id TEXT NOT NULL,version INTEGER NOT NULL,stored_name TEXT NOT NULL,size INTEGER NOT NULL,created_at REAL NOT NULL)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS ugatu_driver_document_audit(
+      id TEXT PRIMARY KEY, document_id TEXT NOT NULL, task_id TEXT, driver_id TEXT NOT NULL,
+      action TEXT NOT NULL, details TEXT, created_at REAL NOT NULL)''')
+
+
+def _audit(c, document_id: str, task_id: str | None, driver_id: str, action: str, details: str = ''):
+    c.execute('''INSERT INTO ugatu_driver_document_audit(id,document_id,task_id,driver_id,action,details,created_at)
+      VALUES(?,?,?,?,?,?,?)''',(str(uuid.uuid4()),document_id,task_id,driver_id,action,details[:1000],time.time()))
 
 
 @router.get('/task/{task_id}')
@@ -47,15 +55,7 @@ def documents_for_task(task_id: str, x_driver_passcode: str = Header(default='')
         rows = c.execute(f'SELECT * FROM platform_documents WHERE {clauses} ORDER BY updated_at DESC', tuple('%'+r+'%' for r in refs)).fetchall()
     finally: c.close()
     docs = [dict(x) for x in rows]
-    return {
-        'task_id': task_id,
-        'shipment_number': t.get('shipment_number'),
-        'templates': [
-            {'type':'BOL','name':'Bill of Lading','url':'/business-documents/bill-of-lading.html'},
-            {'type':'RECEIPT','name':'Receipt / Proof Document','url':'/business-documents/receipt.html'},
-        ],
-        'documents': docs,
-    }
+    return {'task_id': task_id,'shipment_number': t.get('shipment_number'),'templates':[{'type':'BOL','name':'Bill of Lading','url':'/business-documents/bill-of-lading.html'},{'type':'RECEIPT','name':'Receipt / Proof Document','url':'/business-documents/receipt.html'}],'documents': docs}
 
 
 @router.get('/{document_id}/download')
@@ -67,12 +67,14 @@ def driver_document_download(document_id: str, x_driver_passcode: str = Header(d
         if not doc: raise HTTPException(404, 'Document not found')
         tags = str(doc['tags'] or '')
         tasks = c.execute('SELECT id,task_number,shipment_number FROM dispatch_tasks WHERE driver_id=?', (d['id'],)).fetchall()
-        allowed = any(str(x['id']) in tags or str(x['task_number'] or '') in tags or (x['shipment_number'] and str(x['shipment_number']) in tags) for x in tasks)
-        if not allowed: raise HTTPException(403, 'Document is not assigned to this driver')
+        match = next((x for x in tasks if str(x['id']) in tags or str(x['task_number'] or '') in tags or (x['shipment_number'] and str(x['shipment_number']) in tags)), None)
+        if not match: raise HTTPException(403, 'Document is not assigned to this driver')
         path = os.path.join(DOC_DIR, doc['stored_name'])
+        if not os.path.isfile(path): raise HTTPException(404, 'Stored file is missing')
         name = doc['name']; mime = doc['mime_type'] or 'application/octet-stream'; version = doc['version']
+        _audit(c, document_id, str(match['id']), d['id'], 'DOWNLOAD', f'version={version}')
+        c.commit()
     finally: c.close()
-    if not os.path.isfile(path): raise HTTPException(404, 'Stored file is missing')
     return FileResponse(path, filename=name, media_type=mime, headers={'X-Document-Version': str(version)})
 
 
@@ -84,20 +86,13 @@ async def scan_document(task_id: str, file: UploadFile = File(...), document_typ
     c = _conn(); path = None
     try:
         _ensure_platform_tables(c); t = _task_for_driver(c, d['id'], task_id)
-        did = 'DOC-' + uuid.uuid4().hex[:10].upper(); version = 1; now = time.time()
-        stored = f'{did}-v1-{uuid.uuid4().hex[:8]}'
-        path = os.path.join(DOC_DIR, stored)
+        did = 'DOC-' + uuid.uuid4().hex[:10].upper(); version = 1; now = time.time(); stored = f'{did}-v1-{uuid.uuid4().hex[:8]}'; path = os.path.join(DOC_DIR, stored)
         with open(path, 'wb') as fh: fh.write(data)
         raw_tags = ['UGATU_DRIVER', document_type.strip().upper(), task_id, t.get('task_number'), t.get('shipment_number'), f"driver:{d['id']}", notes[:300]]
         tags = '|'.join(str(x) for x in raw_tags if x is not None and str(x).strip())
-        c.execute('''INSERT INTO platform_documents
-                     (id,name,stored_name,mime_type,size,version,tags,owner,created_at,updated_at)
-                     VALUES (?,?,?,?,?,?,?,?,?,?)''',
-                  (did, file.filename or 'driver-document', stored, file.content_type or 'application/octet-stream', len(data), version, tags, d['id'], now, now))
-        c.execute('''INSERT INTO platform_document_versions
-                     (id,document_id,version,stored_name,size,created_at)
-                     VALUES (?,?,?,?,?,?)''',
-                  (str(uuid.uuid4()), did, version, stored, len(data), now))
+        c.execute('''INSERT INTO platform_documents(id,name,stored_name,mime_type,size,version,tags,owner,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)''',(did,file.filename or 'driver-document',stored,file.content_type or 'application/octet-stream',len(data),version,tags,d['id'],now,now))
+        c.execute('''INSERT INTO platform_document_versions(id,document_id,version,stored_name,size,created_at) VALUES (?,?,?,?,?,?)''',(str(uuid.uuid4()),did,version,stored,len(data),now))
+        _audit(c, did, task_id, d['id'], 'UPLOAD', f'type={document_type.strip().upper()};size={len(data)}')
         c.commit()
     except HTTPException:
         if path and os.path.isfile(path):
@@ -110,4 +105,14 @@ async def scan_document(task_id: str, file: UploadFile = File(...), document_typ
             except OSError: pass
         raise HTTPException(500, f'Document upload failed: {type(exc).__name__}') from exc
     finally: c.close()
-    return {'id': did, 'task_id': task_id, 'shipment_number': t.get('shipment_number'), 'document_type': document_type.strip().upper(), 'version': 1, 'size': len(data), 'linked': True}
+    return {'id': did,'task_id': task_id,'shipment_number': t.get('shipment_number'),'document_type': document_type.strip().upper(),'version': 1,'size': len(data),'linked': True}
+
+
+@router.get('/audit/history')
+def document_audit_history(x_driver_passcode: str = Header(default='')):
+    d=_driver(x_driver_passcode); c=_conn()
+    try:
+        _ensure_platform_tables(c)
+        rows=c.execute('SELECT * FROM ugatu_driver_document_audit WHERE driver_id=? ORDER BY created_at DESC LIMIT 200',(d['id'],)).fetchall()
+        return {'count':len(rows),'results':[dict(x) for x in rows]}
+    finally: c.close()
