@@ -84,6 +84,11 @@ async def app(scope,receive,send):
     try:
         if scope.get("type")=="http":
             method=scope.get("method"); path=scope.get("path")
+            headers = dict(scope.get("headers", []))
+            host = headers.get(b"host", b"").decode("latin-1").split(":", 1)[0].lower()
+            if method in {"GET", "HEAD"} and path == "/" and host == "warehouse.ugandagrid.com":
+                scope = dict(scope, path="/warehouse", raw_path=b"/warehouse")
+                path = "/warehouse"
             if path=="/driver/ugatu" or path.startswith("/api/ugatu/"):
                 await ugatu_app(scope,receive,relay_send); return
             if method=="POST" and path=="/routing/route":
