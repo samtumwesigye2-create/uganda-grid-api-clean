@@ -7,6 +7,7 @@ import requests
 from fastapi.responses import Response
 from production_safe_entrypoint import app as production_app
 from ugatu_production_entrypoint import app as ugatu_app
+from vector5250_entrypoint import app as vector5250_app
 from data_relay_client import emit as relay_emit
 from zipper_routing_bridge import maybe_handle_zipper_bridge
 
@@ -89,6 +90,8 @@ async def app(scope,receive,send):
             if method in {"GET", "HEAD"} and path == "/" and host == "warehouse.ugandagrid.com":
                 scope = dict(scope, path="/warehouse", raw_path=b"/warehouse")
                 path = "/warehouse"
+            if path=="/vector5250" or path.startswith("/api/vector5250/"):
+                await vector5250_app(scope,receive,relay_send); return
             if path=="/driver/ugatu" or path.startswith("/api/ugatu/"):
                 await ugatu_app(scope,receive,relay_send); return
             if method=="POST" and path=="/routing/route":
@@ -110,7 +113,7 @@ async def app(scope,receive,send):
                 if path=="/":
                     response=Response(_public_index(),media_type="text/html",headers={"Cache-Control":"no-cache, no-store, must-revalidate"}); await response(scope,receive,relay_send); return
                 if path=="/system/release":
-                    response=Response(json.dumps({"release":RELEASE,"routing_proxy":True,"routing_fallback":"osrm","valhalla_timeout_seconds":2,"ugatu_driver":True,"zipper_destination_resolution":True,"route_to_zip":True}),media_type="application/json",headers={"Cache-Control":"no-store"}); await response(scope,receive,relay_send); return
+                    response=Response(json.dumps({"release":RELEASE,"routing_proxy":True,"routing_fallback":"osrm","valhalla_timeout_seconds":2,"ugatu_driver":True,"vector5250":True,"zipper_destination_resolution":True,"route_to_zip":True}),media_type="application/json",headers={"Cache-Control":"no-store"}); await response(scope,receive,relay_send); return
                 if path=="/routing/test":
                     response=await _routing_test(); await response(scope,receive,relay_send); return
                 if path in {"/app.js","/boundaries.js","/performance-layer.js","/app-core.js"}:
